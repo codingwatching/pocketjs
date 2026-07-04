@@ -40,13 +40,16 @@ finding is folded in below and marked **[R]**.
 Decisions grounded in a full audit of the dreamcart runtime (research
 artifacts: `$JOB_TMP/map-*.json`).
 
-- **React-compatible/Vue JSX renderers.** The `--engine=react` build is a local
-  React-shaped JSX compatibility shim plus PocketJS native-tree reconciliation;
-  it is not official React and its measurements must not be reported as React
-  performance. The full `react-reconciler` is too slow to bootstrap inside PSP
-  QuickJS. Vue builds use Vue 3's custom renderer over the same native-tree
-  contract. Both engines keep application code in JSX and Tailwind literals,
-  with PocketJS signals/hooks providing the app-facing reactive API.
+- **Original React failure, then React-compatible/Vue JSX renderers.** The
+  primary negative finding is that original React did not reach a runnable
+  PSP/PPSSPP path in this investigation; the full `react-reconciler` is too
+  slow to bootstrap inside PSP QuickJS. The `--engine=react` build is therefore
+  only a local React-shaped JSX compatibility shim plus PocketJS native-tree
+  reconciliation. It is not official React, and its measurements must not be
+  reported as React performance. Vue builds use Vue 3's custom renderer over
+  the same native-tree contract. Both runnable engine paths keep application
+  code in JSX and Tailwind literals, with PocketJS signals/hooks providing the
+  app-facing reactive API.
 - **QuickJS reality [R]**: the linked engine (quickjs-rs submodule) is
   **Bellard 2025 (VERSION 2026-06-04), ~ES2023** — logical assignment, WeakRef
   and **FinalizationRegistry are available**. Still absent: `queueMicrotask`

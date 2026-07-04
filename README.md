@@ -15,9 +15,10 @@ bun scripts/build.ts hero             # React-compatible shim -> dist/hero.js + 
 bun scripts/build.ts hero --engine=vue # Vue -> dist/hero.vue.js + dist/hero.vue.dcpak
 ```
 
-The `--engine=react` path is a local React-shaped compatibility runtime, not
-official React. Do not treat its PPSSPP smoke tests or measurements as React
-performance results.
+Original React did not reach a runnable PSP/PPSSPP path in this investigation.
+The `--engine=react` path exists only as a local React-shaped compatibility
+runtime. It is not official React, and its PPSSPP smoke tests or measurements
+must not be treated as React performance results.
 
 The build is two-pass: pass 1 babel-transforms every module reachable from the
 entry for the selected JSX engine, content-hash cached in `.cache/`, while
