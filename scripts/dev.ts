@@ -8,7 +8,7 @@
 // Rebuild-on-change is deliberately manual (dev-tool simplicity): re-run
 // `bun scripts/build.ts <app>` (or this script) and reload the page.
 
-const ROOT = new URL("..", import.meta.url).pathname; // psp-ui/
+const ROOT = new URL("..", import.meta.url).pathname; // pocketjs-framework/
 
 function run(cmd: string[]): void {
   console.log(`dev: ${cmd.join(" ")}`);

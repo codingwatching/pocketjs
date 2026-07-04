@@ -36,7 +36,7 @@ use psp::sys::{
     TextureColorComponent, TextureEffect, TextureFilter, TexturePixelFormat, VertexType,
 };
 use psp::{SCREEN_HEIGHT, SCREEN_WIDTH};
-use psp_ui_core::{spec, Ui};
+use pocketjs_framework_core::{spec, Ui};
 
 // ---------------------------------------------------------------------------
 // Vertex formats (GE fixed component order: [uv][color][pos])

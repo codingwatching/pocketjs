@@ -37,11 +37,12 @@ const COMPONENTS_PATH = new URL("../src/components.ts", import.meta.url).pathnam
 const INPUT_API_PATH = new URL("../src/input-api.ts", import.meta.url).pathname;
 const LIFECYCLE_PATH = new URL("../src/lifecycle.ts", import.meta.url).pathname;
 const REACTIVITY_PATH = new URL("../src/reactivity.ts", import.meta.url).pathname;
+const PACKAGE_NAME = "@pocketjs/framework";
 
 const CACHE_DIR = new URL("../.cache/transforms/", import.meta.url).pathname;
 /** Bump to invalidate every cached transform (changes to this file's
  *  collector/lints/options — dependency versions are hashed separately). */
-const CACHE_VERSION = "5";
+const CACHE_VERSION = "6";
 
 const BANNED_SOLID_IMPORTS = new Set(["createResource", "useTransition", "startTransition"]);
 
@@ -76,7 +77,7 @@ function makeCollector(out: Collected): PluginObj {
   // own synthetic literals ("view", the renderer path...). Traversing the
   // pristine AST up front sees exactly what the author wrote.
   return {
-    name: "psp-ui-collect",
+    name: "pocketjs-framework-collect",
     visitor: {
       Program: {
         enter(program) {
@@ -97,7 +98,7 @@ function makeCollector(out: Collected): PluginObj {
               const raw = path.node.extra?.raw;
               if (typeof raw === "string" && raw !== path.node.value) {
                 throw path.buildCodeFrameError(
-                  "psp-ui: HTML entities in JSX text are not decoded by the universal " +
+                  "pocketjs-framework: HTML entities in JSX text are not decoded by the universal " +
                     'renderer — write the literal character (é, ♥) or a string expression {"\\u00e9"} instead.',
                 );
               }
@@ -107,7 +108,7 @@ function makeCollector(out: Collected): PluginObj {
               const name = path.node.name;
               if (name.type === "JSXIdentifier" && name.name === "classList") {
                 throw path.buildCodeFrameError(
-                  "psp-ui: `classList` is not supported (v1). Use ternaries of FULL class literals: " +
+                  "pocketjs-framework: `classList` is not supported (v1). Use ternaries of FULL class literals: " +
                     'class={cond() ? "p-2 bg-red-500" : "p-2 bg-slate-700"}',
                 );
               }
@@ -119,7 +120,7 @@ function makeCollector(out: Collected): PluginObj {
                   v.expression.expressions.length > 0
                 ) {
                   throw path.buildCodeFrameError(
-                    "psp-ui: template-interpolated class fragments are not supported (v1). " +
+                    "pocketjs-framework: template-interpolated class fragments are not supported (v1). " +
                       "Styles compile at build time — use ternaries of FULL literals.",
                   );
                 }
@@ -134,7 +135,7 @@ function makeCollector(out: Collected): PluginObj {
                   spec.imported.type === "Identifier" ? spec.imported.name : spec.imported.value;
                 if (BANNED_SOLID_IMPORTS.has(imported)) {
                   throw path.buildCodeFrameError(
-                    `psp-ui: solid-js \`${imported}\` is not supported — the PSP QuickJS host has no ` +
+                    `pocketjs-framework: solid-js \`${imported}\` is not supported — the PSP QuickJS host has no ` +
                       "scheduler (no setTimeout/queueMicrotask-driven transitions). Use signals + " +
                       "createEffect, or animate() for motion.",
                   );
@@ -175,9 +176,8 @@ interface CacheEntry {
 }
 
 function resolvePackageSubpath(spec: string): string | null {
-  if (spec === "psp-ui" || spec === "@pocketjs") return "";
-  if (spec.startsWith("psp-ui/")) return spec.slice("psp-ui/".length);
-  if (spec.startsWith("@pocketjs/")) return spec.slice("@pocketjs/".length);
+  if (spec === PACKAGE_NAME) return "";
+  if (spec.startsWith(PACKAGE_NAME + "/")) return spec.slice(PACKAGE_NAME.length + 1);
   return null;
 }
 
@@ -231,7 +231,7 @@ export async function transformFile(path: string, src: string): Promise<Transfor
     sourceMaps: false,
   });
   if (!res?.code && res?.code !== "") {
-    throw new Error(`psp-ui transform produced no output for ${path}`);
+    throw new Error(`pocketjs-framework transform produced no output for ${path}`);
   }
 
   const entry: CacheEntry = {
@@ -250,9 +250,9 @@ export async function transformFile(path: string, src: string): Promise<Transfor
  */
 export function solidUniversalPlugin(): BunPlugin {
   return {
-    name: "psp-ui-solid-universal",
+    name: "pocketjs-framework-solid-universal",
     setup(build) {
-      build.onResolve({ filter: /^(?:psp-ui|@pocketjs)(?:\/.*)?$/ }, (args) => {
+      build.onResolve({ filter: /^@pocketjs\/framework(?:\/.*)?$/ }, (args) => {
         const path = packagePath(args.path);
         return path ? { path } : undefined;
       });

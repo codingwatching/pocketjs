@@ -44,10 +44,10 @@ function nodeId(node: NodeMirror | number): number {
 function animatablePropId(prop: PropName): number {
   const propId = PROP[prop];
   if (propId === undefined) {
-    throw new Error(`psp-ui: unknown prop '${prop}'`);
+    throw new Error(`pocketjs-framework: unknown prop '${prop}'`);
   }
   if (animBit(prop) < 0) {
-    throw new Error(`psp-ui: prop '${prop}' is not animatable (see spec ANIMATABLE)`);
+    throw new Error(`pocketjs-framework: prop '${prop}' is not animatable (see spec ANIMATABLE)`);
   }
   return propId;
 }
@@ -69,7 +69,7 @@ export function animate(
   } else {
     const named = EASING_BY_NAME[opts.easing ?? "out"];
     if (named === undefined) {
-      throw new Error(`psp-ui: unknown easing '${opts.easing}'`);
+      throw new Error(`pocketjs-framework: unknown easing '${opts.easing}'`);
     }
     easing = named;
   }

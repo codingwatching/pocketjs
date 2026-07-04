@@ -1,6 +1,6 @@
-// host-web/engine.js — the browser dev host for psp-ui.
+// host-web/engine.js — the browser dev host for pocketjs-framework.
 //
-// Loads psp-ui.wasm (core + software rasterizer), installs the HostOps
+// Loads pocketjs-framework.wasm (core + software rasterizer), installs the HostOps
 // binding (wasm-ops.js — shared with test/golden.ts) as globalThis.ui,
 // installs the demo's .dcpak as globalThis.__dcpak, evals the demo bundle
 // (which mounts the app and installs globalThis.frame), then drives a
@@ -148,10 +148,10 @@ export async function mount(theCanvas, opts = {}) {
   window.addEventListener("blur", () => {
     held = 0;
   });
-  const res = await fetch("psp-ui.wasm");
-  if (!res.ok) throw new Error("psp-ui.wasm not found — run: bun scripts/wasm.ts");
+  const res = await fetch("pocketjs-framework.wasm");
+  if (!res.ok) throw new Error("pocketjs-framework.wasm not found — run: bun scripts/wasm.ts");
   wasm = await createWasmUi(await res.arrayBuffer());
-  logSink("psp-ui wasm ready");
+  logSink("pocketjs-framework wasm ready");
 }
 
 /**

@@ -2,7 +2,7 @@
 //! arena (`arena.rs`) — DESIGN.md "Memory (the blocker fix)" [R].
 //!
 //! rust-psp's default `SystemAlloc` makes ONE KERNEL OBJECT per allocation;
-//! the PSP kernel caps objects at ~4096, so psp-ui-core's Rust allocations
+//! the PSP kernel caps objects at ~4096, so pocketjs-framework-core's Rust allocations
 //! (taffy slotmaps, children Vecs, per-pass collects, the DrawList) would
 //! exhaust the slots on any real UI. The `psp` dependency is built with
 //! feature `external-global-alloc`, which gates out both its
@@ -38,7 +38,7 @@ static GLOBAL: ArenaAlloc = ArenaAlloc;
 
 #[alloc_error_handler]
 fn alloc_error(layout: Layout) -> ! {
-    psp::dprintln!("[psp-ui oom] alloc of {} bytes failed", layout.size());
+    psp::dprintln!("[pocketjs-framework oom] alloc of {} bytes failed", layout.size());
     loop {
         unsafe { psp::sys::sceDisplayWaitVblankStart() };
     }

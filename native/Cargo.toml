@@ -1,7 +1,7 @@
-# psp-ui-psp — the PSP EBOOT: QuickJS + psp-ui-core + sceGu backend.
+# pocketjs-framework-psp — the PSP EBOOT: QuickJS + pocketjs-framework-core + sceGu backend.
 #
 # STANDALONE LONE-BIN CRATE: cargo-psp requires this crate to be outside any
-# workspace (do NOT add a workspace Cargo.toml at psp-ui/).
+# workspace (do NOT add a workspace Cargo.toml at pocketjs-framework/).
 #
 # Build via scripts/psp.ts: `rustup run nightly-2026-05-28 cargo psp` with the
 # env block from dreamcart runtime/build.ts (llvm-ar, RUSTFLAGS
@@ -16,14 +16,14 @@
 # also serves QuickJS (qjs_alloc.rs) and newlib malloc (c_heap.rs).
 
 [package]
-name = "psp-ui-psp"
+name = "pocketjs-framework-psp"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 psp = { path = "../../rust-psp/psp", features = ["external-c-heap", "abort-only", "external-global-alloc"] }
 libquickjs-sys = { path = "../../quickjs-rs/libquickjs-sys" }
-psp-ui-core = { path = "../core" }
+pocketjs-framework-core = { path = "../core" }
 
 [features]
 # E2E frame-dump build for test/e2e-ppsspp.ts (dumps frames to ms0:/dc_cap).

@@ -11,10 +11,10 @@
 // Design notes: every class a FULL literal (per-track cover accent baked per
 // entry); text single-line.
 
-import { Text, View } from "@pocketjs/components";
-import { onButtonPress, onFrame } from "@pocketjs/lifecycle";
-import { createSignal } from "@pocketjs/reactivity";
-import { BTN } from "@pocketjs/input";
+import { Text, View } from "@pocketjs/framework/components";
+import { onButtonPress, onFrame } from "@pocketjs/framework/lifecycle";
+import { createSignal } from "@pocketjs/framework/reactivity";
+import { BTN } from "@pocketjs/framework/input";
 
 interface Track {
   title: string;
@@ -96,7 +96,7 @@ export default function Music() {
     <View class="flex-col w-full h-full p-3 gap-2 bg-gradient-to-b from-slate-50 to-slate-100">
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
           <Text class="text-2xl text-slate-950 font-bold">Now Playing</Text>
         </View>
         <Text class="text-xs text-slate-500">TRACK {trackIndex() + 1} / {TRACKS.length}</Text>

@@ -66,7 +66,7 @@ unsafe fn ensure_init() {
     // ONE kernel object for the whole heap.
     let id = sys::sceKernelAllocPartitionMemory(
         SceSysMemPartitionId::SceKernelPrimaryUserPartition,
-        b"psp-ui-arena\0".as_ptr(),
+        b"pocketjs-framework-arena\0".as_ptr(),
         SceSysMemBlockTypes::Low,
         size as u32,
         ptr::null_mut::<c_void>(),

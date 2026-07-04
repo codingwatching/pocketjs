@@ -8,7 +8,7 @@ export function setOverlayRoot(root: NodeMirror | null): void {
 
 export function getOverlayRoot(): NodeMirror {
   if (!overlayRoot) {
-    throw new Error("psp-ui: overlay root is not installed");
+    throw new Error("pocketjs-framework: overlay root is not installed");
   }
   return overlayRoot;
 }

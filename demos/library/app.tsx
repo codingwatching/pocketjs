@@ -11,11 +11,11 @@
 // pre-split into <Text> lines), every class a FULL literal (the per-tile accent
 // border/gradient is baked per entry, never synthesized).
 
-import { Image, Show, Text, View, type NodeMirror } from "@pocketjs/components";
-import { spring } from "@pocketjs/animation";
-import { onButtonPress, onFrame } from "@pocketjs/lifecycle";
-import { createMemo, createSignal, onMount } from "@pocketjs/reactivity";
-import { BTN, focusNode } from "@pocketjs/input";
+import { Image, Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
+import { spring } from "@pocketjs/framework/animation";
+import { onButtonPress, onFrame } from "@pocketjs/framework/lifecycle";
+import { createMemo, createSignal, onMount } from "@pocketjs/framework/reactivity";
+import { BTN, focusNode } from "@pocketjs/framework/input";
 
 type Screen = "library" | "loading" | "detail";
 
@@ -73,7 +73,7 @@ const GAMES: Game[] = [
   },
   {
     title: "ABOUT",
-    genre: "PSP-UI ENGINE",
+    genre: "POCKETJS ENGINE",
     playtime: "",
     trophies: "",
     blurb: ["Solid universal renderer over a no_std Rust core.", "One JSX app — PSP hardware, PPSSPP or a browser."],
@@ -218,7 +218,7 @@ export default function Library() {
     <View class="relative flex-col w-full h-full p-4 gap-3 bg-gradient-to-b from-slate-50 to-slate-100">
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
           <Text class="text-2xl text-slate-950 font-bold">Game Library</Text>
         </View>
         <Text class="text-xs text-slate-500">5 TITLES</Text>

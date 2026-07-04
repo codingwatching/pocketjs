@@ -73,7 +73,7 @@ let current: Host | null = null;
 
 /**
  * Resolve the host: injected ops win; otherwise `globalThis.ui` (PSP/QuickJS).
- * Throws when neither exists — psp-ui cannot run without a native tree.
+ * Throws when neither exists — pocketjs-framework cannot run without a native tree.
  *
  * Exception: when the injected ops ARE the PSP native namespace (the demo
  * entries pass `globalThis.ui` explicitly), the host stays kind "psp"/
@@ -92,7 +92,7 @@ export function detectHost(injected?: HostOps): Host {
   }
   if (native) return { ops: native, kind: "psp", strict: false };
   throw new Error(
-    "psp-ui: no host — pass HostOps to render() (web/test) or run under the PSP runtime (globalThis.ui)",
+    "pocketjs-framework: no host — pass HostOps to render() (web/test) or run under the PSP runtime (globalThis.ui)",
   );
 }
 
@@ -103,7 +103,7 @@ export function installHost(host: Host): void {
 
 export function getHost(): Host {
   if (!current) {
-    throw new Error("psp-ui: host not installed — call render() first");
+    throw new Error("pocketjs-framework: host not installed — call render() first");
   }
   return current;
 }
@@ -135,11 +135,11 @@ export function parseHexColor(s: string): number {
     hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
   }
   if (hex.length !== 6 && hex.length !== 8) {
-    throw new Error(`psp-ui: bad color '${s}' (expected #rgb/#rrggbb/#rrggbbaa)`);
+    throw new Error(`pocketjs-framework: bad color '${s}' (expected #rgb/#rrggbb/#rrggbbaa)`);
   }
   // Full-string validation: parseInt would silently accept a valid PREFIX
   // ("#ff00zz" -> 0xff00) and paint a wrong color instead of throwing.
-  if (!/^[0-9a-fA-F]+$/.test(hex)) throw new Error(`psp-ui: bad color '${s}'`);
+  if (!/^[0-9a-fA-F]+$/.test(hex)) throw new Error(`pocketjs-framework: bad color '${s}'`);
   const n = parseInt(hex, 16);
   if (hex.length === 6) {
     return abgr((n >>> 16) & 255, (n >>> 8) & 255, n & 255, 255);
@@ -158,7 +158,7 @@ export function encodePropValue(prop: PropName, value: number | string): number 
     if (kind === VALUE_KIND.color) return parseHexColor(value);
     const n = Number(value);
     if (Number.isNaN(n)) {
-      throw new Error(`psp-ui: non-numeric value '${value}' for prop '${prop}'`);
+      throw new Error(`pocketjs-framework: non-numeric value '${value}' for prop '${prop}'`);
     }
     value = n;
   }

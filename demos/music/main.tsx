@@ -1,5 +1,5 @@
-// @title psp-ui: Now Playing
+// @title PocketJS Framework: Now Playing
 import Music from "./app.tsx";
-import { mount } from "@pocketjs";
+import { mount } from "@pocketjs/framework";
 
 mount(() => <Music />);

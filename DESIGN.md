@@ -1,12 +1,12 @@
-# psp-ui — a JSX UI stack for the Sony PSP (and beyond)
+# PocketJS Framework — a JSX UI stack for the Sony PSP (and beyond)
 
 **One Rust core. One JSX app. Runs on real PSP hardware, PPSSPP, the browser, and headless Bun.**
 
-psp-ui is a standalone cross-platform UI engine: a retained-mode native UI tree
+PocketJS Framework is a standalone cross-platform UI engine: a retained-mode native UI tree
 (Rust: flexbox layout, styling, animation, text, rendering) driven from
 JavaScript (QuickJS on PSP, the host JS engine elsewhere) by **Solid** through
 its universal renderer, styled with a **build-time Tailwind-subset compiler**,
-with **baked font atlases** for text. It lives in `psp-ui/` and deliberately
+with **baked font atlases** for text. It lives in `pocketjs-framework/` and deliberately
 shares no code with the dreamcart game framework — it will be extracted into
 its own repository later. (It *does* copy proven low-level patterns from the
 dreamcart runtime; every copy is noted below.)
@@ -70,7 +70,7 @@ artifacts: `$JOB_TMP/map-*.json`).
 ## Repository layout
 
 ```
-psp-ui/
+pocketjs-framework/
   DESIGN.md, README.md
   package.json         self-contained; PINNED: solid-js@^1.9, babel-preset-solid@^1.9,
                        @babel/core@^7 (Babel 8 breaks preset-solid [R]),
@@ -83,7 +83,7 @@ psp-ui/
                        style-table format, atlas format, DrawList format,
                        dcpak container constants (magic/header/entry/align/fnv1a) [R]
     gen-rust.ts        codegen → core/src/spec.rs (committed)
-  core/                Rust lib `psp-ui-core` — #![no_std] + alloc
+  core/                Rust lib `pocketjs-framework-core` — #![no_std] + alloc
     src/lib.rs         pub struct Ui: apply-ops, tick(1/60), draw() → &DrawList
     src/spec.rs        GENERATED — test/contract.ts re-runs gen-rust.ts and
                        byte-compares this file (airtight drift guard) [R]
@@ -99,10 +99,10 @@ psp-ui/
                        with UV/color re-interpolation for textured/gradient quads;
                        rotated quads Sutherland-Hodgman-clipped (or culled) so no
                        negative/oversized coords ever reach a backend [R]
-  native/              Rust bin `psp-ui-psp` — the EBOOT (standalone dir, lone bin)
+  native/              Rust bin `pocketjs-framework-psp` — the EBOOT (standalone dir, lone bin)
     Cargo.toml         psp {external-c-heap, abort-only, external-global-alloc},
-                       libquickjs-sys, psp-ui-core (path)
-    build.rs           embeds $PSPUI_APP js + app.dcpak (PSPJS_GAME pattern);
+                       libquickjs-sys, pocketjs-framework-core (path)
+    build.rs           embeds $POCKETJS_APP js + app.dcpak (PSPJS_GAME pattern);
                        [features] capture = [] for the E2E frame-dump
     targets/mipsel-sony-psp.json  copied from runtime/ (self-contained)
     src/main.rs        boot (2MB USER|VFPU worker), vblank loop, job pump
@@ -117,7 +117,7 @@ psp-ui/
     src/dcpak.rs       native read-only .dcpak walker: styles + atlases + images
                        are fed to core DIRECTLY from include_bytes! before JS eval
                        (zero QuickJS-heap transit) [R]
-  wasm/                Rust cdylib `psp-ui-wasm` — core + rasterizer, no wasm-bindgen
+  wasm/                Rust cdylib `pocketjs-framework-wasm` — core + rasterizer, no wasm-bindgen
     src/lib.rs         extern "C" op mirror + render() → RGBA8 480×272
     src/raster.rs      deterministic scanline rasterizer (blend, gradients, glyphs)
   src/                 TS/JS runtime shared by all hosts
@@ -189,7 +189,7 @@ psp-ui/
 The PSP build (`scripts/psp.ts`) then runs `rustup run nightly-2026-05-28
 cargo psp` with the exact env block from `runtime/build.ts` (LLVM PATH,
 TARGET_CFLAGS, AR_mipsel_sony_psp=llvm-ar, RUST_PSP_TARGET, RUST_PSP_ABORT_ONLY,
-RUSTFLAGS `-A linker-messages …`), `PSPUI_APP=<app>` consumed by `build.rs`.
+RUSTFLAGS `-A linker-messages …`), `POCKETJS_APP=<app>` consumed by `build.rs`.
 
 ## The native contract (`ui.*`)
 
@@ -223,7 +223,7 @@ default. Empty text nodes (Solid's `<Show>` markers) are excluded from layout
 until `replaceText` makes them non-empty.
 
 Application code should not write those lower-case host tags directly. The
-public SDK surface is imported from `psp-ui` and uses React Native-style
+public SDK surface is imported from `@pocketjs/framework` and uses React Native-style
 `View`, `Text`, and `Image` primitives; the lower-case tags remain an internal
 renderer target for `src/primitives.ts` and low-level tests.
 
@@ -238,12 +238,12 @@ sceGuStart/Finish (display list owned by main.rs, dreamcart contract).
 
 rust-psp installs a `#[global_allocator]` that makes **one kernel object per
 allocation** (cap ≈4096 → crash). The QuickJS-side arena trio only hooks
-QuickJS + newlib malloc — it does NOT cover psp-ui-core's Rust allocations
+QuickJS + newlib malloc — it does NOT cover pocketjs-framework-core's Rust allocations
 (taffy slotmaps, children Vecs, per-pass `.collect()`s, DrawList). Therefore:
 
 1. Add feature **`external-global-alloc`** to the vendored `rust-psp` fork:
    cfg-gate `psp/src/alloc_impl.rs`'s `#[global_allocator]` out.
-2. `native/src/alloc.rs` installs the psp-ui global allocator backed by
+2. `native/src/alloc.rs` installs the PocketJS Framework global allocator backed by
    `arena::alloc/dealloc` (same single kernel block as QuickJS).
 3. `arena.rs`'s `ensure_init` must call `sceKernelAllocPartitionMemory` /
    `sceKernelGetBlockHeadAddr` directly (no recursion through `alloc::alloc`).
@@ -297,7 +297,7 @@ literals, `style={{…}}` objects, or `animate()`.
    semantics), `<Show>` toggle inside `gap-N` (marker layout), `Count: {n()}`
    mixed text runs, focus traversal, a non-ASCII glyph **[R]**.
 3. `e2e-ppsspp.ts` — capture-feature EBOOT (frame dump to `ms0:/dc_cap`,
-   scripted input via `PSPUI_CAPTURE_INPUT` baked at build; ported from
+   scripted input via `POCKETJS_CAPTURE_INPUT` baked at build; ported from
    origin/main's capture stack), `PPSSPPHeadless --graphics=software
    --timeout=N`, magick decode, byte-exact vs goldens. Goldens carry the
    PPSSPP build commit; mismatch message says "emulator differs → UPDATE=1 or

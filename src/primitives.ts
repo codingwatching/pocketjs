@@ -1,7 +1,7 @@
 // Public platform primitives for application code.
 //
 // The renderer still owns the lower-case host tags internally. Apps should
-// import these React Native-style components from `psp-ui` instead of writing
+// import these React Native-style components from `@pocketjs/framework/components` instead of writing
 // host tags directly. This file intentionally contains no JSX so ordinary Bun
 // tests can import the public entry without a Solid transform step.
 

@@ -262,7 +262,7 @@ export function bakeSlot(font: Font, slot: number, px: number, bold: boolean, ch
 
   // gid 0 = tofu; gid k+1 = k-th glyph (chars arrive sorted ascending)
   const glyphCount = glyphs.length + 1;
-  if (glyphCount > 0xffff) throw new Error("psp-ui bake-font: too many glyphs");
+  if (glyphCount > 0xffff) throw new Error("pocketjs-framework bake-font: too many glyphs");
   const coverageBytes = glyphCount * cellH * cellW;
   const size = FONT_HEADER_SIZE + glyphCount * FONT_CMAP_ENTRY_SIZE + coverageBytes;
   const out = new Uint8Array(size);
@@ -327,7 +327,7 @@ export async function bakeAtlases(opts: BakeOptions): Promise<BakedAtlas[]> {
   const results: BakedAtlas[] = [];
   for (const slot of [...opts.slots].sort((a, b) => a - b)) {
     if (slot < 0 || slot >= MAX_FONT_SLOTS) {
-      throw new Error(`psp-ui bake-font: slot ${slot} out of range (0..${MAX_FONT_SLOTS - 1})`);
+      throw new Error(`pocketjs-framework bake-font: slot ${slot} out of range (0..${MAX_FONT_SLOTS - 1})`);
     }
     const { px, bold } = fontSlotInfo(slot);
     const key = bold ? "bold" : "regular";

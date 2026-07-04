@@ -9,9 +9,9 @@
 // focus emphasis = translate-y lift + bg/border color (never scale — glyphs
 // don't scale), all text single-line, every class a FULL literal.
 
-import { Show, Text, View, type NodeMirror } from "@pocketjs/components";
-import { animate, spring } from "@pocketjs/animation";
-import { createSignal, onMount } from "@pocketjs/reactivity";
+import { Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
+import { animate, spring } from "@pocketjs/framework/animation";
+import { createSignal, onMount } from "@pocketjs/framework/reactivity";
 
 interface Card {
   title: string;
@@ -102,7 +102,7 @@ export default function Cards() {
 
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
           <Text class="text-2xl text-slate-950 font-bold">Feature Cards</Text>
         </View>
         <Text class="text-xs text-slate-500">3 MODULES</Text>

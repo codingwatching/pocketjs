@@ -67,7 +67,7 @@ export interface SpriteAnimationOptions {
 
 export function createSpriteAnimation(frames: readonly string[], opts: SpriteAnimationOptions = {}): Accessor<string> {
   if (frames.length === 0) {
-    throw new Error("psp-ui: createSpriteAnimation() requires at least one frame");
+    throw new Error("pocketjs-framework: createSpriteAnimation() requires at least one frame");
   }
   const frameStep = Math.max(1, Math.floor(opts.frameStep ?? 1));
   const [frame, setFrame] = createSignal(0);

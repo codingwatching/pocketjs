@@ -11,7 +11,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 
-const ROOT = new URL("..", import.meta.url).pathname; // psp-ui/
+const ROOT = new URL("..", import.meta.url).pathname; // pocketjs-framework/
 const HOST_DIR = ROOT + "host-web/";
 const DIST_DIR = ROOT + "dist/";
 const PORT = Number(process.env.PORT ?? 8130);
@@ -69,4 +69,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`psp-ui host-web: http://127.0.0.1:${server.port}/  (demos: ${demoManifest().map((d) => d.name).join(", ") || "none — build one first"})`);
+console.log(`pocketjs-framework host-web: http://127.0.0.1:${server.port}/  (demos: ${demoManifest().map((d) => d.name).join(", ") || "none — build one first"})`);

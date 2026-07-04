@@ -1,6 +1,6 @@
 // Deterministic codegen: spec/spec.ts -> core/src/spec.rs.
 //
-// Run from psp-ui/:  bun spec/gen-rust.ts
+// Run from pocketjs-framework/:  bun spec/gen-rust.ts
 //
 // test/contract.ts imports generateRust() and byte-compares its output against
 // the committed core/src/spec.rs, so the generated file can never drift from
@@ -90,9 +90,9 @@ export function generateRust(): string {
   const L: string[] = [];
   const put = (s = "") => L.push(s);
 
-  put("//! GENERATED — do not edit; run `bun spec/gen-rust.ts` (from psp-ui/).");
+  put("//! GENERATED — do not edit; run `bun spec/gen-rust.ts` (from pocketjs-framework/).");
   put("//!");
-  put("//! Source of truth: psp-ui/spec/spec.ts — every constant here mirrors it.");
+  put("//! Source of truth: pocketjs-framework/spec/spec.ts — every constant here mirrors it.");
   put("//! test/contract.ts regenerates this file in-memory and byte-compares;");
   put("//! if that fails, run `bun spec/gen-rust.ts` and commit the result.");
   put("");

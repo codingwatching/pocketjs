@@ -15,7 +15,7 @@ export const FB_H = 272;
 const encoder = new TextEncoder();
 
 /**
- * Instantiate psp-ui.wasm and return { ops, init, tick, render, exports }.
+ * Instantiate pocketjs-framework.wasm and return { ops, init, tick, render, exports }.
  * `ops` is a complete HostOps (src/host.ts) — hand it to the app bundle as
  * globalThis.ui before eval'ing it.
  *

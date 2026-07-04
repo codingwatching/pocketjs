@@ -1,9 +1,9 @@
-// Run a freshly compiled psp-ui demo on a REAL PSP over USB.
+// Run a freshly compiled pocketjs-framework demo on a REAL PSP over USB.
 //
 //   bun run hw              # build + run hero on the PSP
 //   bun run hw cards        # build + run a specific demo
 //   bun run hw stats -r     # release profile
-//   bun run hw hero --trace # bake host0:/psp-ui-trace.txt logging
+//   bun run hw hero --trace # bake host0:/pocketjs-framework-trace.txt logging
 //   bun run hw --once       # build + load once, then exit
 //   bun run hw --no-build   # skip the build, just load what's built
 //
@@ -14,8 +14,8 @@ import { existsSync, readFileSync, readdirSync, statSync, unlinkSync } from "nod
 import { createServer } from "node:net";
 import { createInterface } from "node:readline";
 
-const pspUiDir = new URL("..", import.meta.url).pathname;
-const PRX = "host0:/psp-ui-psp.prx";
+const frameworkDir = new URL("..", import.meta.url).pathname;
+const PRX = "host0:/pocketjs-framework-psp.prx";
 const MAIN_SUFFIX = "-main.tsx";
 
 const argv = Bun.argv.slice(2);
@@ -29,8 +29,8 @@ const profile = release ? "release" : "debug";
 
 function listDemos(): string[] {
   const names = new Set<string>();
-  for (const f of readdirSync(pspUiDir + "demos")) {
-    const path = pspUiDir + "demos/" + f;
+  for (const f of readdirSync(frameworkDir + "demos")) {
+    const path = frameworkDir + "demos/" + f;
     if (statSync(path).isDirectory() && existsSync(path + "/main.tsx")) names.add(f);
     else if (f.endsWith(MAIN_SUFFIX)) names.add(f.slice(0, -MAIN_SUFFIX.length));
   }
@@ -46,7 +46,7 @@ function resolveDemo(name?: string): string | null {
 
 function usage(): void {
   console.log("Usage: bun run hw [demo] [-r|--release] [--trace] [--once] [--no-build]\n");
-  console.log("Runs a psp-ui demo on a real PSP over USB (PSPLINK + usbhostfs).");
+  console.log("Runs a pocketjs-framework demo on a real PSP over USB (PSPLINK + usbhostfs).");
   console.log("Launch PSPLINK on the PSP from the XMB Game menu when prompted.\n");
   console.log("Demos: " + listDemos().join(", "));
 }
@@ -70,9 +70,9 @@ if (!usbhostfs || !pspsh) {
   process.exit(1);
 }
 
-const targetDir = pspUiDir + `native/target/mipsel-sony-psp/${profile}`;
-const prxPath = targetDir + "/psp-ui-psp.prx";
-const tracePath = targetDir + "/psp-ui-trace.txt";
+const targetDir = frameworkDir + `native/target/mipsel-sony-psp/${profile}`;
+const prxPath = targetDir + "/pocketjs-framework-psp.prx";
+const tracePath = targetDir + "/pocketjs-framework-trace.txt";
 
 function portFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -101,8 +101,8 @@ async function build(): Promise<boolean> {
   if (noBuild) return existsSync(prxPath);
   const cargoArgs = release ? ["--release"] : [];
   console.log(`building ${demo} (${profile}${trace ? ", trace" : ""})...`);
-  const res = await $`bun ${pspUiDir}scripts/psp.ts ${demo} ${cargoArgs}`
-    .env({ ...process.env, PSPUI_TRACE: trace ? "1" : "" })
+  const res = await $`bun ${frameworkDir}scripts/psp.ts ${demo} ${cargoArgs}`
+    .env({ ...process.env, POCKETJS_TRACE: trace ? "1" : "" })
     .nothrow();
   if (res.exitCode !== 0 || !existsSync(prxPath)) {
     console.error("build failed - not reloading");
@@ -135,7 +135,7 @@ async function waitForTraceComplete(timeoutMs = 8000): Promise<boolean> {
     if (existsSync(tracePath)) {
       const text = readFileSync(tracePath, "utf8");
       if (text.includes("frame 0: complete")) return true;
-      if (text.includes("[psp-ui halt]") || text.includes("[psp-ui js error]")) return false;
+      if (text.includes("[pocketjs-framework halt]") || text.includes("[pocketjs-framework js error]")) return false;
     }
     await Bun.sleep(100);
   }
@@ -230,7 +230,7 @@ if (existing) {
   console.log("      Only one can own the PSP's USB - kill it if this link does not connect.");
 }
 
-console.log(`serving ${targetDir.replace(pspUiDir, "")} as host0: on port ${basePort}`);
+console.log(`serving ${targetDir.replace(frameworkDir, "")} as host0: on port ${basePort}`);
 const child = Bun.spawn([usbhostfs, "-b", String(basePort), targetDir], { stdout: "pipe", stderr: "pipe" });
 proc.kill = () => {
   child.kill();
@@ -259,13 +259,13 @@ if (once) {
   process.exit(loaded ? 0 : 1);
 }
 
-console.log("\n[psp-ui:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
+console.log("\n[pocketjs-framework:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
 const rl = createInterface({ input: process.stdin });
 for await (const line of rl) {
   const cmd = line.trim().toLowerCase();
   if (cmd === "q" || cmd === "quit" || cmd === "exit") break;
   if (await build()) await loadDemo();
-  console.log("\n[psp-ui:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
+  console.log("\n[pocketjs-framework:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
 }
 rl.close();
 cleanup();

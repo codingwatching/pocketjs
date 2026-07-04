@@ -1,6 +1,6 @@
 // scripts/psp.ts <app> [cargo args…] — build the app JS+dcpak (scripts/
 // build.ts), then the EBOOT:
-//   PSPUI_APP=<app> rustup run nightly-2026-05-28 cargo psp
+//   POCKETJS_APP=<app> rustup run nightly-2026-05-28 cargo psp
 // inside native/, with the exact env block from dreamcart runtime/build.ts
 // (LLVM PATH, TARGET_CFLAGS, AR_mipsel_sony_psp=llvm-ar,
 //  RUST_PSP_TARGET=native/targets/mipsel-sony-psp.json, RUST_PSP_ABORT_ONLY=1,
@@ -11,15 +11,15 @@
 // mounting entry — demos/hero/app.tsx only exports the component) when it exists.
 //
 // --capture builds the E2E frame-dump EBOOT (cargo psp --features capture)
-// and bakes the PSPUI_CAPTURE_INPUT env ("frame:mask,…") into the binary —
+// and bakes the POCKETJS_CAPTURE_INPUT env ("frame:mask,…") into the binary —
 // used by test/e2e-ppsspp.ts, never by normal builds.
 
 import { $ } from "bun";
 import { existsSync } from "node:fs";
 
-const pspUiDir = new URL("..", import.meta.url).pathname; // psp-ui/
-const nativeDir = pspUiDir + "native/";
-const root = new URL("../..", import.meta.url).pathname; // parent of psp-ui checkout
+const frameworkDir = new URL("..", import.meta.url).pathname; // pocketjs-framework/
+const nativeDir = frameworkDir + "native/";
+const root = new URL("../..", import.meta.url).pathname; // parent of pocketjs-framework checkout
 const sdkCandidates = [
   process.env.PSP_SDK,
   root + "mipsel-sony-psp",
@@ -60,17 +60,17 @@ if (!appArg) {
 
 // Prereqs (fail fast with actionable messages).
 if (!rustup) {
-  console.error("psp-ui psp: rustup not found — run `bun run bootstrap` in the dreamcart repo");
+  console.error("pocketjs-framework psp: rustup not found — run `bun run bootstrap` in the dreamcart repo");
   process.exit(1);
 }
 if (!existsSync(`${sdk}/psp/lib/libc.a`)) {
   console.error(
-    `psp-ui psp: PSP SDK missing (looked in ${sdkCandidates.join(", ")}) — set PSP_SDK or run \`bun run bootstrap\` in the dreamcart repo`,
+    `pocketjs-framework psp: PSP SDK missing (looked in ${sdkCandidates.join(", ")}) — set PSP_SDK or run \`bun run bootstrap\` in the dreamcart repo`,
   );
   process.exit(1);
 }
 if (!existsSync(`${llvm}/clang`)) {
-  console.error(`psp-ui psp: Homebrew LLVM missing at ${llvm} (brew install llvm)`);
+  console.error(`pocketjs-framework psp: Homebrew LLVM missing at ${llvm} (brew install llvm)`);
   process.exit(1);
 }
 
@@ -78,7 +78,7 @@ if (!existsSync(`${llvm}/clang`)) {
 // the mounting entry demos/<app>/main.tsx (imports mount() + STYLE_IDS).
 function mountedAppName(arg: string): string {
   const bare = arg.replace(/\.tsx?$/, "").replace(/-main$/, "");
-  if (existsSync(`${pspUiDir}demos/${bare}/main.tsx`) || existsSync(`${pspUiDir}demos/${bare}-main.tsx`)) {
+  if (existsSync(`${frameworkDir}demos/${bare}/main.tsx`) || existsSync(`${frameworkDir}demos/${bare}-main.tsx`)) {
     return `${bare}-main`;
   }
   return arg;
@@ -90,8 +90,8 @@ const app = mountedAppName(appArg);
 // 1. Build the app bundle + dcpak -> dist/<app>.js + dist/<app>.dcpak
 // ---------------------------------------------------------------------------
 
-console.log(`psp-ui psp: building app "${app}"`);
-await $`bun scripts/build.ts ${app}`.cwd(pspUiDir);
+console.log(`pocketjs-framework psp: building app "${app}"`);
+await $`bun scripts/build.ts ${app}`.cwd(frameworkDir);
 
 // ---------------------------------------------------------------------------
 // 2. cargo psp with the dreamcart cross env (copied from runtime/build.ts)
@@ -128,14 +128,14 @@ const env = {
   RUST_PSP_ABORT_ONLY: "1",
   // Keep PSP dev builds fast (opt-level 0 is unusably slow on hardware).
   CARGO_PROFILE_DEV_OPT_LEVEL: process.env.CARGO_PROFILE_DEV_OPT_LEVEL ?? "3",
-  PSPUI_APP: app,
+  POCKETJS_APP: app,
   // Scripted capture input + per-demo capture window, baked into the EBOOT
   // by native/build.rs (only consumed under --capture; harmless otherwise).
   // Explicit so stale values never linger in the cargo fingerprint.
-  PSPUI_CAPTURE_INPUT: process.env.PSPUI_CAPTURE_INPUT ?? "",
-  PSPUI_TRACE: process.env.PSPUI_TRACE ?? "",
-  PSPUI_CAP_START: process.env.PSPUI_CAP_START ?? "",
-  PSPUI_CAP_N: process.env.PSPUI_CAP_N ?? "",
+  POCKETJS_CAPTURE_INPUT: process.env.POCKETJS_CAPTURE_INPUT ?? "",
+  POCKETJS_TRACE: process.env.POCKETJS_TRACE ?? "",
+  POCKETJS_CAP_START: process.env.POCKETJS_CAP_START ?? "",
+  POCKETJS_CAP_N: process.env.POCKETJS_CAP_N ?? "",
 };
 
 function outputProfile(args: string[]): string {
@@ -146,7 +146,7 @@ function outputProfile(args: string[]): string {
   return args.includes("--release") || args.includes("-r") ? "release" : "debug";
 }
 
-console.log(`psp-ui psp: cargo psp (app=${app})`);
+console.log(`pocketjs-framework psp: cargo psp (app=${app})`);
 await $`${rustup} run ${TOOLCHAIN} cargo psp ${cargoArgs}`.cwd(nativeDir).env(env);
 
 const profile = outputProfile(cargoArgs);

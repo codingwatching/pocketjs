@@ -11,10 +11,10 @@
 // 480x272 (DESIGN.md punts kinetic scroll, so the list can't overflow the
 // screen); every class a FULL literal.
 
-import { For, Show, Text, View, type NodeMirror } from "@pocketjs/components";
-import { animate } from "@pocketjs/animation";
-import { onFrame } from "@pocketjs/lifecycle";
-import { createSignal, onMount } from "@pocketjs/reactivity";
+import { For, Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
+import { animate } from "@pocketjs/framework/animation";
+import { onFrame } from "@pocketjs/framework/lifecycle";
+import { createSignal, onMount } from "@pocketjs/framework/reactivity";
 
 interface Notice {
   id: string;
@@ -125,7 +125,7 @@ export default function Notifications() {
     <View class="flex-col w-full h-full p-3 gap-2 bg-gradient-to-b from-slate-50 to-slate-100">
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
           <Text class="text-2xl text-slate-950 font-bold">Notifications</Text>
         </View>
         <Text class="text-xs text-slate-500">{items().length} UNREAD</Text>

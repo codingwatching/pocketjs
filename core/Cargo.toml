@@ -1,4 +1,4 @@
-# psp-ui-core — the platform-agnostic retained UI core (tree, style, taffy
+# pocketjs-framework-core — the platform-agnostic retained UI core (tree, style, taffy
 # layout, text, animation, draw-list emission). #![no_std] + alloc by default
 # so the same crate builds for mipsel-sony-psp, wasm32-unknown-unknown and the
 # host. See ../DESIGN.md.
@@ -7,7 +7,7 @@
 # ../native to be a lone-bin standalone crate, so each crate stands alone.
 
 [package]
-name = "psp-ui-core"
+name = "pocketjs-framework-core"
 version = "0.1.0"
 edition = "2021"
 
@@ -24,7 +24,7 @@ taffy = { version = "0.11", default-features = false, features = [
 [dev-dependencies]
 # Self-dependency with `std` so `cargo test` builds the test harness against
 # the std-enabled crate while normal builds stay no_std (default features off).
-psp-ui-core = { path = ".", features = ["std"] }
+pocketjs-framework-core = { path = ".", features = ["std"] }
 
 [features]
 default = []

@@ -1,6 +1,6 @@
-//! GENERATED — do not edit; run `bun spec/gen-rust.ts` (from psp-ui/).
+//! GENERATED — do not edit; run `bun spec/gen-rust.ts` (from pocketjs-framework/).
 //!
-//! Source of truth: psp-ui/spec/spec.ts — every constant here mirrors it.
+//! Source of truth: pocketjs-framework/spec/spec.ts — every constant here mirrors it.
 //! test/contract.ts regenerates this file in-memory and byte-compares;
 //! if that fails, run `bun spec/gen-rust.ts` and commit the result.
 

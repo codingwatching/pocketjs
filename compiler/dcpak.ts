@@ -1,13 +1,13 @@
 // compiler/dcpak.ts — standalone .dcpak writer (dreamcart-container-compatible).
 //
 // Byte-for-byte the dreamcart format (docs/dcpak-format.md v1; constants
-// pinned in spec/spec.ts DCPAK_*), so existing tooling opens psp-ui packs.
-// psp-ui entries:
+// pinned in spec/spec.ts DCPAK_*), so existing tooling opens pocketjs-framework packs.
+// pocketjs-framework entries:
 //   ui:styles        styles.bin (compiler/tailwind.ts)
 //   ui:font.<slot>   one FONT ATLAS blob per baked slot (compiler/bake-font.ts)
 //   ui:img.<name>    demo image texture (IMG entry layout below)
 //
-// IMG entry layout (psp-ui addition — the container itself is unchanged):
+// IMG entry layout (pocketjs-framework addition — the container itself is unchanged):
 //   off 0  u16  width   (texture dims; pow2, <= TEX_MAX_DIM)
 //   off 2  u16  height
 //   off 4  u8   psm     (spec.ts PSM: 2 = 4444, 3 = 8888)
@@ -280,7 +280,7 @@ export function decodePng(bytes: Uint8Array): DecodedImage {
   return { width, height, rgba };
 }
 
-/** Standard psp-ui entry keys. */
+/** Standard pocketjs-framework entry keys. */
 export const KEY_STYLES = "ui:styles";
 export const keyFont = (slot: number): string => `ui:font.${slot}`;
 export const keyImage = (name: string): string => `ui:img.${name}`;

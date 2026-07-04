@@ -10,9 +10,9 @@
 // press, entirely covered by the engine's default input pass (src/input.ts)
 // — unlike continuous demos, this entry needs no frame hook.
 
-import { Show, Text, View, type NodeMirror } from "@pocketjs/components";
-import { animate } from "@pocketjs/animation";
-import { createEffect, createSignal } from "@pocketjs/reactivity";
+import { Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
+import { animate } from "@pocketjs/framework/animation";
+import { createEffect, createSignal } from "@pocketjs/framework/reactivity";
 
 type ThemeName = "indigo" | "emerald" | "amber" | "rose";
 
@@ -279,7 +279,7 @@ export default function Settings() {
     <View class={currentTheme().pageCls}>
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class={currentTheme().eyebrowCls}>PSP-UI SHOWCASE</Text>
+          <Text class={currentTheme().eyebrowCls}>POCKETJS SHOWCASE</Text>
           <Text class={currentTheme().titleCls}>Settings</Text>
         </View>
         <Text class={currentTheme().optionsCls}>4 OPTIONS</Text>
