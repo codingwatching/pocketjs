@@ -11,10 +11,10 @@
 // Design notes: every class a FULL literal (per-track cover accent baked per
 // entry); text single-line.
 
-import { Text, View } from "psp-ui/components";
-import { onButtonPress, onFrame } from "psp-ui/lifecycle";
-import { createSignal } from "psp-ui/reactivity";
-import { BTN } from "psp-ui/input";
+import { Text, View } from "@pocketjs/components";
+import { onButtonPress, onFrame } from "@pocketjs/lifecycle";
+import { createSignal } from "@pocketjs/reactivity";
+import { BTN } from "@pocketjs/input";
 
 interface Track {
   title: string;

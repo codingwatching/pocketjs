@@ -4,14 +4,14 @@
 // arranged tabs. The SYSTEMS tab uses a short staggered row reveal so rows
 // never flash through the style-table default before becoming white.
 //
-// Frame driving stays component-scoped through psp-ui lifecycle callbacks: button presses
+// Frame driving stays component-scoped through PocketJS lifecycle callbacks: button presses
 // switch tabs, while a capped frame hook advances deterministic counters.
 
-import { Show, Text, View, type NodeMirror } from "psp-ui/components";
-import { animate } from "psp-ui/animation";
-import { onButtonPress, onFrame } from "psp-ui/lifecycle";
-import { createMemo, createSignal, onMount } from "psp-ui/reactivity";
-import { BTN } from "psp-ui/input";
+import { Show, Text, View, type NodeMirror } from "@pocketjs/components";
+import { animate } from "@pocketjs/animation";
+import { onButtonPress, onFrame } from "@pocketjs/lifecycle";
+import { createMemo, createSignal, onMount } from "@pocketjs/reactivity";
+import { BTN } from "@pocketjs/input";
 
 const COUNT_FRAMES = 75;
 const BAR_ANIM_FRAMES = 26;

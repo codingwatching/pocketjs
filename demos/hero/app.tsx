@@ -2,10 +2,10 @@
 // Uses all three public primitives, class literals, a dynamic style object,
 // focus + onPress, and a signal in text — the exact surface phase v1 supports.
 
-import { Image, Show, Text, View, type NodeMirror } from "psp-ui/components";
-import { animate } from "psp-ui/animation";
-import { createSpriteAnimation } from "psp-ui/lifecycle";
-import { createSignal, onMount } from "psp-ui/reactivity";
+import { Image, Show, Text, View, type NodeMirror } from "@pocketjs/components";
+import { animate } from "@pocketjs/animation";
+import { createSpriteAnimation } from "@pocketjs/lifecycle";
+import { createSignal, onMount } from "@pocketjs/reactivity";
 
 const SPINNER_FRAME_STEP = 3;
 const SPINNER_FRAMES = [
