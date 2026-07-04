@@ -12,6 +12,7 @@ import { animate } from "psp-ui/animation";
 import { useButtonPress, useFrame } from "psp-ui/hooks";
 import { createMemo, createSignal, onMount } from "psp-ui/reactivity";
 import { BTN } from "psp-ui/input";
+import { frameworkName } from "psp-ui";
 
 const COUNT_FRAMES = 75;
 const BAR_ANIM_FRAMES = 26;
@@ -183,7 +184,7 @@ export default defineComponent(function Stats() {
     <View class="flex-col w-full h-full p-4 gap-3 bg-gradient-to-b from-slate-50 to-slate-100">
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-emerald-600 tracking-wide">LIVE TELEMETRY</Text>
+          <Text class="text-xs text-emerald-600 tracking-wide">LIVE TELEMETRY · {frameworkName()}</Text>
           <Text class="text-2xl text-slate-950 font-bold">Mission Control</Text>
         </View>
         <View class="flex-row gap-2">

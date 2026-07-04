@@ -299,7 +299,7 @@ const result = await Bun.build({
   format: "iife",
   target: "browser",
   conditions: ["browser"],
-  define: { "process.env.NODE_ENV": '"production"' },
+  define: { "process.env.NODE_ENV": '"production"', __PSPUI_ENGINE__: JSON.stringify(engine) },
   minify: true,
   sourcemap: "none",
   plugins: [jsxPlugin(engine, { entry })],

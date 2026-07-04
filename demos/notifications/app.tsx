@@ -15,6 +15,7 @@ import { For, Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/
 import { animate } from "psp-ui/animation";
 import { useFrame } from "psp-ui/hooks";
 import { createSignal, onMount } from "psp-ui/reactivity";
+import { frameworkName } from "psp-ui";
 
 interface Notice {
   id: string;
@@ -125,7 +126,7 @@ export default defineComponent(function Notifications() {
     <View class="flex-col w-full h-full p-3 gap-2 bg-gradient-to-b from-slate-50 to-slate-100">
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE · {frameworkName()}</Text>
           <Text class="text-2xl text-slate-950 font-bold">Notifications</Text>
         </View>
         <Text class="text-xs text-slate-500">{items().length} UNREAD</Text>

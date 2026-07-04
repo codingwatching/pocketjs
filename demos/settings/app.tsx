@@ -13,6 +13,7 @@
 import { Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
 import { animate } from "psp-ui/animation";
 import { createEffect, createSignal } from "psp-ui/reactivity";
+import { frameworkName } from "psp-ui";
 
 type ThemeName = "indigo" | "emerald" | "amber" | "rose";
 
@@ -285,7 +286,7 @@ export default defineComponent(function Settings() {
     <View class={currentTheme().pageCls}>
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class={currentTheme().eyebrowCls}>POCKETJS SHOWCASE</Text>
+          <Text class={currentTheme().eyebrowCls}>PSP-UI SHOWCASE · {frameworkName()}</Text>
           <Text class={currentTheme().titleCls}>Settings</Text>
         </View>
         <Text class={currentTheme().optionsCls}>4 OPTIONS</Text>

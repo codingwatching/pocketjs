@@ -6,6 +6,7 @@ import { Image, Show, Text, View, defineComponent, type NodeMirror } from "psp-u
 import { animate } from "psp-ui/animation";
 import { useSpriteAnimation } from "psp-ui/hooks";
 import { createSignal, onMount } from "psp-ui/reactivity";
+import { frameworkName } from "psp-ui";
 
 const SPINNER_FRAME_STEP = 3;
 const SPINNER_FRAMES = [
@@ -42,8 +43,8 @@ export default defineComponent(function Hero() {
         <View class="flex-row items-center gap-3">
           <Image class="w-10 h-10 rounded-lg shadow" src="logo.png" />
           <View class="flex-col">
-            <Text class="text-base text-slate-950 font-bold tracking-wide">PocketJS</Text>
-            <Text class="text-xs text-slate-500 tracking-wide">SOLID + RUST + SCEGU</Text>
+            <Text class="text-base text-slate-950 font-bold tracking-wide">psp-ui</Text>
+            <Text class="text-xs text-slate-500 tracking-wide">{frameworkName()} + RUST + SCEGU</Text>
           </View>
         </View>
         <View class="flex-row gap-4">

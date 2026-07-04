@@ -7,10 +7,11 @@ import {
   View,
   defineComponent,
   type NodeMirror,
-} from "@pocketjs/framework/components";
-import { animate } from "@pocketjs/framework/animation";
-import { BTN } from "@pocketjs/framework/input";
-import { createEffect, createSignal } from "@pocketjs/framework/reactivity";
+} from "psp-ui/components";
+import { animate } from "psp-ui/animation";
+import { BTN } from "psp-ui/input";
+import { createEffect, createSignal } from "psp-ui/reactivity";
+import { frameworkName } from "psp-ui";
 
 import Cards from "../cards/app.tsx";
 import Hero from "../hero/app.tsx";
@@ -156,7 +157,7 @@ const DemoPicker = defineComponent(function DemoPicker(props: {
 
       <View class="flex-row items-start justify-between">
         <View class="flex-col gap-1">
-          <Text class="text-xs text-blue-600 tracking-wide">DEMO SWITCHER</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">DEMO SWITCHER · {frameworkName()}</Text>
           <Text class="text-xl text-slate-950 font-bold">Choose Demo</Text>
         </View>
         <Text class="text-xs text-slate-500">

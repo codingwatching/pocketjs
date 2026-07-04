@@ -16,6 +16,7 @@ import { spring } from "psp-ui/animation";
 import { useButtonPress, useFrame } from "psp-ui/hooks";
 import { createMemo, createSignal, onMount } from "psp-ui/reactivity";
 import { BTN, focusNode } from "psp-ui/input";
+import { frameworkName } from "psp-ui";
 
 type Screen = "library" | "loading" | "detail";
 
@@ -227,7 +228,7 @@ export default defineComponent(function Library() {
     <View class="relative flex-col w-full h-full p-4 gap-3 bg-gradient-to-b from-slate-50 to-slate-100">
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE · {frameworkName()}</Text>
           <Text class="text-2xl text-slate-950 font-bold">Game Library</Text>
         </View>
         <Text class="text-xs text-slate-500">5 TITLES</Text>

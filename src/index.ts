@@ -39,11 +39,21 @@ export interface RenderOptions {
 
 export type MountOptions = RenderOptions;
 
+declare const __PSPUI_ENGINE__: string | undefined;
+
 /** dcpak entry keys the runtime understands when it loads a pack JS-side.
  * Must match compiler/dcpak.ts (KEY_STYLES / keyFont). */
 const STYLES_KEY = "ui:styles";
 const FONT_PREFIX = "ui:font.";
 const IMG_PREFIX = "ui:img.";
+
+export function frameworkName(): string {
+  const engine = typeof __PSPUI_ENGINE__ === "string" ? __PSPUI_ENGINE__ : "react";
+  if (engine === "vue") return "Vue";
+  if (engine === "vue-vapor") return "Vue Vapor";
+  if (engine === "solid") return "Solid";
+  return "React-compatible";
+}
 
 function globalOps(): HostOps | undefined {
   return (globalThis as { ui?: HostOps }).ui;

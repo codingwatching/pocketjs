@@ -12,6 +12,7 @@
 import { Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
 import { animate, spring } from "psp-ui/animation";
 import { createSignal, onMount } from "psp-ui/reactivity";
+import { frameworkName } from "psp-ui";
 
 interface Card {
   title: string;
@@ -108,7 +109,7 @@ export default defineComponent(function Cards() {
 
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE · {frameworkName()}</Text>
           <Text class="text-2xl text-slate-950 font-bold">Feature Cards</Text>
         </View>
         <Text class="text-xs text-slate-500">3 MODULES</Text>
