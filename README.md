@@ -20,6 +20,10 @@ The `--engine=react` path exists only as a local React-shaped compatibility
 runtime. It is not official React, and its PPSSPP smoke tests or measurements
 must not be treated as React performance results.
 
+The current `--engine=vue` path is Vue's VDOM/custom-renderer route, not Vue
+Vapor Mode. Vapor uses a different compiler/runtime substrate and needs a
+separate implementation and PPSSPP benchmark before drawing conclusions.
+
 The build is two-pass: pass 1 babel-transforms every module reachable from the
 entry for the selected JSX engine, content-hash cached in `.cache/`, while
 collecting class strings + text codepoints from the AST; then the Tailwind

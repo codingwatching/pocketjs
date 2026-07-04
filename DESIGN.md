@@ -46,9 +46,12 @@ artifacts: `$JOB_TMP/map-*.json`).
   slow to bootstrap inside PSP QuickJS. The `--engine=react` build is therefore
   only a local React-shaped JSX compatibility shim plus PocketJS native-tree
   reconciliation. It is not official React, and its measurements must not be
-  reported as React performance. Vue builds use Vue 3's custom renderer over
-  the same native-tree contract. Both runnable engine paths keep application
-  code in JSX and Tailwind literals, with PocketJS signals/hooks providing the
+  reported as React performance. The current Vue build uses Vue 3's
+  VDOM/custom-renderer route over the same native-tree contract; it is not Vue
+  Vapor Mode. Vapor's compiler emits a different DOM-helper/runtime shape, so
+  it must be evaluated as a separate engine path before any Vue performance
+  conclusion is generalized. Both runnable engine paths keep application code
+  in JSX and Tailwind literals, with PocketJS signals/hooks providing the
   app-facing reactive API.
 - **QuickJS reality [R]**: the linked engine (quickjs-rs submodule) is
   **Bellard 2025 (VERSION 2026-06-04), ~ES2023** — logical assignment, WeakRef
