@@ -63,7 +63,7 @@ function resolveDemo(name?: string): string | null {
 
 function usage(): void {
   console.log("Usage: bun run hw [demo] [--engine=react|vue|vue-vapor|solid] [-r|--release] [--trace] [--once] [--no-build]\n");
-  console.log("Runs a psp-ui demo on a real PSP over USB (PSPLINK + usbhostfs).");
+  console.log("Runs a PocketJS demo on a real PSP over USB (PSPLINK + usbhostfs).");
   console.log("Launch PSPLINK on the PSP from the XMB Game menu when prompted.\n");
   console.log("Demos: " + listDemos().join(", "));
 }
@@ -119,7 +119,7 @@ async function build(): Promise<boolean> {
   const cargoArgs = release ? ["--release"] : [];
   console.log(`building ${demo} (${profile}, engine=${engine}${trace ? ", trace" : ""})...`);
   const res = await $`bun ${pspUiDir}scripts/psp.ts ${demo} --engine=${engine} ${cargoArgs}`
-    .env({ ...process.env, PSPUI_TRACE: trace ? "1" : "" })
+    .env({ ...process.env, POCKETJS_TRACE: trace ? "1" : "" })
     .nothrow();
   if (res.exitCode !== 0 || !existsSync(prxPath)) {
     console.error("build failed - not reloading");

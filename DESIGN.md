@@ -7,7 +7,7 @@ PocketJS is a standalone cross-platform UI engine: a retained-mode native UI tre
 JavaScript (QuickJS on PSP, the host JS engine elsewhere) by a
 **React-compatible JSX shim** or **Vue JSX** renderer, styled with a
 **build-time Tailwind-subset compiler**,
-with **baked font atlases** for text. It lives in `psp-ui/` and deliberately
+with **baked font atlases** for text. It lives in `PocketJS/` and deliberately
 shares no code with the dreamcart game framework — it will be extracted into
 its own repository later. (It *does* copy proven low-level patterns from the
 dreamcart runtime; every copy is noted below.)
@@ -51,7 +51,7 @@ artifacts: `$JOB_TMP/map-*.json`).
   Vapor Mode. Vapor's compiler emits a different DOM-helper/runtime shape, so
   it must be evaluated as a separate engine path before any Vue performance
   conclusion is generalized. Both runnable engine paths keep application code
-  in JSX and Tailwind literals, with PocketJS signals/hooks providing the
+  in JSX and Tailwind literals, with PocketJS signals/lifecycle callbacks providing the
   app-facing reactive API.
 - **QuickJS reality [R]**: the linked engine (quickjs-rs submodule) is
   **Bellard 2025 (VERSION 2026-06-04), ~ES2023** — logical assignment, WeakRef

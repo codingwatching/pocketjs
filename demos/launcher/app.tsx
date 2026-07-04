@@ -7,11 +7,11 @@ import {
   View,
   defineComponent,
   type NodeMirror,
-} from "psp-ui/components";
-import { animate } from "psp-ui/animation";
-import { BTN } from "psp-ui/input";
-import { createEffect, createSignal } from "psp-ui/reactivity";
-import { frameworkName } from "psp-ui";
+} from "@pocketjs/framework/components";
+import { animate } from "@pocketjs/framework/animation";
+import { BTN } from "@pocketjs/framework/input";
+import { createEffect, createSignal } from "@pocketjs/framework/reactivity";
+import { frameworkName } from "@pocketjs/framework";
 
 import Cards from "../cards/app.tsx";
 import Hero from "../hero/app.tsx";

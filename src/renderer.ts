@@ -167,7 +167,7 @@ function callComponent(type: unknown, props: HostProps, ref: unknown): unknown {
     const render = (type as { render: (props: HostProps, ref: unknown) => unknown }).render;
     return render(props, ref);
   }
-  throw new Error("psp-ui: unsupported JSX component type");
+  throw new Error("PocketJS: unsupported JSX component type");
 }
 
 function appendBuilt(parent: NodeMirror, nodes: NodeMirror[]): void {

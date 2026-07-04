@@ -1,8 +1,8 @@
 export {
   pushButtonHandlerBlock,
-  useFrame,
-  useButtonPress,
-  useSpriteAnimation,
+  onFrame,
+  onButtonPress,
+  createSpriteAnimation,
   type ButtonPressOptions,
   type SpriteAnimationOptions,
 } from "./frame-solid.ts";

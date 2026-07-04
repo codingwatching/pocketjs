@@ -9,10 +9,10 @@
 // focus emphasis = translate-y lift + bg/border color (never scale — glyphs
 // don't scale), all text single-line, every class a FULL literal.
 
-import { Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
-import { animate, spring } from "psp-ui/animation";
-import { createSignal, onMount } from "psp-ui/reactivity";
-import { frameworkName } from "psp-ui";
+import { Show, Text, View, defineComponent, type NodeMirror } from "@pocketjs/framework/components";
+import { animate, spring } from "@pocketjs/framework/animation";
+import { createSignal, onMount } from "@pocketjs/framework/reactivity";
+import { frameworkName } from "@pocketjs/framework";
 
 interface Card {
   title: string;

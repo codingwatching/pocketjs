@@ -24,8 +24,8 @@ import {
   COMPONENTS_VUE_VAPOR_PATH,
   FRAME_PATH,
   FRAME_SOLID_PATH,
-  HOOKS_PATH,
-  HOOKS_SOLID_PATH,
+  LIFECYCLE_PATH,
+  LIFECYCLE_SOLID_PATH,
   REACTIVITY_PATH,
   REACTIVITY_SOLID_PATH,
   REACTIVITY_VUE_VAPOR_PATH,
@@ -87,7 +87,7 @@ for (const a of args) {
   else if (a.startsWith("--engine=")) {
     const value = a.slice("--engine=".length);
     if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
-      console.error("psp-ui build: --engine must be react, vue, vue-vapor, or solid");
+      console.error("PocketJS build: --engine must be react, vue, vue-vapor, or solid");
       process.exit(1);
     }
     engine = value;
@@ -140,7 +140,7 @@ function outputName(file: string): string {
 
 const appName = outputName(entry);
 const outName = engine === "react" ? appName : `${appName}.${engine}`;
-console.log(`psp-ui build: ${appName} (${entry}, engine=${engine})`);
+console.log(`PocketJS build: ${appName} (${entry}, engine=${engine})`);
 
 // ---------------------------------------------------------------------------
 // pass 1 — transform & collect over the entry's import graph
@@ -159,8 +159,8 @@ function importSpecifiers(src: string): string[] {
  *  remapping like `./card.js` -> card.tsx included), so the two passes agree
  *  on the module graph by construction. */
 function resolveImport(fromFile: string, spec: string): string | null {
-  if (spec === "psp-ui" || spec.startsWith("psp-ui/")) {
-    const subpath = spec === "psp-ui" ? "" : spec.slice("psp-ui/".length);
+  if (spec === packageName || spec.startsWith(packageName + "/")) {
+    const subpath = spec === packageName ? "" : spec.slice(packageName.length + 1);
     let exported = packageExports.get(subpath);
     if (engine === "vue" && subpath === "components") exported = COMPONENTS_VUE_PATH;
     if (engine === "vue-vapor") {
@@ -169,7 +169,7 @@ function resolveImport(fromFile: string, spec: string): string | null {
     }
     if (engine === "solid") {
       if (subpath === "components") exported = COMPONENTS_SOLID_PATH;
-      else if (subpath === "hooks") exported = HOOKS_SOLID_PATH;
+      else if (subpath === "lifecycle") exported = LIFECYCLE_SOLID_PATH;
       else if (subpath === "reactivity") exported = REACTIVITY_SOLID_PATH;
     }
     if (!exported || !/\.tsx?$/.test(exported)) return null;
@@ -195,7 +195,7 @@ function resolveImport(fromFile: string, spec: string): string | null {
     if (resolved === RENDERER_PATH) return RENDERER_SOLID_PATH;
     if (resolved === COMPONENTS_PATH) return COMPONENTS_SOLID_PATH;
     if (resolved === FRAME_PATH) return FRAME_SOLID_PATH;
-    if (resolved === HOOKS_PATH) return HOOKS_SOLID_PATH;
+    if (resolved === LIFECYCLE_PATH) return LIFECYCLE_SOLID_PATH;
     if (resolved === REACTIVITY_PATH) return REACTIVITY_SOLID_PATH;
   }
   return /\.tsx?$/.test(resolved) && !resolved.endsWith(".d.ts") ? resolved : null;
@@ -299,7 +299,7 @@ const result = await Bun.build({
   format: "iife",
   target: "browser",
   conditions: ["browser"],
-  define: { "process.env.NODE_ENV": '"production"', __PSPUI_ENGINE__: JSON.stringify(engine) },
+  define: { "process.env.NODE_ENV": '"production"', __POCKETJS_ENGINE__: JSON.stringify(engine) },
   minify: true,
   sourcemap: "none",
   plugins: [jsxPlugin(engine, { entry })],
@@ -311,7 +311,7 @@ if (!result.success) {
 }
 const bundle = result.outputs.find((o) => o.path.endsWith(".js"));
 console.log(`  pass 2: dist/${outName}.js (${bundle ? (await bundle.arrayBuffer()).byteLength : 0} bytes)`);
-console.log("psp-ui build: done");
+console.log("PocketJS build: done");
 
 // ---------------------------------------------------------------------------
 

@@ -11,12 +11,12 @@
 // pre-split into <Text> lines), every class a FULL literal (the per-tile accent
 // border/gradient is baked per entry, never synthesized).
 
-import { Image, Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
-import { spring } from "psp-ui/animation";
-import { useButtonPress, useFrame } from "psp-ui/hooks";
-import { createMemo, createSignal, onMount } from "psp-ui/reactivity";
-import { BTN, focusNode } from "psp-ui/input";
-import { frameworkName } from "psp-ui";
+import { Image, Show, Text, View, defineComponent, type NodeMirror } from "@pocketjs/framework/components";
+import { spring } from "@pocketjs/framework/animation";
+import { onButtonPress, onFrame } from "@pocketjs/framework/lifecycle";
+import { createMemo, createSignal, onMount } from "@pocketjs/framework/reactivity";
+import { BTN, focusNode } from "@pocketjs/framework/input";
+import { frameworkName } from "@pocketjs/framework";
 
 type Screen = "library" | "loading" | "detail";
 

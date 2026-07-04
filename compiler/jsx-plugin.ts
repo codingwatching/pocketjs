@@ -36,8 +36,8 @@ export const COMPONENTS_VUE_VAPOR_PATH = new URL("../src/components-vue-vapor.ts
 export const COMPONENTS_SOLID_PATH = new URL("../src/components-solid.tsx", import.meta.url).pathname;
 export const FRAME_PATH = new URL("../src/frame.ts", import.meta.url).pathname;
 export const FRAME_SOLID_PATH = new URL("../src/frame-solid.ts", import.meta.url).pathname;
-export const HOOKS_PATH = new URL("../src/hooks.ts", import.meta.url).pathname;
-export const HOOKS_SOLID_PATH = new URL("../src/hooks-solid.ts", import.meta.url).pathname;
+export const LIFECYCLE_PATH = new URL("../src/lifecycle.ts", import.meta.url).pathname;
+export const LIFECYCLE_SOLID_PATH = new URL("../src/lifecycle-solid.ts", import.meta.url).pathname;
 export const REACTIVITY_PATH = new URL("../src/reactivity.ts", import.meta.url).pathname;
 export const REACTIVITY_VUE_VAPOR_PATH = new URL("../src/reactivity-vue-vapor.ts", import.meta.url).pathname;
 export const REACTIVITY_SOLID_PATH = new URL("../src/reactivity-solid.ts", import.meta.url).pathname;
@@ -99,7 +99,7 @@ function makeCollector(out: Collected): PluginObj {
     }
   };
   return {
-    name: "psp-ui-collect",
+    name: "pocketjs-collect",
     visitor: {
       Program: {
         enter(program) {
@@ -114,7 +114,7 @@ function makeCollector(out: Collected): PluginObj {
               const raw = path.node.extra?.raw;
               if (typeof raw === "string" && raw !== path.node.value) {
                 throw path.buildCodeFrameError(
-                  "psp-ui: HTML entities in JSX text are not decoded by the JSX " +
+                  "PocketJS: HTML entities in JSX text are not decoded by the JSX " +
                     'renderer - write the literal character (é, ♥) or a string expression {"\\u00e9"} instead.',
                 );
               }
@@ -124,7 +124,7 @@ function makeCollector(out: Collected): PluginObj {
               const name = path.node.name;
               if (name.type === "JSXIdentifier" && name.name === "classList") {
                 throw path.buildCodeFrameError(
-                  "psp-ui: `classList` is not supported (v1). Use ternaries of FULL class literals: " +
+                  "PocketJS: `classList` is not supported (v1). Use ternaries of FULL class literals: " +
                     'class={cond() ? "p-2 bg-red-500" : "p-2 bg-slate-700"}',
                 );
               }
@@ -136,7 +136,7 @@ function makeCollector(out: Collected): PluginObj {
                   v.expression.expressions.length > 0
                 ) {
                   throw path.buildCodeFrameError(
-                    "psp-ui: template-interpolated class fragments are not supported (v1). " +
+                    "PocketJS: template-interpolated class fragments are not supported (v1). " +
                       "Styles compile at build time - use ternaries of FULL literals.",
                   );
                 }
@@ -264,7 +264,7 @@ export async function transformFile(
     });
   }
   if (!res?.code && res?.code !== "") {
-    throw new Error(`psp-ui transform produced no output for ${path}`);
+    throw new Error(`PocketJS transform produced no output for ${path}`);
   }
 
   const entry: CacheEntry = {
@@ -290,7 +290,7 @@ function sourcePathForEngine(path: string, engine: JsxEngine): string {
     if (path === RENDERER_PATH) return RENDERER_SOLID_PATH;
     if (path === COMPONENTS_PATH) return COMPONENTS_SOLID_PATH;
     if (path === FRAME_PATH) return FRAME_SOLID_PATH;
-    if (path === HOOKS_PATH) return HOOKS_SOLID_PATH;
+    if (path === LIFECYCLE_PATH) return LIFECYCLE_SOLID_PATH;
     if (path === REACTIVITY_PATH) return REACTIVITY_SOLID_PATH;
   }
   return path;
@@ -298,7 +298,7 @@ function sourcePathForEngine(path: string, engine: JsxEngine): string {
 
 export function jsxPlugin(engine: JsxEngine, opts: { entry?: string } = {}): BunPlugin {
   return {
-    name: `psp-ui-${engine}-jsx`,
+    name: `pocketjs-${engine}-jsx`,
     setup(build) {
       if (engine === "react") {
         build.onResolve({ filter: /^react$/ }, () => ({ path: REACT_COMPAT_PATH }));
@@ -323,7 +323,7 @@ export function jsxPlugin(engine: JsxEngine, opts: { entry?: string } = {}): Bun
         const sourcePath = sourcePathForEngine(args.path, engine);
         let src = await Bun.file(sourcePath).text();
         if (args.path === opts.entry) {
-          src = `import "psp-ui/prelude";\n${src}`;
+          src = `import "@pocketjs/framework/prelude";\n${src}`;
         }
         const { code } = await transformFile(sourcePath, src, engine);
         return { contents: code, loader: "js" };

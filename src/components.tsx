@@ -2,7 +2,7 @@
 
 import type { ReactElement, ReactNode } from "react";
 import { ENUMS, SCREEN_H, SCREEN_W } from "../spec/spec.ts";
-import { pushButtonHandlerBlock, useButtonPress, type ButtonPressOptions } from "./frame.ts";
+import { pushButtonHandlerBlock, onButtonPress, type ButtonPressOptions } from "./frame.ts";
 import { pushFocusGrid, pushFocusScope, type FocusGridOptions, type FocusScopeOptions } from "./input.ts";
 import { getOverlayRoot } from "./overlay.ts";
 import { Children, Fragment, isValidElement } from "./react-compat.ts";
@@ -233,7 +233,7 @@ export interface ActionHandlerProps extends ButtonPressOptions {
 }
 
 export const ActionHandler = defineComponent<ActionHandlerProps>((props) => {
-  useButtonPress(props.button, props.onPress, {
+  onButtonPress(props.button, props.onPress, {
     allowWhenBlocked: props.allowWhenBlocked,
     active: props.active,
   });

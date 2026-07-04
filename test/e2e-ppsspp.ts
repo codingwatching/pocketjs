@@ -26,7 +26,7 @@ import { $ } from "bun";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 
-const pspUiDir = new URL("..", import.meta.url).pathname; // psp-ui/
+const pspUiDir = new URL("..", import.meta.url).pathname; // PocketJS/
 const argv = Bun.argv.slice(2);
 let engine: "react" | "vue" | "vue-vapor" = "react";
 let smoke = process.env.SMOKE === "1";

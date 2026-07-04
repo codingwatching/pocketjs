@@ -51,7 +51,7 @@ export function withRuntime<T>(instance: RuntimeInstance, fn: () => T): T {
 
 function requireRuntime(name: string): RuntimeInstance {
   if (!current) {
-    throw new Error(`psp-ui: ${name} must run inside defineComponent()`);
+    throw new Error(`PocketJS: ${name} must run inside defineComponent()`);
   }
   return current;
 }
@@ -67,7 +67,7 @@ export function useRuntimeSlot<T extends object>(
     slot = { kind, value: init() };
     instance.slots[index] = slot;
   } else if (slot.kind !== kind) {
-    throw new Error(`psp-ui: hook order changed (${slot.kind} -> ${kind})`);
+    throw new Error(`PocketJS: hook order changed (${slot.kind} -> ${kind})`);
   }
   return slot.value as T;
 }
@@ -80,7 +80,7 @@ function useSlot(kind: SlotKind): HookSlot {
     slot = { kind };
     instance.slots[index] = slot;
   } else if (slot.kind !== kind) {
-    throw new Error(`psp-ui: hook order changed (${slot.kind} -> ${kind})`);
+    throw new Error(`PocketJS: hook order changed (${slot.kind} -> ${kind})`);
   }
   return slot;
 }

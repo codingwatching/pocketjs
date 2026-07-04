@@ -21,7 +21,7 @@ export function runFrameHooks(buttons: number): void {
   for (const cb of [...callbacks]) cb(buttons);
 }
 
-export function useFrame(callback: FrameCallback): void {
+export function onFrame(callback: FrameCallback): void {
   const slot = useRuntimeSlot("frame", () => {
     const state = {
       callback,
@@ -61,7 +61,7 @@ export function onButtonPress(
   opts: ButtonPressOptions = {},
 ): void {
   const state = useRuntimeSlot("press", () => ({ prevButtons: 0 }));
-  useFrame((buttons) => {
+  onFrame((buttons) => {
     const pressed = buttons & ~state.prevButtons;
     state.prevButtons = buttons;
     const active = typeof opts.active === "function" ? opts.active() : opts.active ?? true;

@@ -56,9 +56,9 @@ static APP_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/game.js"));
 // the core natively (dcpak.rs) BEFORE JS eval; also exposed read-only to JS
 // as __dcpak. Aliases .rodata — JS must never write through it.
 static APP_DCPAK: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/app.dcpak"));
-static PSPUI_APP_NAME: &str = env!("PSPUI_APP");
-static PSPUI_ENGINE: &str = env!("PSPUI_ENGINE");
-static PSPUI_TRACE: &str = env!("PSPUI_TRACE");
+static POCKETJS_APP_NAME: &str = env!("POCKETJS_APP");
+static POCKETJS_ENGINE: &str = env!("POCKETJS_ENGINE");
+static POCKETJS_TRACE: &str = env!("POCKETJS_TRACE");
 
 // Build-time scripted input for deterministic PPSSPPHeadless captures
 // (test/e2e-ppsspp.ts). Baked by build.rs from the POCKETJS_CAPTURE_INPUT env;
@@ -112,7 +112,7 @@ fn trace_enabled() -> bool {
 }
 
 unsafe fn trace_write(bytes: &[u8]) {
-    for path in [b"host0:/psp-ui-trace.txt\0".as_ptr(), b"ms0:/psp-ui-trace.txt\0".as_ptr()] {
+    for path in [b"host0:/PocketJS-trace.txt\0".as_ptr(), b"ms0:/PocketJS-trace.txt\0".as_ptr()] {
         let fd = sys::sceIoOpen(
             path,
             IoOpenFlags::WR_ONLY | IoOpenFlags::CREAT | IoOpenFlags::APPEND,
@@ -129,7 +129,7 @@ unsafe fn trace_reset() {
     if !trace_enabled() {
         return;
     }
-    for path in [b"host0:/psp-ui-trace.txt\0".as_ptr(), b"ms0:/psp-ui-trace.txt\0".as_ptr()] {
+    for path in [b"host0:/PocketJS-trace.txt\0".as_ptr(), b"ms0:/PocketJS-trace.txt\0".as_ptr()] {
         let fd = sys::sceIoOpen(
             path,
             IoOpenFlags::WR_ONLY | IoOpenFlags::CREAT | IoOpenFlags::TRUNC,
@@ -206,7 +206,7 @@ unsafe fn bench_now_us() -> u64 {
 
 #[cfg(feature = "bench")]
 unsafe fn bench_write(bytes: &[u8]) {
-    for path in [b"host0:/psp-ui-bench.jsonl\0".as_ptr(), b"ms0:/psp-ui-bench.jsonl\0".as_ptr()] {
+    for path in [b"host0:/PocketJS-bench.jsonl\0".as_ptr(), b"ms0:/PocketJS-bench.jsonl\0".as_ptr()] {
         let fd = sys::sceIoOpen(
             path,
             IoOpenFlags::WR_ONLY | IoOpenFlags::CREAT | IoOpenFlags::APPEND,
@@ -221,7 +221,7 @@ unsafe fn bench_write(bytes: &[u8]) {
 
 #[cfg(feature = "bench")]
 unsafe fn bench_reset_file() {
-    for path in [b"host0:/psp-ui-bench.jsonl\0".as_ptr(), b"ms0:/psp-ui-bench.jsonl\0".as_ptr()] {
+    for path in [b"host0:/PocketJS-bench.jsonl\0".as_ptr(), b"ms0:/PocketJS-bench.jsonl\0".as_ptr()] {
         let fd = sys::sceIoOpen(
             path,
             IoOpenFlags::WR_ONLY | IoOpenFlags::CREAT | IoOpenFlags::TRUNC,
@@ -254,7 +254,7 @@ unsafe fn bench_eval_end() {
 unsafe fn bench_window() -> (u32, u32) {
     #[cfg(feature = "capture")]
     {
-      (capture_env_u32(PSPUI_CAP_START, 16), capture_env_u32(PSPUI_CAP_N, 32))
+      (capture_env_u32(POCKETJS_CAP_START, 16), capture_env_u32(POCKETJS_CAP_N, 32))
     }
     #[cfg(not(feature = "capture"))]
     {
@@ -308,8 +308,8 @@ unsafe fn bench_maybe_flush(frame_count: u32) {
     let frames = BENCH.frames as u64;
     let line = alloc::format!(
         "{{\"app\":\"{}\",\"engine\":\"{}\",\"frames\":{},\"window_start\":{},\"window_n\":{},\"eval_us\":{},\"boot_to_eval_begin_us\":{},\"boot_to_frame0_us\":{},\"avg_js_us\":{},\"avg_jobs_us\":{},\"avg_tick_us\":{},\"avg_draw_us\":{},\"avg_render_us\":{},\"avg_work_us\":{},\"max_work_us\":{},\"bundle_bytes\":{},\"dcpak_bytes\":{}}}\n",
-        PSPUI_APP_NAME,
-        PSPUI_ENGINE,
+        POCKETJS_APP_NAME,
+        POCKETJS_ENGINE,
         BENCH.frames,
         start,
         n,

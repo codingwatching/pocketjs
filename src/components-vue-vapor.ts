@@ -9,7 +9,7 @@ import {
   renderEffect,
 } from "vue";
 import { ENUMS, SCREEN_H, SCREEN_W } from "../spec/spec.ts";
-import { pushButtonHandlerBlock, useButtonPress, type ButtonPressOptions } from "./frame.ts";
+import { pushButtonHandlerBlock, onButtonPress, type ButtonPressOptions } from "./frame.ts";
 import { pushFocusGrid, pushFocusScope, type FocusGridOptions, type FocusScopeOptions } from "./input.ts";
 import { getOverlayRoot } from "./overlay.ts";
 import {
@@ -371,7 +371,7 @@ export interface ActionHandlerProps extends ButtonPressOptions {
 }
 
 export const ActionHandler = definePocketVaporComponent((_props: ActionHandlerProps, { attrs, slots }: VaporCtx) => {
-  useButtonPress(
+  onButtonPress(
     valueOf(attrs.button) as number,
     (pressed, buttons) => callbackOf<ActionHandlerProps["onPress"]>(attrs.onPress)?.(pressed, buttons),
     {

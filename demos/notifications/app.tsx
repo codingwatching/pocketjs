@@ -11,11 +11,11 @@
 // 480x272 (DESIGN.md punts kinetic scroll, so the list can't overflow the
 // screen); every class a FULL literal.
 
-import { For, Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
-import { animate } from "psp-ui/animation";
-import { useFrame } from "psp-ui/hooks";
-import { createSignal, onMount } from "psp-ui/reactivity";
-import { frameworkName } from "psp-ui";
+import { For, Show, Text, View, defineComponent, type NodeMirror } from "@pocketjs/framework/components";
+import { animate } from "@pocketjs/framework/animation";
+import { onFrame } from "@pocketjs/framework/lifecycle";
+import { createSignal, onMount } from "@pocketjs/framework/reactivity";
+import { frameworkName } from "@pocketjs/framework";
 
 interface Notice {
   id: string;

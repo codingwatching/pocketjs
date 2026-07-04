@@ -14,7 +14,7 @@
 // and bakes the POCKETJS_CAPTURE_INPUT env ("frame:mask,…") into the binary —
 // used by test/e2e-ppsspp.ts, never by normal builds.
 // --bench additionally enables native microsecond timing output to
-// ms0:/psp-ui-bench.jsonl and implies --capture.
+// ms0:/PocketJS-bench.jsonl and implies --capture.
 
 import { $ } from "bun";
 import { existsSync } from "node:fs";
@@ -61,14 +61,14 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith("--engine=")) {
     const value = a.slice("--engine=".length);
     if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
-      console.error("psp-ui psp: --engine must be react, vue, vue-vapor, or solid");
+      console.error("PocketJS psp: --engine must be react, vue, vue-vapor, or solid");
       process.exit(1);
     }
     engine = value;
   } else if (a === "--engine") {
     const value = argv[++i];
     if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
-      console.error("psp-ui psp: --engine must be react, vue, vue-vapor, or solid");
+      console.error("PocketJS psp: --engine must be react, vue, vue-vapor, or solid");
       process.exit(1);
     }
     engine = value;
@@ -116,7 +116,7 @@ const embeddedApp = engine === "react" ? app : `${app}.${engine}`;
 // 1. Build the app bundle + dcpak -> dist/<app>.js + dist/<app>.dcpak
 // ---------------------------------------------------------------------------
 
-console.log(`psp-ui psp: building app "${app}" (engine=${engine})`);
+console.log(`PocketJS psp: building app "${app}" (engine=${engine})`);
 await $`bun scripts/build.ts ${app} --engine=${engine}`.cwd(pspUiDir);
 
 // ---------------------------------------------------------------------------
@@ -154,8 +154,8 @@ const env = {
   RUST_PSP_ABORT_ONLY: "1",
   // Keep PSP dev builds fast (opt-level 0 is unusably slow on hardware).
   CARGO_PROFILE_DEV_OPT_LEVEL: process.env.CARGO_PROFILE_DEV_OPT_LEVEL ?? "3",
-  PSPUI_APP: embeddedApp,
-  PSPUI_ENGINE: engine,
+  POCKETJS_APP: embeddedApp,
+  POCKETJS_ENGINE: engine,
   // Scripted capture input + per-demo capture window, baked into the EBOOT
   // by native/build.rs (only consumed under --capture; harmless otherwise).
   // Explicit so stale values never linger in the cargo fingerprint.
@@ -173,7 +173,7 @@ function outputProfile(args: string[]): string {
   return args.includes("--release") || args.includes("-r") ? "release" : "debug";
 }
 
-console.log(`psp-ui psp: cargo psp (app=${embeddedApp}, engine=${engine})`);
+console.log(`PocketJS psp: cargo psp (app=${embeddedApp}, engine=${engine})`);
 await $`${rustup} run ${TOOLCHAIN} cargo psp ${cargoArgs}`.cwd(nativeDir).env(env);
 
 const profile = outputProfile(cargoArgs);

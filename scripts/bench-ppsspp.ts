@@ -1,7 +1,7 @@
 // PPSSPP benchmark runner for engine comparison.
 //
 // Builds one bench EBOOT per app/engine, then runs PPSSPPHeadless repeatedly
-// and reads PSP-side microsecond timing from ms0:/psp-ui-bench.jsonl.
+// and reads PSP-side microsecond timing from ms0:/PocketJS-bench.jsonl.
 //
 // Example:
 //   PSP_SDK=/path/to/mipsel-sony-psp bun scripts/bench-ppsspp.ts --engines=vue-vapor,vue,solid --samples=7
@@ -144,7 +144,7 @@ const headless = process.env.PPSSPP_HEADLESS || `${homedir()}/ppsspp-src/build/P
 if (!existsSync(headless)) throw new Error(`PPSSPPHeadless not found at ${headless}`);
 
 const dccap = `${homedir()}/.ppsspp/dc_cap`;
-const benchFile = `${homedir()}/.ppsspp/psp-ui-bench.jsonl`;
+const benchFile = `${homedir()}/.ppsspp/PocketJS-bench.jsonl`;
 const eboot = `${pspUiDir}native/target/mipsel-sony-psp/debug/EBOOT.PBP`;
 
 mkdirSync(outDir, { recursive: true });
@@ -177,9 +177,9 @@ for (const spec of selectedSpecs) {
       .cwd(pspUiDir)
       .env({
         ...process.env,
-        PSPUI_CAPTURE_INPUT: spec.inputScript,
-        PSPUI_CAP_START: String(spec.capStart),
-        PSPUI_CAP_N: String(spec.capN),
+        POCKETJS_CAPTURE_INPUT: spec.inputScript,
+        POCKETJS_CAP_START: String(spec.capStart),
+        POCKETJS_CAP_N: String(spec.capN),
       })
       .quiet();
 

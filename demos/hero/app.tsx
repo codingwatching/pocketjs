@@ -2,11 +2,11 @@
 // Uses all three public primitives, class literals, a dynamic style object,
 // focus + onPress, and a signal in text — the exact surface phase v1 supports.
 
-import { Image, Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
-import { animate } from "psp-ui/animation";
-import { useSpriteAnimation } from "psp-ui/hooks";
-import { createSignal, onMount } from "psp-ui/reactivity";
-import { frameworkName } from "psp-ui";
+import { Image, Show, Text, View, defineComponent, type NodeMirror } from "@pocketjs/framework/components";
+import { animate } from "@pocketjs/framework/animation";
+import { createSpriteAnimation } from "@pocketjs/framework/lifecycle";
+import { createSignal, onMount } from "@pocketjs/framework/reactivity";
+import { frameworkName } from "@pocketjs/framework";
 
 const SPINNER_FRAME_STEP = 3;
 const SPINNER_FRAMES = [
@@ -43,7 +43,7 @@ export default defineComponent(function Hero() {
         <View class="flex-row items-center gap-3">
           <Image class="w-10 h-10 rounded-lg shadow" src="logo.png" />
           <View class="flex-col">
-            <Text class="text-base text-slate-950 font-bold tracking-wide">psp-ui</Text>
+            <Text class="text-base text-slate-950 font-bold tracking-wide">PocketJS</Text>
             <Text class="text-xs text-slate-500 tracking-wide">{frameworkName()} + RUST + SCEGU</Text>
           </View>
         </View>
