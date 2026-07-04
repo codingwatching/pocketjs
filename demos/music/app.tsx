@@ -12,7 +12,7 @@
 // entry); text single-line.
 
 import { Text, View } from "psp-ui/components";
-import { useButtonPress, useFrame } from "psp-ui/hooks";
+import { onButtonPress, onFrame } from "psp-ui/lifecycle";
 import { createSignal } from "psp-ui/reactivity";
 import { BTN } from "psp-ui/input";
 
@@ -73,9 +73,9 @@ export default function Music() {
     setPosition(0);
   };
 
-  useButtonPress(BTN.LTRIGGER, prevTrack);
-  useButtonPress(BTN.RTRIGGER, nextTrack);
-  useFrame(() => {
+  onButtonPress(BTN.LTRIGGER, prevTrack);
+  onButtonPress(BTN.RTRIGGER, nextTrack);
+  onFrame(() => {
     if (!playing()) return;
     setBarsFrame(barsFrame() + 1);
     const p = position() + 1;

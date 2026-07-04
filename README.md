@@ -61,7 +61,7 @@ explicit row/column d-pad traversal today; a virtualized grid can sit behind the
 same focus contract later. `Portal` mounts into the runtime overlay root, so
 modal/action-bar UI never participates in the active screen's flex layout.
 `Modal` owns a focus scope and blocks background button handlers while leaving
-frame animation hooks running; route switching is still ordinary app state, not
+frame animation lifecycle callbacks running; route switching is still ordinary app state, not
 a required router package.
 
 ## Commands

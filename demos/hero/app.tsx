@@ -4,7 +4,7 @@
 
 import { Image, Show, Text, View, type NodeMirror } from "psp-ui/components";
 import { animate } from "psp-ui/animation";
-import { useSpriteAnimation } from "psp-ui/hooks";
+import { createSpriteAnimation } from "psp-ui/lifecycle";
 import { createSignal, onMount } from "psp-ui/reactivity";
 
 const SPINNER_FRAME_STEP = 3;
@@ -30,7 +30,7 @@ function Stat(props: { label: string; value: string; cls: string }) {
 
 export default function Hero() {
   const [count, setCount] = createSignal(0);
-  const spinnerSrc = useSpriteAnimation(SPINNER_FRAMES, { frameStep: SPINNER_FRAME_STEP });
+  const spinnerSrc = createSpriteAnimation(SPINNER_FRAMES, { frameStep: SPINNER_FRAME_STEP });
   let underline: NodeMirror | undefined;
   onMount(() => {
     // Underline sweeps in once on mount — native tween, zero steady-state JS.

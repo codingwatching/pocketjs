@@ -13,7 +13,7 @@
 
 import { For, Show, Text, View, type NodeMirror } from "psp-ui/components";
 import { animate } from "psp-ui/animation";
-import { useFrame } from "psp-ui/hooks";
+import { onFrame } from "psp-ui/lifecycle";
 import { createSignal, onMount } from "psp-ui/reactivity";
 
 interface Notice {
@@ -76,7 +76,7 @@ export default function Notifications() {
 
   const hasRise = () => Object.keys(riseOffsets()).length > 0 || riseQueued().length > 0;
 
-  useFrame(() => {
+  onFrame(() => {
     const queued = riseQueued();
     if (queued.length > 0) {
       for (const id of queued) {

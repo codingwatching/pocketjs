@@ -13,7 +13,7 @@
 
 import { Image, Show, Text, View, type NodeMirror } from "psp-ui/components";
 import { spring } from "psp-ui/animation";
-import { useButtonPress, useFrame } from "psp-ui/hooks";
+import { onButtonPress, onFrame } from "psp-ui/lifecycle";
 import { createMemo, createSignal, onMount } from "psp-ui/reactivity";
 import { BTN, focusNode } from "psp-ui/input";
 
@@ -204,10 +204,10 @@ export default function Library() {
     }
   };
 
-  useButtonPress(BTN.TRIANGLE, () => {
+  onButtonPress(BTN.TRIANGLE, () => {
     if (screen() === "detail") setScreen("library");
   });
-  useFrame(() => {
+  onFrame(() => {
     if (screen() !== "loading") return;
     const n = loadFrame() + 1;
     setLoadFrame(n);
