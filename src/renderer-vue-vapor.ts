@@ -63,6 +63,18 @@ export interface RenderRoot {
   dispose(): void;
 }
 
+function normalizeVaporBlock(block: unknown): unknown | undefined {
+  if (block == null || typeof block === "boolean") return undefined;
+  if (!Array.isArray(block)) return block;
+  const out: unknown[] = [];
+  for (const child of block) {
+    const normalized = normalizeVaporBlock(child);
+    if (Array.isArray(normalized)) out.push(...normalized);
+    else if (normalized !== undefined) out.push(normalized);
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 export function createElement(type: string): NodeMirror {
   return createNativeElement(type);
 }
@@ -72,7 +84,7 @@ export function createRenderRoot(root: NodeMirror): RenderRoot {
   return {
     update(node: unknown) {
       if (current) removeVaporBlock(current, root);
-      current = node;
+      current = normalizeVaporBlock(node);
       if (current) insertVaporBlock(current, root);
     },
     dispose() {

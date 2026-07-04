@@ -36,6 +36,7 @@ export type VNodeChild = unknown;
 const NO_FALLTHROUGH = { inheritAttrs: false } as const;
 type VaporCtx = { slots: SlotBag; attrs: Record<string, unknown> };
 type VaporSetup<P extends object> = (props: P, ctx: VaporCtx) => unknown;
+type VaporRef<T> = { value: T };
 const definePocketVaporComponent = defineVaporComponent as unknown as <P extends object>(
   setup: VaporSetup<P>,
   extraOptions?: typeof NO_FALLTHROUGH,
@@ -52,8 +53,8 @@ const createIfBlock = createIf as unknown as (
 ) => unknown;
 const createForBlock = createFor as unknown as (
   source: () => readonly unknown[],
-  render: (item: { value: unknown }, key: { value: unknown } | undefined, index: { value: number }) => unknown,
-  key?: (item: { value: unknown }, key: { value: unknown } | undefined, index: { value: number }) => string | number,
+  render: (item: VaporRef<unknown>, key: VaporRef<unknown> | undefined, index: VaporRef<number>) => unknown,
+  key?: (item: unknown, key: unknown, index: number) => string | number,
 ) => unknown;
 
 export interface ViewProps {
@@ -87,12 +88,16 @@ function valueOf<T>(value: T): T {
 }
 
 function callbackOf<T extends (...args: never[]) => unknown>(value: unknown): T | undefined {
+  return typeof value === "function" ? (value as T) : undefined;
+}
+
+function booleanOption(value: unknown): boolean | undefined {
   const resolved = valueOf(value);
-  return typeof resolved === "function" ? (resolved as T) : undefined;
+  return typeof resolved === "boolean" ? resolved : undefined;
 }
 
 function assignRef(refValue: unknown, node: NodeMirror | null): void {
-  const ref = valueOf(refValue) as NodeRef;
+  const ref = refValue as NodeRef;
   if (!ref) return;
   if (typeof ref === "function") ref(node);
   else ref.current = node;
@@ -103,27 +108,116 @@ function slotDefault(slots: SlotBag, ...args: unknown[]): unknown {
   return slots?.default?.(...args);
 }
 
+function normalizeVaporBlock(block: unknown): unknown | null {
+  if (block == null || typeof block === "boolean") return null;
+  if (!Array.isArray(block)) return block;
+  const out: unknown[] = [];
+  for (const child of block) {
+    const normalized = normalizeVaporBlock(child);
+    if (Array.isArray(normalized)) out.push(...normalized);
+    else if (normalized != null) out.push(normalized);
+  }
+  return out.length > 0 ? out : null;
+}
+
+function defaultBlock(slots: SlotBag, ...args: unknown[]): unknown | null {
+  return normalizeVaporBlock(slotDefault(slots, ...args));
+}
+
+function normalizeClassValue(value: unknown): unknown {
+  const resolved = valueOf(value);
+  if (resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
+    return Object.entries(resolved)
+      .filter(([, active]) => !!valueOf(active))
+      .map(([name]) => name)
+      .join(" ");
+  }
+  if (!Array.isArray(resolved)) return resolved;
+  const parts = resolved
+    .map((part) => normalizeClassValue(part))
+    .filter((part): part is string => typeof part === "string" && part.length > 0);
+  return parts.join(" ");
+}
+
+function normalizeStyleValue(value: unknown): unknown {
+  const resolved = valueOf(value);
+  if (!Array.isArray(resolved)) return resolved;
+  const out: StyleObject = {};
+  for (const part of resolved) {
+    const normalized = normalizeStyleValue(part);
+    if (normalized && typeof normalized === "object" && !Array.isArray(normalized)) {
+      Object.assign(out, normalized);
+    }
+  }
+  return out;
+}
+
+function componentProps<P extends object>(
+  declaredProps: P,
+  attrs: Record<string, unknown>,
+  slots: SlotBag,
+): P {
+  return new Proxy({} as P, {
+    get(_target, key) {
+      if (key === "children") return defaultBlock(slots);
+      if (typeof key === "string" && key in declaredProps) return (declaredProps as Record<string, unknown>)[key];
+      return attrs[key as string];
+    },
+    has(_target, key) {
+      return key === "children" || key in declaredProps || key in attrs;
+    },
+    ownKeys() {
+      return [...new Set([...Reflect.ownKeys(attrs), ...Reflect.ownKeys(declaredProps), "children"])];
+    },
+    getOwnPropertyDescriptor(_target, key) {
+      if (key === "children" || key in declaredProps || key in attrs) {
+        return { enumerable: true, configurable: true };
+      }
+      return undefined;
+    },
+  });
+}
+
 function cleanProps(props: Record<string, unknown>, omit: Set<string>): HostProps {
   const out: HostProps = {};
   for (const key of Object.keys(props)) {
     if (omit.has(key)) continue;
-    out[key] = valueOf(props[key]);
+    if (key === "class" || key === "className") out[key] = normalizeClassValue(props[key]);
+    else if (key === "style") out[key] = normalizeStyleValue(props[key]);
+    else if (key === "onPress" || key === "on:press") out[key] = props[key];
+    else out[key] = valueOf(props[key]);
   }
   if (out.class == null && out.className != null) out.class = out.className;
   delete out.className;
   return out;
 }
 
+function cleanExtraProps(props: HostProps): HostProps {
+  const out: HostProps = {};
+  for (const key of Object.keys(props)) {
+    if (key === "class" || key === "className") out[key] = normalizeClassValue(props[key]);
+    else if (key === "style") out[key] = normalizeStyleValue(props[key]);
+    else out[key] = props[key];
+  }
+  if (out.class == null && out.className != null) out.class = out.className;
+  delete out.className;
+  return out;
+}
+
+function insertBlock(block: unknown, parent: NodeMirror): void {
+  const normalized = normalizeVaporBlock(block);
+  if (normalized) insertVaporBlock(normalized, parent);
+}
+
 function mountChildren(node: NodeMirror, slots: SlotBag): void {
-  const children = slotDefault(slots);
-  if (children) insertVaporBlock(children, node);
+  insertBlock(slotDefault(slots), node);
 }
 
 function createPrimitiveNode(
   tag: "view" | "text" | "image",
   rawProps: Record<string, unknown>,
   slots: SlotBag,
-  opts: { omit?: string[]; onNode?: (node: NodeMirror) => void; extra?: HostProps } = {},
+  opts: { omit?: string[]; onNode?: (node: NodeMirror) => void; extra?: HostProps | (() => HostProps) } = {},
 ): NodeMirror {
   const node = createElement(tag);
   opts.onNode?.(node);
@@ -131,7 +225,8 @@ function createPrimitiveNode(
   const omit = new Set(["children", "key", "ref", "nodeRef", ...(opts.omit ?? [])]);
   let prev: HostProps = {};
   renderEffect(() => {
-    const next = { ...cleanProps(rawProps, omit), ...(opts.extra ?? {}) };
+    const extra = typeof opts.extra === "function" ? opts.extra() : (opts.extra ?? {});
+    const next = { ...cleanProps(rawProps, omit), ...cleanExtraProps(extra) };
     for (const key of Object.keys(next)) setProp(node, key, next[key], prev[key]);
     for (const key of Object.keys(prev)) {
       if (!(key in next)) setProp(node, key, undefined, prev[key]);
@@ -144,7 +239,7 @@ function createPrimitiveNode(
 
 function primitive(tag: "view" | "text" | "image") {
   return definePocketVaporComponent(
-    (props: Record<string, unknown>, { slots }: { slots: SlotBag }) => createPrimitiveNode(tag, props, slots),
+    (_props: Record<string, unknown>, { attrs, slots }: VaporCtx) => createPrimitiveNode(tag, attrs, slots),
     NO_FALLTHROUGH,
   );
 }
@@ -159,16 +254,16 @@ export function defineComponent<P extends object>(
   return definePocketVaporComponent((props: P, ctx: VaporCtx) => {
     const instance: RuntimeInstance = createRuntimeInstance(() => {});
     onScopeDispose(() => runCleanups(instance));
-    return withRuntime(instance, () => fn(props, ctx));
+    return withRuntime(instance, () => fn(componentProps(props, ctx.attrs, ctx.slots), ctx));
   }, NO_FALLTHROUGH);
 }
 
 export const Show = definePocketVaporComponent(
-  (props: Record<string, unknown>, { slots }: { slots: SlotBag }) =>
+  (_props: Record<string, unknown>, { attrs, slots }: VaporCtx) =>
     createIfBlock(
-      () => !!valueOf(props.when),
-      () => slotDefault(slots, valueOf(props.when)),
-      () => valueOf(props.fallback) ?? createCommentNode("show"),
+      () => !!valueOf(attrs.when),
+      () => defaultBlock(slots, valueOf(attrs.when)) ?? createCommentNode("show"),
+      () => valueOf(attrs.fallback) ?? createCommentNode("show"),
     ),
   NO_FALLTHROUGH,
 );
@@ -182,19 +277,19 @@ function itemKey(item: unknown, index: number): string | number {
 }
 
 export const For = definePocketVaporComponent(
-  (props: Record<string, unknown>, { slots }: { slots: SlotBag }) =>
+  (_props: Record<string, unknown>, { attrs, slots }: VaporCtx) =>
     createForBlock(
-      () => (valueOf(props.each) ?? []) as readonly unknown[],
-      (item, _key, index) => slotDefault(slots, item.value, () => index.value) ?? createCommentNode("for"),
-      (item, _key, index) => itemKey(item.value, index.value),
+      () => (valueOf(attrs.each) ?? []) as readonly unknown[],
+      (item, _key, index) => defaultBlock(slots, item.value, () => index.value) ?? createCommentNode("for"),
+      (item, _key, index) => itemKey(item, index),
     ),
   NO_FALLTHROUGH,
 );
 export const Index = For;
 export const Match = Show;
 export const Switch = definePocketVaporComponent(
-  (_props: Record<string, unknown>, { slots }: { slots: SlotBag }) =>
-    slotDefault(slots) ?? createCommentNode("switch"),
+  (_props: Record<string, unknown>, { slots }: VaporCtx) =>
+    defaultBlock(slots) ?? createCommentNode("switch"),
   NO_FALLTHROUGH,
 );
 
@@ -206,9 +301,9 @@ function resolveActive(active: unknown): boolean {
 export interface ScreenProps extends ViewProps {}
 
 export const Screen = definePocketVaporComponent(
-  (props: ScreenProps, { slots }: { slots: SlotBag }) =>
-    createPrimitiveNode("view", props as Record<string, unknown>, slots, {
-      extra: { class: props.class ?? "relative flex-col w-full h-full bg-slate-50 overflow-hidden" },
+  (_props: ScreenProps, { attrs, slots }: VaporCtx) =>
+    createPrimitiveNode("view", attrs, slots, {
+      extra: () => ({ class: attrs.class ?? "relative flex-col w-full h-full bg-slate-50 overflow-hidden" }),
     }),
   NO_FALLTHROUGH,
 );
@@ -218,8 +313,8 @@ export interface FocusableProps extends ViewProps {
 }
 
 export const Focusable = definePocketVaporComponent(
-  (props: FocusableProps, { slots }: { slots: SlotBag }) =>
-    createPrimitiveNode("view", props as Record<string, unknown>, slots, { extra: { focusable: true } }),
+  (_props: FocusableProps, { attrs, slots }: VaporCtx) =>
+    createPrimitiveNode("view", attrs, slots, { extra: { focusable: true } }),
   NO_FALLTHROUGH,
 );
 
@@ -227,19 +322,19 @@ export interface FocusScopeProps extends ViewProps, FocusScopeOptions {
   active?: boolean | (() => boolean);
 }
 
-export const FocusScope = definePocketVaporComponent((props: FocusScopeProps, { slots }: { slots: SlotBag }) => {
+export const FocusScope = definePocketVaporComponent((_props: FocusScopeProps, { attrs, slots }: VaporCtx) => {
   let root: NodeMirror | undefined;
-  const node = createPrimitiveNode("view", props as unknown as Record<string, unknown>, slots, {
+  const node = createPrimitiveNode("view", attrs, slots, {
     omit: ["active", "autoFocus", "restoreFocus"],
     onNode(next) {
       root = next;
     },
   });
   createEffect(() => {
-    if (!root || !resolveActive(props.active)) return;
+    if (!root || !resolveActive(attrs.active)) return;
     const dispose = pushFocusScope(root, {
-      autoFocus: valueOf(props.autoFocus),
-      restoreFocus: valueOf(props.restoreFocus),
+      autoFocus: booleanOption(attrs.autoFocus),
+      restoreFocus: booleanOption(attrs.restoreFocus),
     });
     onCleanup(dispose);
   });
@@ -250,19 +345,19 @@ export interface FocusGridProps extends ViewProps, FocusGridOptions {
   active?: boolean | (() => boolean);
 }
 
-export const FocusGrid = definePocketVaporComponent((props: FocusGridProps, { slots }: { slots: SlotBag }) => {
+export const FocusGrid = definePocketVaporComponent((_props: FocusGridProps, { attrs, slots }: VaporCtx) => {
   let root: NodeMirror | undefined;
-  const node = createPrimitiveNode("view", props as unknown as Record<string, unknown>, slots, {
+  const node = createPrimitiveNode("view", attrs, slots, {
     omit: ["active", "columns", "wrap"],
     onNode(next) {
       root = next;
     },
   });
   createEffect(() => {
-    if (!root || !resolveActive(props.active)) return;
+    if (!root || !resolveActive(attrs.active)) return;
     const dispose = pushFocusGrid(root, {
-      columns: valueOf(props.columns),
-      wrap: valueOf(props.wrap),
+      columns: valueOf(attrs.columns) as number,
+      wrap: booleanOption(attrs.wrap),
     });
     onCleanup(dispose);
   });
@@ -275,16 +370,16 @@ export interface ActionHandlerProps extends ButtonPressOptions {
   children?: VNodeChild;
 }
 
-export const ActionHandler = definePocketVaporComponent((props: ActionHandlerProps, { slots }: { slots: SlotBag }) => {
+export const ActionHandler = definePocketVaporComponent((_props: ActionHandlerProps, { attrs, slots }: VaporCtx) => {
   useButtonPress(
-    valueOf(props.button),
-    (pressed, buttons) => callbackOf<ActionHandlerProps["onPress"]>(props.onPress)?.(pressed, buttons),
+    valueOf(attrs.button) as number,
+    (pressed, buttons) => callbackOf<ActionHandlerProps["onPress"]>(attrs.onPress)?.(pressed, buttons),
     {
-      allowWhenBlocked: valueOf(props.allowWhenBlocked),
-      active: () => resolveActive(props.active),
+      allowWhenBlocked: booleanOption(attrs.allowWhenBlocked),
+      active: () => resolveActive(attrs.active),
     },
   );
-  return slotDefault(slots) ?? createCommentNode("action");
+  return defaultBlock(slots) ?? createCommentNode("action");
 }, NO_FALLTHROUGH);
 
 export interface PortalProps {
@@ -316,7 +411,7 @@ function createPortalRoot(): { marker: NodeMirror; host: NodeMirror; root: Rende
 export const Portal = definePocketVaporComponent((_props: PortalProps, { slots }: { slots: SlotBag }) => {
   const state = createPortalRoot();
   renderEffect(() => {
-    state.root.update(slotDefault(slots) ?? null);
+    state.root.update(defaultBlock(slots));
   });
   onCleanup(() => {
     state.root.dispose();
@@ -332,31 +427,30 @@ export interface ModalProps {
   children?: VNodeChild;
 }
 
-export const Modal = definePocketVaporComponent((props: ModalProps, { slots }: { slots: SlotBag }) => {
+export const Modal = definePocketVaporComponent((_props: ModalProps, { attrs, slots }: VaporCtx) => {
   const state = createPortalRoot();
   const frame = createElement("view");
   const backdrop = createElement("view");
   const panel = createElement("view");
   let unblockButtons: (() => void) | undefined;
 
-  setProp(frame, "class", props.class ?? "absolute inset-0 z-50 flex-col items-center justify-center", undefined);
+  setProp(frame, "class", attrs.class ?? "absolute inset-0 z-50 flex-col items-center justify-center", undefined);
   setProp(backdrop, "class", "absolute inset-0 bg-slate-950", undefined);
   setProp(backdrop, "style", { opacity: 0 }, undefined);
   setProp(
     panel,
     "class",
-    props.panelClass ?? "flex-col gap-2 w-[328] p-3 rounded-xl shadow-lg bg-white border-slate-200",
+    attrs.panelClass ?? "flex-col gap-2 w-[328] p-3 rounded-xl shadow-lg bg-white border-slate-200",
     undefined,
   );
   setProp(panel, "style", { opacity: 0, translateY: 0, scale: 1 }, undefined);
   insertNode(frame, backdrop);
   insertNode(frame, panel);
   state.root.update(frame);
-  const children = slotDefault(slots);
-  if (children) insertVaporBlock(children, panel);
+  insertBlock(slotDefault(slots), panel);
 
   createEffect(() => {
-    const visible = resolveActive(props.open);
+    const visible = resolveActive(attrs.open);
     if (visible && !unblockButtons) {
       unblockButtons = pushButtonHandlerBlock();
     } else if (!visible && unblockButtons) {
@@ -377,14 +471,14 @@ export const Modal = definePocketVaporComponent((props: ModalProps, { slots }: {
 
 export interface ActionBarProps extends ViewProps {}
 
-export const ActionBar = definePocketVaporComponent((props: ActionBarProps, { slots }: { slots: SlotBag }) => {
+export const ActionBar = definePocketVaporComponent((_props: ActionBarProps, { attrs, slots }: VaporCtx) => {
   const state = createPortalRoot();
-  const bar = createPrimitiveNode("view", props as unknown as Record<string, unknown>, slots, {
-    extra: {
+  const bar = createPrimitiveNode("view", attrs, slots, {
+    extra: () => ({
       class:
-        props.class ??
+        attrs.class ??
         "absolute left-3 right-3 bottom-3 flex-row items-center justify-between px-2 py-1 rounded-lg shadow-md bg-white border-slate-200",
-    },
+    }),
   });
   state.root.update(bar);
   onCleanup(() => {
