@@ -1,4 +1,4 @@
-# psp-ui
+# PocketJS
 
 A JSX UI stack for the Sony PSP (and beyond): **Solid** (universal renderer) +
 a **build-time Tailwind-subset compiler** + **baked font atlases**, driving one

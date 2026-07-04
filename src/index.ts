@@ -1,4 +1,4 @@
-// psp-ui runtime entry: render(<App/>) / mount(<App/>).
+// PocketJS runtime entry: render(<App/>) / mount(<App/>).
 //
 // Frame contract (every host): once per vblank/rAF tick the host calls
 // `globalThis.frame(buttons)` (spec BTN bitmask). render() installs that
@@ -168,7 +168,7 @@ export function render(code: () => unknown, opts: RenderOptions = {}): () => voi
 export function mount(code: () => unknown, opts: MountOptions = {}): () => void {
   const ops = opts.ops ?? globalOps();
   if (!ops) {
-    throw new Error("psp-ui: mount() requires globalThis.ui or opts.ops");
+    throw new Error("PocketJS: mount() requires globalThis.ui or opts.ops");
   }
   if (opts.dcpak) loadPack(opts.dcpak);
   uploadDcpakImages(ops);

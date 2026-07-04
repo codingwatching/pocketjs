@@ -1,4 +1,4 @@
-// @title psp-ui: Mission Control
+// @title PocketJS: Mission Control
 import Stats from "./app.tsx";
 import { mount } from "@pocketjs";
 

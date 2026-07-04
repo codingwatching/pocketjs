@@ -1,9 +1,9 @@
-// Run a freshly compiled psp-ui demo on a REAL PSP over USB.
+// Run a freshly compiled PocketJS demo on a REAL PSP over USB.
 //
 //   bun run hw              # build + run hero on the PSP
 //   bun run hw cards        # build + run a specific demo
 //   bun run hw stats -r     # release profile
-//   bun run hw hero --trace # bake host0:/psp-ui-trace.txt logging
+//   bun run hw hero --trace # bake host0:/PocketJS-trace.txt logging
 //   bun run hw --once       # build + load once, then exit
 //   bun run hw --no-build   # skip the build, just load what's built
 //
@@ -15,7 +15,7 @@ import { createServer } from "node:net";
 import { createInterface } from "node:readline";
 
 const pspUiDir = new URL("..", import.meta.url).pathname;
-const PRX = "host0:/psp-ui-psp.prx";
+const PRX = "host0:/pocketjs-psp.prx";
 const MAIN_SUFFIX = "-main.tsx";
 
 const argv = Bun.argv.slice(2);
@@ -46,7 +46,7 @@ function resolveDemo(name?: string): string | null {
 
 function usage(): void {
   console.log("Usage: bun run hw [demo] [-r|--release] [--trace] [--once] [--no-build]\n");
-  console.log("Runs a psp-ui demo on a real PSP over USB (PSPLINK + usbhostfs).");
+  console.log("Runs a PocketJS demo on a real PSP over USB (PSPLINK + usbhostfs).");
   console.log("Launch PSPLINK on the PSP from the XMB Game menu when prompted.\n");
   console.log("Demos: " + listDemos().join(", "));
 }
@@ -71,8 +71,8 @@ if (!usbhostfs || !pspsh) {
 }
 
 const targetDir = pspUiDir + `native/target/mipsel-sony-psp/${profile}`;
-const prxPath = targetDir + "/psp-ui-psp.prx";
-const tracePath = targetDir + "/psp-ui-trace.txt";
+const prxPath = targetDir + "/pocketjs-psp.prx";
+const tracePath = targetDir + "/PocketJS-trace.txt";
 
 function portFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -102,7 +102,7 @@ async function build(): Promise<boolean> {
   const cargoArgs = release ? ["--release"] : [];
   console.log(`building ${demo} (${profile}${trace ? ", trace" : ""})...`);
   const res = await $`bun ${pspUiDir}scripts/psp.ts ${demo} ${cargoArgs}`
-    .env({ ...process.env, PSPUI_TRACE: trace ? "1" : "" })
+    .env({ ...process.env, POCKETJS_TRACE: trace ? "1" : "" })
     .nothrow();
   if (res.exitCode !== 0 || !existsSync(prxPath)) {
     console.error("build failed - not reloading");
@@ -135,7 +135,7 @@ async function waitForTraceComplete(timeoutMs = 8000): Promise<boolean> {
     if (existsSync(tracePath)) {
       const text = readFileSync(tracePath, "utf8");
       if (text.includes("frame 0: complete")) return true;
-      if (text.includes("[psp-ui halt]") || text.includes("[psp-ui js error]")) return false;
+      if (text.includes("[PocketJS halt]") || text.includes("[PocketJS js error]")) return false;
     }
     await Bun.sleep(100);
   }
@@ -259,13 +259,13 @@ if (once) {
   process.exit(loaded ? 0 : 1);
 }
 
-console.log("\n[psp-ui:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
+console.log("\n[PocketJS:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
 const rl = createInterface({ input: process.stdin });
 for await (const line of rl) {
   const cmd = line.trim().toLowerCase();
   if (cmd === "q" || cmd === "quit" || cmd === "exit") break;
   if (await build()) await loadDemo();
-  console.log("\n[psp-ui:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
+  console.log("\n[PocketJS:hw] press Enter to rebuild + reload  |  q + Enter to quit\n");
 }
 rl.close();
 cleanup();

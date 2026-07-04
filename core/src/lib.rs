@@ -1,4 +1,4 @@
-//! psp-ui-core — the platform-agnostic retained UI core.
+//! pocketjs-core — the platform-agnostic retained UI core.
 //!
 //! One `Ui` instance owns the node tree, style table, taffy layout, font
 //! atlases, animation tracks and the per-frame `DrawList`. Hosts (PSP QuickJS

@@ -1,4 +1,4 @@
-//! psp-ui-wasm — extern "C" mirror of the core op surface + software
+//! pocketjs-wasm — extern "C" mirror of the core op surface + software
 //! rasterizer, for wasm32-unknown-unknown (no wasm-bindgen; the JS host talks
 //! plain numbers + wasm linear memory).
 //!
@@ -17,8 +17,8 @@
 
 #![allow(static_mut_refs)] // single-threaded wasm instance; one global Ui
 
-use psp_ui_core::spec::{SCREEN_H, SCREEN_W};
-use psp_ui_core::Ui;
+use pocketjs_core::spec::{SCREEN_H, SCREEN_W};
+use pocketjs_core::Ui;
 
 mod raster;
 
@@ -179,7 +179,7 @@ pub extern "C" fn ui_render() -> *const u8 {
     // then needs a shared &Ui for atlases/textures. Both live in the single
     // static; nothing mutates during rasterization, and this module is
     // single-threaded by construction, so the raw-pointer reborrow is sound.
-    let dl: *const psp_ui_core::DrawList = u.draw();
+    let dl: *const pocketjs_core::DrawList = u.draw();
     let u_ref: &Ui = unsafe { &*(u as *const Ui) };
     unsafe { raster::render(u_ref, &(*dl).words, &mut FRAMEBUFFER) };
     unsafe { FRAMEBUFFER.as_ptr() }

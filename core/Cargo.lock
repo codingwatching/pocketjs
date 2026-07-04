@@ -24,10 +24,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "psp-ui-core"
+name = "pocketjs-core"
 version = "0.1.0"
 dependencies = [
- "psp-ui-core",
+ "pocketjs-core",
  "taffy",
 ]
 

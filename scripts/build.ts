@@ -33,7 +33,7 @@ import {
   type PakBlob,
 } from "../compiler/dcpak.ts";
 
-const ROOT = new URL("..", import.meta.url).pathname; // psp-ui/
+const ROOT = new URL("..", import.meta.url).pathname; // pocketjs/
 const DIST = ROOT + "dist/";
 
 type PackageExportTarget = string | { default?: string; browser?: string; import?: string };
@@ -96,7 +96,7 @@ function resolveEntry(arg: string): string {
   for (const t of tries) {
     if (/\.tsx?$/.test(t) && existsSync(t) && statSync(t).isFile()) return t;
   }
-  console.error(`psp-ui build: cannot resolve app "${arg}" (tried:\n  ${tries.join("\n  ")})`);
+  console.error(`PocketJS build: cannot resolve app "${arg}" (tried:\n  ${tries.join("\n  ")})`);
   process.exit(1);
 }
 
@@ -109,7 +109,7 @@ function outputName(file: string): string {
 }
 
 const appName = outputName(entry);
-console.log(`psp-ui build: ${appName} (${entry})`);
+console.log(`PocketJS build: ${appName} (${entry})`);
 
 // ---------------------------------------------------------------------------
 // pass 1 — transform & collect over the entry's import graph
@@ -128,18 +128,8 @@ function importSpecifiers(src: string): string[] {
  *  remapping like `./card.js` -> card.tsx included), so the two passes agree
  *  on the module graph by construction. */
 function resolveImport(fromFile: string, spec: string): string | null {
-  if (
-    spec === "psp-ui" ||
-    spec.startsWith("psp-ui/") ||
-    spec === "@pocketjs" ||
-    spec.startsWith("@pocketjs/")
-  ) {
-    const subpath =
-      spec === "psp-ui" || spec === "@pocketjs"
-        ? ""
-        : spec.startsWith("psp-ui/")
-          ? spec.slice("psp-ui/".length)
-          : spec.slice("@pocketjs/".length);
+  if (spec === "@pocketjs" || spec.startsWith("@pocketjs/")) {
+    const subpath = spec === "@pocketjs" ? "" : spec.slice("@pocketjs/".length);
     const exported = packageExports.get(subpath);
     return exported && /\.tsx?$/.test(exported) ? ROOT + exported : null;
   }
@@ -263,12 +253,12 @@ const result = await Bun.build({
 });
 if (!result.success) {
   for (const log of result.logs) console.error(log);
-  console.error("psp-ui build: pass 2 bundling failed");
+  console.error("PocketJS build: pass 2 bundling failed");
   process.exit(1);
 }
 const bundle = result.outputs.find((o) => o.path.endsWith(".js"));
 console.log(`  pass 2: dist/${appName}.js (${bundle ? (await bundle.arrayBuffer()).byteLength : 0} bytes)`);
-console.log("psp-ui build: done");
+console.log("PocketJS build: done");
 
 // ---------------------------------------------------------------------------
 

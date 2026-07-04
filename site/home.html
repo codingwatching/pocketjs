@@ -1,0 +1,279 @@
+<div class="lp">
+  <header class="lp-nav">
+    <div class="lp-container lp-nav__in">
+      <a class="lp-brand" href="/" aria-label="PocketJS home">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <rect x="1.5" y="5.5" width="29" height="21" rx="5" fill="none" stroke="url(#lp-pgn)" stroke-width="2"/>
+          <circle cx="9" cy="16" r="3.2" fill="url(#lp-pgn)"/>
+          <rect x="18.5" y="12.6" width="7.5" height="1.9" rx=".95" fill="url(#lp-pgn)"/>
+          <rect x="18.5" y="17.6" width="7.5" height="1.9" rx=".95" fill="url(#lp-pgn)"/>
+          <defs><linearGradient id="lp-pgn" x1="0" y1="0" x2="32" y2="32"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+        </svg>
+        <span>PocketJS</span>
+      </a>
+      <nav class="lp-nav__links" aria-label="Primary">
+        <a class="lp-nav__link" href="/docs/overview/">Docs</a>
+        <a class="lp-nav__link" href="/playground/">Playground</a>
+        <a class="lp-nav__link lp-nav__gh" href="https://github.com/doodlewind/pocketjs" target="_blank" rel="noreferrer">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17 4.7 18 5 18 5c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5z"/></svg>
+          <span class="lp-nav__ghlabel">GitHub</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- HERO -->
+    <section class="lp-hero">
+      <div class="lp-hero__grid" aria-hidden="true"></div>
+      <div class="lp-hero__aurora" aria-hidden="true"></div>
+      <div class="lp-container lp-hero__in">
+        <a class="lp-eyebrow" href="/docs/architecture/">
+          <span class="lp-eyebrow__tag">NEW</span>
+          The modern web, from 32&nbsp;MB up
+          <span class="lp-eyebrow__arw" aria-hidden="true">&rarr;</span>
+        </a>
+        <h1 class="lp-h1">Bare Metal<span class="lp-grad">Modern Web</span></h1>
+        <p class="lp-sub">
+          PocketJS renders a real <span class="lp-hl">Solid</span> app &mdash; JSX, Tailwind, signals and
+          TypeScript &mdash; natively on the metal. Real flexbox, sub-pixel text and hardware-accelerated
+          animation, at a fluid <span class="lp-hl">60&nbsp;FPS in 32&nbsp;MB of RAM</span>.
+        </p>
+        <div class="lp-hero__cta">
+          <a class="lp-btn lp-btn--primary" href="/docs/getting-started/">Get started</a>
+          <a class="lp-btn lp-btn--ghost" href="/playground/">
+            Open playground
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+        </div>
+
+        <div class="lp-stage">
+          <div class="lp-stage__glow" aria-hidden="true"></div>
+          <div class="lp-stage__frame">
+            <div class="screen-emu">
+              <canvas id="hero-canvas" width="480" height="272" tabindex="0"></canvas>
+              <div id="hero-loading" class="emu-loading">booting core…</div>
+              <div class="emu-dpad">
+                <svg class="emu-cross" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M36 3 H64 V36 H97 V64 H64 V97 H36 V64 H3 V36 H36 Z" fill="rgba(51,66,97,0.55)" stroke="rgba(255,255,255,0.34)" stroke-width="2.5" stroke-linejoin="round"/></svg>
+                <button class="emu-key up" data-btn="0x0010" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M12 8 l6 8 h-12 z" fill="currentColor"/></svg></button>
+                <button class="emu-key down" data-btn="0x0040" aria-label="Down"><svg viewBox="0 0 24 24"><path d="M12 16 l6 -8 h-12 z" fill="currentColor"/></svg></button>
+                <button class="emu-key left" data-btn="0x0080" aria-label="Left"><svg viewBox="0 0 24 24"><path d="M8 12 l8 -6 v12 z" fill="currentColor"/></svg></button>
+                <button class="emu-key right" data-btn="0x0020" aria-label="Right"><svg viewBox="0 0 24 24"><path d="M16 12 l-8 -6 v12 z" fill="currentColor"/></svg></button>
+              </div>
+              <div class="emu-faces">
+                <button class="emu-key tri" data-btn="0x1000" aria-label="Triangle"><svg viewBox="0 0 24 24"><path d="M12 5 L19.5 18.5 L4.5 18.5 Z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg></button>
+                <button class="emu-key sq" data-btn="0x8000" aria-label="Square"><svg viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="1.6" fill="none" stroke="currentColor" stroke-width="2.4"/></svg></button>
+                <button class="emu-key ci" data-btn="0x2000" aria-label="Circle"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="2.4"/></svg></button>
+                <button class="emu-key cross" data-btn="0x4000" aria-label="Cross"><svg viewBox="0 0 24 24"><path d="M6.5 6.5 L17.5 17.5 M17.5 6.5 L6.5 17.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+              </div>
+              <div class="emu-sys">
+                <button class="emu-sys-btn" data-btn="0x0001">SELECT</button>
+                <button class="emu-sys-btn" data-btn="0x0008">START</button>
+              </div>
+            </div>
+          </div>
+          <div class="lp-stage__meta">
+            <span class="lp-live"><span class="lp-live__dot" aria-hidden="true"></span>live &middot; tap the on-screen controls to drive it</span>
+            <span id="hero-fps" class="lp-fps"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TOOLS STRIP -->
+    <section class="lp-tools">
+      <div class="lp-container">
+        <p class="lp-tools__label">The stack you already know &mdash; running on the metal</p>
+        <div class="lp-tools__row">
+          <span class="lp-tool">
+            <svg width="30" height="28" viewBox="0 0 48 38" aria-hidden="true"><defs><linearGradient id="lp-sld1" x1="0" y1="0" x2="48" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#79b8e3"/><stop offset="1" stop-color="#2f5d8f"/></linearGradient><linearGradient id="lp-sld2" x1="0" y1="14" x2="40" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#4b81bd"/><stop offset="1" stop-color="#2b527f"/></linearGradient></defs><path fill="url(#lp-sld1)" d="M25 2C14 2 7 7 5 16c8-6 15-4 21 1 4 3 10 4 16 1-2-10-9-16-17-16z"/><path fill="url(#lp-sld2)" d="M8 20c-9 4-6 12 3 14 8 2 15-1 19-7-8 5-16 3-22-7z"/></svg>
+            <span>Solid</span>
+          </span>
+          <span class="lp-tool">
+            <svg width="30" height="27" viewBox="-11.5 -10.23 23 20.46" aria-hidden="true"><circle r="2.05" fill="#61dafb"/><g fill="none" stroke="#61dafb" stroke-width="1"><ellipse rx="11" ry="4.2"/><ellipse rx="11" ry="4.2" transform="rotate(60)"/><ellipse rx="11" ry="4.2" transform="rotate(120)"/></g></svg>
+            <span>JSX</span>
+          </span>
+          <span class="lp-tool">
+            <svg width="34" height="21" viewBox="0 0 54 33" aria-hidden="true"><path fill="#38bdf8" fill-rule="evenodd" clip-rule="evenodd" d="M27 0c-7.2 0-11.7 3.6-13.5 10.8 2.7-3.6 5.85-4.95 9.45-4.05 2.054.513 3.522 2.004 5.147 3.653C30.744 13.09 33.808 16.2 40.5 16.2c7.2 0 11.7-3.6 13.5-10.8-2.7 3.6-5.85 4.95-9.45 4.05-2.054-.513-3.522-2.004-5.147-3.653C36.756 3.11 33.692 0 27 0zM13.5 16.2C6.3 16.2 1.8 19.8 0 27c2.7-3.6 5.85-4.95 9.45-4.05 2.054.514 3.522 2.004 5.147 3.653C17.244 29.29 20.308 32.4 27 32.4c7.2 0 11.7-3.6 13.5-10.8-2.7 3.6-5.85 4.95-9.45 4.05-2.054-.513-3.522-2.004-5.147-3.653C23.256 19.31 20.192 16.2 13.5 16.2z"/></svg>
+            <span>Tailwind</span>
+          </span>
+          <span class="lp-tool">
+            <svg width="27" height="27" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="5" fill="#3178c6"/><text x="16.5" y="22.5" font-family="ui-sans-serif,system-ui,Arial,sans-serif" font-size="14" font-weight="700" fill="#fff" text-anchor="middle">TS</text></svg>
+            <span>TypeScript</span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATS BAND -->
+    <section class="lp-section" style="padding-bottom: clamp(2.5rem, 6vw, 4rem);">
+      <div class="lp-container lp-reveal">
+        <div class="lp-stats">
+          <div class="lp-stat"><div class="lp-stat__n lp-grad">60<span class="lp-stat__u"> FPS</span></div><div class="lp-stat__l">frame-locked, sustained</div></div>
+          <div class="lp-stat"><div class="lp-stat__n lp-grad">32<span class="lp-stat__u"> MB</span></div><div class="lp-stat__l">the whole system's RAM</div></div>
+          <div class="lp-stat"><div class="lp-stat__n lp-grad">0<span class="lp-stat__u"> kB</span></div><div class="lp-stat__l">runtime CSS shipped</div></div>
+          <div class="lp-stat"><div class="lp-stat__n lp-grad">1<span class="lp-stat__u"> core</span></div><div class="lp-stat__l">PSP, browser &amp; Bun</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="lp-section" style="padding-top: clamp(3rem, 6vw, 4.5rem);">
+      <div class="lp-container">
+        <div class="lp-secthead lp-reveal">
+          <span class="lp-kicker">Engineered down to the byte</span>
+          <h2 class="lp-h2">A whole UI engine, sized for a handheld</h2>
+          <p class="lp-lead">No VDOM. No runtime CSS. No font files shipped. Everything the app can't need is compiled away before it ever reaches the device.</p>
+        </div>
+        <div class="lp-grid">
+          <div class="lp-card lp-reveal">
+            <span class="lp-card__ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+            <h3>No VDOM</h3>
+            <p>Solid's fine-grained reactivity runs only the effect closures of changed signals. Updates cross a single FFI boundary per frame &mdash; never a diff.</p>
+          </div>
+          <div class="lp-card lp-reveal">
+            <span class="lp-card__ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg></span>
+            <h3>Zero runtime CSS</h3>
+            <p>A class string compiles to a style record only if every token is a supported utility. The Tailwind subset resolves at build time &mdash; nothing ships to parse.</p>
+          </div>
+          <div class="lp-card lp-reveal">
+            <span class="lp-card__ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg></span>
+            <h3>Baked fonts</h3>
+            <p>Inter is rasterized at build time into coverage atlases for exactly the glyphs you use. No font files, no shaper at runtime &mdash; just pixels.</p>
+          </div>
+          <div class="lp-card lp-reveal">
+            <span class="lp-card__ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c2 0 2-4 4-4s2 8 4 8 2-8 4-8 2 4 4 4 2-2 2-2"/></svg></span>
+            <h3>Native animation</h3>
+            <p>Tweens and springs tick in Rust at a fixed 1/60&nbsp;s. Each frame is a pure function of its index &mdash; the reason byte-exact goldens are possible.</p>
+          </div>
+          <div class="lp-card lp-reveal">
+            <span class="lp-card__ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+            <h3>Real flexbox</h3>
+            <p>taffy 0.11 &mdash; <code>no_std</code>, f32-only &mdash; does the layout; text measures natively. The same engine positions every pixel on every host.</p>
+          </div>
+          <div class="lp-card lp-reveal">
+            <span class="lp-card__ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg></span>
+            <h3>One tiny Rust core</h3>
+            <p>Layout, styling, animation, text and the draw list live in one portable <code>no_std</code> core &mdash; a few hundred kilobytes, compiled to the PSP and to WebAssembly alike.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CODE SAMPLE -->
+    <section class="lp-section" style="padding-top: clamp(2rem, 5vw, 3.5rem);">
+      <div class="lp-container">
+        <div class="lp-split">
+          <div class="lp-split__copy lp-reveal">
+            <span class="lp-kicker">Looks like Solid</span>
+            <h2 class="lp-h2">If you can write a component, you can write for the metal.</h2>
+            <p>You already know the surface: <span class="lp-mono">View</span>, <span class="lp-mono">Text</span>, signals and class strings. <span class="lp-mono">focusable</span> and <span class="lp-mono">onPress</span> map straight to the d-pad and face buttons.</p>
+            <ul class="lp-checklist">
+              <li>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>
+                <span>Dynamic styles are ternaries of full class literals or <span class="lp-mono">animate()</span> calls &mdash; never runtime CSS.</span>
+              </li>
+              <li>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>
+                <span>The <span class="lp-mono">focus:</span> and <span class="lp-mono">active:</span> variants switch natively, with zero JS on focus change.</span>
+              </li>
+              <li>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>
+                <span>One codebase compiles to a <span class="lp-mono">.dcpak</span> for a real PSP and runs unchanged right here in your browser.</span>
+              </li>
+            </ul>
+            <a class="lp-btn lp-btn--primary" href="/playground/">
+              Open the playground
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </a>
+          </div>
+          <div class="lp-codecard lp-reveal">
+            <div class="lp-codecard__bar">
+              <span class="lp-dot" aria-hidden="true"></span><span class="lp-dot" aria-hidden="true"></span><span class="lp-dot" aria-hidden="true"></span>
+              <span class="lp-codecard__name">Counter.tsx</span>
+            </div>
+            <pre class="lp-code"><code><span class="lp-k">import</span> { <span class="lp-t">Text</span>, <span class="lp-t">View</span> } <span class="lp-k">from</span> <span class="lp-s">"@pocketjs/components"</span>;
+<span class="lp-k">import</span> { <span class="lp-f">createSignal</span> } <span class="lp-k">from</span> <span class="lp-s">"@pocketjs/reactivity"</span>;
+
+<span class="lp-k">export</span> <span class="lp-k">default</span> <span class="lp-k">function</span> <span class="lp-t">Counter</span>() {
+  <span class="lp-k">const</span> [n, setN] = <span class="lp-f">createSignal</span>(<span class="lp-n">0</span>);
+  <span class="lp-k">return</span> (
+    <span class="lp-code-mut">&lt;</span><span class="lp-t">View</span> <span class="lp-a">class</span>=<span class="lp-s">"flex-col items-center gap-4 p-6 bg-slate-950"</span><span class="lp-code-mut">&gt;</span>
+      <span class="lp-code-mut">&lt;</span><span class="lp-t">Text</span> <span class="lp-a">class</span>=<span class="lp-s">"text-2xl text-slate-50 font-bold"</span><span class="lp-code-mut">&gt;</span>Count: {<span class="lp-f">n</span>()}<span class="lp-code-mut">&lt;/</span><span class="lp-t">Text</span><span class="lp-code-mut">&gt;</span>
+      <span class="lp-code-mut">&lt;</span><span class="lp-t">View</span> <span class="lp-a">class</span>=<span class="lp-s">"px-4 py-2 rounded-xl bg-blue-600 focus:bg-blue-500"</span> <span class="lp-a">focusable</span> <span class="lp-a">onPress</span>={() =&gt; <span class="lp-f">setN</span>(<span class="lp-f">n</span>() + <span class="lp-n">1</span>)}<span class="lp-code-mut">&gt;</span>
+        <span class="lp-code-mut">&lt;</span><span class="lp-t">Text</span> <span class="lp-a">class</span>=<span class="lp-s">"text-base text-white font-bold"</span><span class="lp-code-mut">&gt;</span>Press Circle<span class="lp-code-mut">&lt;/</span><span class="lp-t">Text</span><span class="lp-code-mut">&gt;</span>
+      <span class="lp-code-mut">&lt;/</span><span class="lp-t">View</span><span class="lp-code-mut">&gt;</span>
+    <span class="lp-code-mut">&lt;/</span><span class="lp-t">View</span><span class="lp-code-mut">&gt;</span>
+  );
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLOSING CTA -->
+    <section class="lp-section lp-cta">
+      <div class="lp-cta__glow" aria-hidden="true"></div>
+      <div class="lp-container lp-cta__in lp-reveal">
+        <span class="lp-kicker">Ship it</span>
+        <h2 class="lp-h2" style="margin-top: 0.9rem;">Every screen deserves the modern web.</h2>
+        <p>It starts on a 2005 handheld with 32&nbsp;MB of RAM and a fluid 60&nbsp;FPS. It won't stop there.</p>
+        <div class="lp-cta__btns">
+          <a class="lp-btn lp-btn--primary" href="/docs/getting-started/">Get started</a>
+          <a class="lp-btn lp-btn--ghost" href="/docs/overview/">Read the docs</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="lp-footer">
+    <div class="lp-container">
+      <div class="lp-footer__grid">
+        <div class="lp-footer__brand">
+          <a class="lp-brand" href="/" aria-label="PocketJS home">
+            <svg viewBox="0 0 32 32" aria-hidden="true">
+              <rect x="1.5" y="5.5" width="29" height="21" rx="5" fill="none" stroke="url(#lp-pgf)" stroke-width="2"/>
+              <circle cx="9" cy="16" r="3.2" fill="url(#lp-pgf)"/>
+              <rect x="18.5" y="12.6" width="7.5" height="1.9" rx=".95" fill="url(#lp-pgf)"/>
+              <rect x="18.5" y="17.6" width="7.5" height="1.9" rx=".95" fill="url(#lp-pgf)"/>
+              <defs><linearGradient id="lp-pgf" x1="0" y1="0" x2="32" y2="32"><stop offset="0" stop-color="#60a5fa"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+            </svg>
+            <span>PocketJS</span>
+          </a>
+          <p>Bare Metal Modern Web &mdash; the full Solid frontend, rendered natively at 60&nbsp;FPS in 32&nbsp;MB of RAM.</p>
+        </div>
+        <div>
+          <h4>Docs</h4>
+          <ul>
+            <li><a href="/docs/overview/">Overview</a></li>
+            <li><a href="/docs/getting-started/">Getting started</a></li>
+            <li><a href="/docs/architecture/">Architecture</a></li>
+            <li><a href="/docs/api/">API reference</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="/playground/">Playground</a></li>
+            <li><a href="/docs/components/">Components</a></li>
+            <li><a href="/docs/styling/">Styling</a></li>
+            <li><a href="/docs/animation/">Animation</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Project</h4>
+          <ul>
+            <li><a href="https://github.com/doodlewind/pocketjs" target="_blank" rel="noreferrer">GitHub</a></li>
+            <li><a href="/docs/native-contract/">Native contract</a></li>
+            <li><a href="/docs/build-pipeline/">Build pipeline</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="lp-footer__bar">
+        <span>Bare Metal Modern Web</span>
+        <span>&copy; 2026 PocketJS &middot; MIT</span>
+      </div>
+    </div>
+  </footer>
+</div>

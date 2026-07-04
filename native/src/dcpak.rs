@@ -20,7 +20,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::ffi::c_void;
 
-use psp_ui_core::{spec, Ui};
+use pocketjs_core::{spec, Ui};
 
 #[inline]
 fn rd_u16(b: &[u8], off: usize) -> Option<u16> {
@@ -76,11 +76,11 @@ pub fn feed(ui: &mut Ui, pak: &[u8]) -> Vec<(String, i32)> {
         let Ok(key) = core::str::from_utf8(name_bytes) else { continue };
         if key == "ui:styles" {
             if !ui.load_styles(blob) {
-                psp::dprintln!("[psp-ui dcpak] bad styles.bin");
+                psp::dprintln!("[PocketJS dcpak] bad styles.bin");
             }
         } else if key.starts_with("ui:font.") {
             if !ui.load_font_atlas(blob) {
-                psp::dprintln!("[psp-ui dcpak] bad font atlas {}", key);
+                psp::dprintln!("[PocketJS dcpak] bad font atlas {}", key);
             }
         } else if let Some(name) = key.strip_prefix("ui:img.") {
             // IMG entry: 8-byte header {u16 w, u16 h, u8 psm, 3B pad} + pixels
@@ -104,7 +104,7 @@ pub fn feed(ui: &mut Ui, pak: &[u8]) -> Vec<(String, i32)> {
                 }
                 textures.push((String::from(name), handle));
             } else {
-                psp::dprintln!("[psp-ui dcpak] bad image {} ({}x{} psm {})", key, w, h, psm);
+                psp::dprintln!("[PocketJS dcpak] bad image {} ({}x{} psm {})", key, w, h, psm);
             }
         }
         // unknown keys: ignored (forward compatible)

@@ -140,7 +140,7 @@ function createElementImpl(tag: string): NodeMirror {
   const type = (NODE_TYPE as Record<string, number>)[tag];
   if (type === undefined) {
     throw new Error(
-      `psp-ui: unknown element <${tag}> — only view/text/image exist`,
+      `PocketJS: unknown element <${tag}> — only view/text/image exist`,
     );
   }
   return { id: getOps().createNode(type), type, parent: null, children: [] };
@@ -185,7 +185,7 @@ function insertNodeImpl(
   if (anchor) {
     const i = parent.children.indexOf(anchor);
     if (i < 0) {
-      throw new Error("psp-ui: insert anchor is not a child of parent");
+      throw new Error("PocketJS: insert anchor is not a child of parent");
     }
     parent.children.splice(i, 0, node);
   } else {
@@ -230,13 +230,13 @@ function setClass(node: NodeMirror, value: unknown): void {
     return;
   }
   if (typeof value !== "string") {
-    throw new Error("psp-ui: class must be a string literal of utilities");
+    throw new Error("PocketJS: class must be a string literal of utilities");
   }
   const styleId = styleResolver ? styleResolver(value) : undefined;
   if (styleId === undefined) {
     if (getHost().strict) {
       throw new Error(
-        `psp-ui: unknown class "${value}" — not in the compiled style table ` +
+        `PocketJS: unknown class "${value}" — not in the compiled style table ` +
           "(dynamic classes must be ternaries of full literals)",
       );
     }
@@ -255,13 +255,13 @@ function setSrc(node: NodeMirror, value: unknown): void {
     return;
   }
   if (typeof value !== "string") {
-    throw new Error("psp-ui: src must be a string key");
+    throw new Error("PocketJS: src must be a string key");
   }
   const handle = textures.get(value);
   if (handle === undefined) {
     if (getHost().strict) {
       throw new Error(
-        `psp-ui: unknown image src "${value}" — no texture registered under that key`,
+        `PocketJS: unknown image src "${value}" — no texture registered under that key`,
       );
     }
     missCounters.unknownTexture++;
@@ -281,7 +281,7 @@ function setStyleObject(node: NodeMirror, value: unknown, prev: unknown): void {
     if (before[key] === v) continue; // prev-diff: only changed keys cross FFI
     const propId = (PROP as Record<string, number>)[key];
     if (propId === undefined) {
-      throw new Error(`psp-ui: unknown style prop '${key}' (see spec PROP)`);
+      throw new Error(`PocketJS: unknown style prop '${key}' (see spec PROP)`);
     }
     ops.setProp(node.id, propId, encodePropValue(key as PropName, v));
   }
@@ -323,13 +323,13 @@ function setPropertyImpl<T>(
   }
   if (name === "classList") {
     throw new Error(
-      "psp-ui: classList is not supported [R] — use ternaries of full class literals",
+      "PocketJS: classList is not supported [R] — use ternaries of full class literals",
     );
   }
   if (name.startsWith("on:") || name.startsWith("bool:") || name.startsWith("prop:")) {
-    throw new Error(`psp-ui: unsupported namespaced attribute '${name}'`);
+    throw new Error(`PocketJS: unsupported namespaced attribute '${name}'`);
   }
-  throw new Error(`psp-ui: unknown property '${name}' on <${tagName(node)}>`);
+  throw new Error(`PocketJS: unknown property '${name}' on <${tagName(node)}>`);
 }
 
 function tagName(node: NodeMirror): string {

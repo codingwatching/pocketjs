@@ -109,19 +109,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "psp-ui-core"
+name = "pocketjs-core"
 version = "0.1.0"
 dependencies = [
  "taffy",
 ]
 
 [[package]]
-name = "psp-ui-psp"
+name = "pocketjs-psp"
 version = "0.1.0"
 dependencies = [
  "libquickjs-sys",
  "psp",
- "psp-ui-core",
+ "pocketjs-core",
 ]
 
 [[package]]

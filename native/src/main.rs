@@ -4,12 +4,12 @@
 #![feature(asm_experimental_arch)]
 #![allow(static_mut_refs)]
 
-//! psp-ui PSP host: boots QuickJS on a 2 MB worker thread, evaluates the
+//! PocketJS PSP host: boots QuickJS on a 2 MB worker thread, evaluates the
 //! embedded app bundle, then drives frame(buttons) per vblank while the Rust
 //! core ticks animations/layout and the GE backend draws the DrawList.
 //!
 //! Boot skeleton COPIED from the proven dreamcart runtime/src/main.rs with the
-//! gfx/gfx3d/bridge registrations replaced by the psp-ui stack:
+//! gfx/gfx3d/bridge registrations replaced by the PocketJS stack:
 //!   - allocator.rs (src/alloc.rs): arena-backed #[global_allocator] [R]
 //!   - dcpak.rs: feeds styles/atlases/images to the core BEFORE JS eval
 //!   - ffi.rs: globalThis.ui — the HostOps surface over the single core Ui
@@ -44,32 +44,32 @@ mod ffi;
 mod ge;
 mod qjs_alloc;
 
-psp::module!("psp_ui", 1, 1);
+psp::module!("pocketjs", 1, 1);
 
 // GE display list buffer (1 MB), 16-byte aligned.
 static mut LIST: Align16<[u32; 0x40000]> = Align16([0; 0x40000]);
 
-// App bundle selected by PSPUI_APP (see build.rs), NUL-terminated there for
+// App bundle selected by POCKETJS_APP (see build.rs), NUL-terminated there for
 // JS_Eval (which wants input[len] == '\0'). Empty when built with no app.
 static APP_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/game.js"));
 // Asset pack: styles.bin + font atlases + images (.dcpak container). Fed to
 // the core natively (dcpak.rs) BEFORE JS eval; also exposed read-only to JS
 // as __dcpak. Aliases .rodata — JS must never write through it.
 static APP_DCPAK: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/app.dcpak"));
-static PSPUI_TRACE: &str = env!("PSPUI_TRACE");
+static POCKETJS_TRACE: &str = env!("POCKETJS_TRACE");
 
 // Build-time scripted input for deterministic PPSSPPHeadless captures
-// (test/e2e-ppsspp.ts). Baked by build.rs from the PSPUI_CAPTURE_INPUT env;
+// (test/e2e-ppsspp.ts). Baked by build.rs from the POCKETJS_CAPTURE_INPUT env;
 // same "frame:mask,frame:mask" format as dreamcart's PSPJS_CAPTURE_INPUT.
 #[cfg(feature = "capture")]
-static PSPUI_CAPTURE_INPUT: &str = env!("PSPUI_CAPTURE_INPUT");
+static POCKETJS_CAPTURE_INPUT: &str = env!("POCKETJS_CAPTURE_INPUT");
 // Per-demo capture window, also baked by build.rs (each e2e spec builds its
 // own EBOOT, so the window travels with its input script). Empty -> defaults
 // (CAP_START=16, CAP_N=32). Duplicated per-spec in test/e2e-ppsspp.ts.
 #[cfg(feature = "capture")]
-static PSPUI_CAP_START: &str = env!("PSPUI_CAP_START");
+static POCKETJS_CAP_START: &str = env!("POCKETJS_CAP_START");
 #[cfg(feature = "capture")]
-static PSPUI_CAP_N: &str = env!("PSPUI_CAP_N");
+static POCKETJS_CAP_N: &str = env!("POCKETJS_CAP_N");
 
 // libquickjs-sys omits JS_NewArrayBuffer + JS_ExecutePendingJob; the linked
 // QuickJS C library provides both (same local-extern pattern as dreamcart
@@ -106,12 +106,12 @@ unsafe fn reset_fpu_status() {
 
 #[inline]
 fn trace_enabled() -> bool {
-    PSPUI_TRACE == "1"
+    POCKETJS_TRACE == "1"
 }
 
 unsafe fn trace_write(bytes: &[u8]) {
     let fd = sys::sceIoOpen(
-        b"host0:/psp-ui-trace.txt\0".as_ptr(),
+        b"host0:/PocketJS-trace.txt\0".as_ptr(),
         IoOpenFlags::WR_ONLY | IoOpenFlags::CREAT | IoOpenFlags::APPEND,
         0o777,
     );
@@ -126,7 +126,7 @@ unsafe fn trace_reset() {
         return;
     }
     let fd = sys::sceIoOpen(
-        b"host0:/psp-ui-trace.txt\0".as_ptr(),
+        b"host0:/PocketJS-trace.txt\0".as_ptr(),
         IoOpenFlags::WR_ONLY | IoOpenFlags::CREAT | IoOpenFlags::TRUNC,
         0o777,
     );
@@ -137,10 +137,10 @@ unsafe fn trace_reset() {
 
 unsafe fn trace(msg: &str) {
     if trace_enabled() {
-        trace_write(b"[psp-ui trace] ");
+        trace_write(b"[PocketJS trace] ");
         trace_write(msg.as_bytes());
         trace_write(b"\n");
-        psp::dprintln!("[psp-ui trace] {}", msg);
+        psp::dprintln!("[PocketJS trace] {}", msg);
     }
 }
 
@@ -159,7 +159,7 @@ unsafe fn boot() {
     trace_reset();
     trace("boot: creating worker thread");
     let id = sys::sceKernelCreateThread(
-        b"psp_ui_main\0".as_ptr(),
+        b"pocketjs_main\0".as_ptr(),
         worker_main,
         32,              // priority
         2 * 1024 * 1024, // 2 MB stack
@@ -190,8 +190,8 @@ unsafe fn log_exception(ctx: *mut JSContext) {
     let s = JS_ToCStringLen2(ctx, &mut len, e, 0);
     if !s.is_null() {
         if let Ok(msg) = core::str::from_utf8(core::slice::from_raw_parts(s as *const u8, len)) {
-            trace_pair(b"[psp-ui js error] ", msg);
-            psp::dprintln!("[psp-ui js error] {}", msg);
+            trace_pair(b"[PocketJS js error] ", msg);
+            psp::dprintln!("[PocketJS js error] {}", msg);
         }
         JS_FreeCString(ctx, s);
     }
@@ -389,8 +389,8 @@ unsafe fn run() {
 // ---------------------------------------------------------------------------
 // Capture support (PPSSPPHeadless E2E, test/e2e-ppsspp.ts). Ported verbatim
 // from origin/main:runtime/src/main.rs (parse_capture_u32, capture_input_mask,
-// cap_dump_frame) with the capture window made per-build (PSPUI_CAP_START /
-// PSPUI_CAP_N env, baked like the input script): psp-ui's frame 0 lands after
+// cap_dump_frame) with the capture window made per-build (POCKETJS_CAP_START /
+// POCKETJS_CAP_N env, baked like the input script): PocketJS's frame 0 lands after
 // the slow QuickJS bundle eval, but mount transitions and mount-started tweens
 // (e.g. hero's 850 ms underline sweep) play out over the first frames, and
 // each demo needs a different settle horizon.
@@ -430,7 +430,7 @@ fn parse_capture_u32(s: &[u8], mut i: usize, end: usize) -> Option<u32> {
     if any { Some(out) } else { None }
 }
 
-/// Parse a baked decimal/hex env value (PSPUI_CAP_START / PSPUI_CAP_N),
+/// Parse a baked decimal/hex env value (POCKETJS_CAP_START / POCKETJS_CAP_N),
 /// falling back when the env was empty or malformed.
 #[cfg(feature = "capture")]
 fn capture_env_u32(s: &str, default: u32) -> u32 {
@@ -445,7 +445,7 @@ fn capture_env_u32(s: &str, default: u32) -> u32 {
 /// `0:0,20:0x40,24:0` means idle, press DOWN at frame 20, release at 24.
 #[cfg(feature = "capture")]
 fn capture_input_mask(frame_count: u32, fallback: i32) -> i32 {
-    let s = PSPUI_CAPTURE_INPUT.as_bytes();
+    let s = POCKETJS_CAPTURE_INPUT.as_bytes();
     if s.is_empty() {
         return fallback;
     }
@@ -487,13 +487,13 @@ fn capture_input_mask(frame_count: u32, fallback: i32) -> i32 {
 /// (512-stride RGBA top-down, as the GE wrote it) for the frames in the
 /// capture window. One headless run thus yields a deterministic frame-per-
 /// index sequence of the scripted input path. NNNN = frame_count - cap_start.
-/// The window (PSPUI_CAP_START/PSPUI_CAP_N, baked per build) must match the
+/// The window (POCKETJS_CAP_START/POCKETJS_CAP_N, baked per build) must match the
 /// spec's capStart/capN in test/e2e-ppsspp.ts — the driver bakes both.
 #[cfg(feature = "capture")]
 unsafe fn cap_dump_frame(frame_count: u32) {
     // Defaults: skip boot transients + 150 ms mount transitions; 32 frames.
-    let cap_start = capture_env_u32(PSPUI_CAP_START, 16);
-    let cap_n = capture_env_u32(PSPUI_CAP_N, 32);
+    let cap_start = capture_env_u32(POCKETJS_CAP_START, 16);
+    let cap_n = capture_env_u32(POCKETJS_CAP_N, 32);
     if frame_count < cap_start || frame_count >= cap_start + cap_n {
         return;
     }
@@ -539,8 +539,8 @@ unsafe fn cap_dump_frame(frame_count: u32) {
 }
 
 unsafe fn halt(msg: &str) -> ! {
-    trace_pair(b"[psp-ui halt] ", msg);
-    psp::dprintln!("[psp-ui halt] {}", msg);
+    trace_pair(b"[PocketJS halt] ", msg);
+    psp::dprintln!("[PocketJS halt] {}", msg);
     psp::dprintln!("HOME exits. Last stage stays on screen.");
     loop {
         sys::sceDisplayWaitVblankStart();

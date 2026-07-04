@@ -23,8 +23,8 @@
 //! format, so channel bytes map 1:1. The buffer is treated as opaque: the
 //! destination alpha is always written back as 255.
 
-use psp_ui_core::spec::{self, draw_op, SCREEN_H, SCREEN_W};
-use psp_ui_core::Ui;
+use pocketjs_core::spec::{self, draw_op, SCREEN_H, SCREEN_W};
+use pocketjs_core::Ui;
 
 const W: i32 = SCREEN_W as i32;
 const H: i32 = SCREEN_H as i32;

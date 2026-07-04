@@ -5,7 +5,7 @@
 //      never drift. Fix = `bun spec/gen-rust.ts` + commit.
 //  (b) Round-trips the styles.bin encoder/decoder over a table exercising
 //      every feature (variants, transition, all three value kinds).
-//  (c) While psp-ui lives inside the dreamcart repo: greps the dreamcart
+//  (c) While PocketJS lives inside the dreamcart repo: greps the dreamcart
 //      sources our constants were copied from (BTN masks, dcpak magic) so an
 //      upstream change is caught. Skipped silently after extraction.
 
