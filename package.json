@@ -30,8 +30,10 @@
     "gen": "bun spec/gen-rust.ts"
   },
   "dependencies": {
+    "@vue/compiler-vapor": "3.6.0-beta.17",
     "react": "18.2.0",
-    "vue": "^3.5.39"
+    "vue": "3.6.0-beta.17",
+    "vue-jsx-vapor": "3.2.17"
   },
   "devDependencies": {
     "@babel/core": "^7",

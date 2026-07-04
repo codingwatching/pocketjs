@@ -5,32 +5,74 @@ import reactPreset from "@babel/preset-react";
 import solidPreset from "babel-preset-solid";
 import tsPreset from "@babel/preset-typescript"; // untyped - see compiler/ambient.d.ts
 import vueJsxPlugin from "@vue/babel-plugin-jsx";
+import { transformVueJsxVapor } from "vue-jsx-vapor/api";
+import {
+  propsHelperCode,
+  propsHelperId,
+  ssrHelperCode,
+  ssrHelperId,
+  vaporHelperCode,
+  vaporHelperId,
+  vdomHelperCode,
+  vdomHelperId,
+} from "@vue-jsx-vapor/runtime/raw";
 import type { BunPlugin } from "bun";
 import reactPresetPkg from "@babel/preset-react/package.json";
 import solidPresetPkg from "babel-preset-solid/package.json";
 import vueJsxPkg from "@vue/babel-plugin-jsx/package.json";
+import vueJsxVaporPkg from "vue-jsx-vapor/package.json";
 import babelCorePkg from "@babel/core/package.json";
 import tsPresetPkg from "@babel/preset-typescript/package.json";
 
-export type JsxEngine = "react" | "vue" | "solid";
+export type JsxEngine = "react" | "vue" | "vue-vapor" | "solid";
 
 export const RENDERER_PATH = new URL("../src/renderer.ts", import.meta.url).pathname;
 export const RENDERER_VUE_PATH = new URL("../src/renderer-vue.ts", import.meta.url).pathname;
+export const RENDERER_VUE_VAPOR_PATH = new URL("../src/renderer-vue-vapor.ts", import.meta.url).pathname;
 export const RENDERER_SOLID_PATH = new URL("../src/renderer-solid.ts", import.meta.url).pathname;
 export const COMPONENTS_PATH = new URL("../src/components.tsx", import.meta.url).pathname;
 export const COMPONENTS_VUE_PATH = new URL("../src/components-vue.tsx", import.meta.url).pathname;
+export const COMPONENTS_VUE_VAPOR_PATH = new URL("../src/components-vue-vapor.ts", import.meta.url).pathname;
 export const COMPONENTS_SOLID_PATH = new URL("../src/components-solid.tsx", import.meta.url).pathname;
 export const FRAME_PATH = new URL("../src/frame.ts", import.meta.url).pathname;
 export const FRAME_SOLID_PATH = new URL("../src/frame-solid.ts", import.meta.url).pathname;
 export const HOOKS_PATH = new URL("../src/hooks.ts", import.meta.url).pathname;
 export const HOOKS_SOLID_PATH = new URL("../src/hooks-solid.ts", import.meta.url).pathname;
 export const REACTIVITY_PATH = new URL("../src/reactivity.ts", import.meta.url).pathname;
+export const REACTIVITY_VUE_VAPOR_PATH = new URL("../src/reactivity-vue-vapor.ts", import.meta.url).pathname;
 export const REACTIVITY_SOLID_PATH = new URL("../src/reactivity-solid.ts", import.meta.url).pathname;
 const REACT_COMPAT_PATH = new URL("../src/react-compat.ts", import.meta.url).pathname;
 const REACT_JSX_RUNTIME_PATH = new URL("../src/react-jsx-runtime.ts", import.meta.url).pathname;
+const VUE_VAPOR_RUNTIME_PATH = new URL(
+  "../node_modules/vue/dist/vue.runtime-with-vapor.esm-browser.prod.js",
+  import.meta.url,
+).pathname;
 
 const CACHE_DIR = new URL("../.cache/transforms/", import.meta.url).pathname;
-const CACHE_VERSION = "8";
+const CACHE_VERSION = "10";
+
+function patchVaporHelperCode(code: string): string {
+  return code.replace(
+    `if (i && i.appContext.vapor && p === "__vapor") {
+          return true;
+        }
+        return Reflect.get`,
+    `if (i && i.appContext.vapor && p === "__vapor") {
+          return true;
+        }
+        if (i && i.appContext.vapor && p === "inheritAttrs") {
+          return false;
+        }
+        return Reflect.get`,
+  );
+}
+
+const VAPOR_HELPERS = new Map([
+  [propsHelperId, propsHelperCode],
+  [vdomHelperId, vdomHelperCode],
+  [vaporHelperId, patchVaporHelperCode(vaporHelperCode)],
+  [ssrHelperId, ssrHelperCode],
+]);
 
 export interface TransformResult {
   /** ESM JS: JSX compiled for the selected engine. */
@@ -118,6 +160,8 @@ async function hashKey(path: string, src: string, engine: JsxEngine): Promise<st
       "\0" +
       vueJsxPkg.version +
       "\0" +
+      vueJsxVaporPkg.version +
+      "\0" +
       solidPresetPkg.version +
       "\0" +
       babelCorePkg.version +
@@ -156,6 +200,12 @@ function transformOptions(engine: JsxEngine) {
       plugins: [] as unknown[],
     };
   }
+  if (engine === "vue-vapor") {
+    return {
+      presets: [[tsPreset, { isTSX: true, allExtensions: true }]],
+      plugins: [] as unknown[],
+    };
+  }
   return {
     presets: [[tsPreset, { isTSX: true, allExtensions: true }]],
     plugins: [[vueJsxPlugin, { enableObjectSlots: false }]],
@@ -184,14 +234,35 @@ export async function transformFile(
 
   const collected: Collected = { classStrings: [], textCodepoints: new Set() };
   const opts = transformOptions(engine);
-  const res = await transformAsync(src, {
-    filename: path,
-    presets: opts.presets,
-    plugins: [makeCollector(collected), ...opts.plugins] as never,
-    babelrc: false,
-    configFile: false,
-    sourceMaps: false,
-  });
+  let res;
+  if (engine === "vue-vapor") {
+    await transformAsync(src, {
+      filename: path,
+      presets: opts.presets,
+      plugins: [makeCollector(collected)] as never,
+      babelrc: false,
+      configFile: false,
+      sourceMaps: false,
+    });
+    const vapor = transformVueJsxVapor(src, path, {}, false, false, false);
+    res = await transformAsync(vapor.code, {
+      filename: path,
+      presets: opts.presets,
+      plugins: [] as never,
+      babelrc: false,
+      configFile: false,
+      sourceMaps: false,
+    });
+  } else {
+    res = await transformAsync(src, {
+      filename: path,
+      presets: opts.presets,
+      plugins: [makeCollector(collected), ...opts.plugins] as never,
+      babelrc: false,
+      configFile: false,
+      sourceMaps: false,
+    });
+  }
   if (!res?.code && res?.code !== "") {
     throw new Error(`psp-ui transform produced no output for ${path}`);
   }
@@ -209,6 +280,11 @@ function sourcePathForEngine(path: string, engine: JsxEngine): string {
   if (engine === "vue") {
     if (path === RENDERER_PATH) return RENDERER_VUE_PATH;
     if (path === COMPONENTS_PATH) return COMPONENTS_VUE_PATH;
+  }
+  if (engine === "vue-vapor") {
+    if (path === RENDERER_PATH) return RENDERER_VUE_VAPOR_PATH;
+    if (path === COMPONENTS_PATH) return COMPONENTS_VUE_VAPOR_PATH;
+    if (path === REACTIVITY_PATH) return REACTIVITY_VUE_VAPOR_PATH;
   }
   if (engine === "solid") {
     if (path === RENDERER_PATH) return RENDERER_SOLID_PATH;
@@ -229,6 +305,18 @@ export function jsxPlugin(engine: JsxEngine, opts: { entry?: string } = {}): Bun
         build.onResolve({ filter: /^react\/jsx-(?:dev-)?runtime$/ }, () => ({
           path: REACT_JSX_RUNTIME_PATH,
         }));
+      }
+      if (engine === "vue-vapor") {
+        build.onResolve({ filter: /^vue$/ }, () => ({ path: VUE_VAPOR_RUNTIME_PATH }));
+        build.onResolve({ filter: /^\/vue-jsx-vapor\/(?:props|vdom|vapor|ssr)$/ }, (args) => ({
+          path: args.path,
+          namespace: "vue-vapor-helper",
+        }));
+        build.onLoad({ filter: /.*/, namespace: "vue-vapor-helper" }, (args) => {
+          const contents = VAPOR_HELPERS.get(args.path);
+          if (!contents) return undefined;
+          return { contents, loader: "js" };
+        });
       }
       build.onLoad({ filter: /\.tsx?$/ }, async (args) => {
         if (args.path.includes("/node_modules/") || args.path.endsWith(".d.ts")) return undefined;

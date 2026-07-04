@@ -21,16 +21,20 @@ const MAIN_SUFFIX = "-main.tsx";
 const argv = Bun.argv.slice(2);
 const flags = new Set(argv.filter((a) => a.startsWith("-")));
 const positional = argv.filter((a) => !a.startsWith("-"));
-let engine: "react" | "vue" | "solid" = "react";
+let engine: "react" | "vue" | "vue-vapor" | "solid" = "react";
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a.startsWith("--engine=")) {
     const value = a.slice("--engine=".length);
-    if (value !== "react" && value !== "vue" && value !== "solid") throw new Error("--engine must be react, vue, or solid");
+    if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
+      throw new Error("--engine must be react, vue, vue-vapor, or solid");
+    }
     engine = value;
   } else if (a === "--engine") {
     const value = argv[++i];
-    if (value !== "react" && value !== "vue" && value !== "solid") throw new Error("--engine must be react, vue, or solid");
+    if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
+      throw new Error("--engine must be react, vue, vue-vapor, or solid");
+    }
     engine = value;
   }
 }
@@ -58,7 +62,7 @@ function resolveDemo(name?: string): string | null {
 }
 
 function usage(): void {
-  console.log("Usage: bun run hw [demo] [--engine=react|vue|solid] [-r|--release] [--trace] [--once] [--no-build]\n");
+  console.log("Usage: bun run hw [demo] [--engine=react|vue|vue-vapor|solid] [-r|--release] [--trace] [--once] [--no-build]\n");
   console.log("Runs a psp-ui demo on a real PSP over USB (PSPLINK + usbhostfs).");
   console.log("Launch PSPLINK on the PSP from the XMB Game menu when prompted.\n");
   console.log("Demos: " + listDemos().join(", "));

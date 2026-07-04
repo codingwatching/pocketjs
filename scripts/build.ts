@@ -21,15 +21,18 @@ import {
   COMPONENTS_PATH,
   COMPONENTS_SOLID_PATH,
   COMPONENTS_VUE_PATH,
+  COMPONENTS_VUE_VAPOR_PATH,
   FRAME_PATH,
   FRAME_SOLID_PATH,
   HOOKS_PATH,
   HOOKS_SOLID_PATH,
   REACTIVITY_PATH,
   REACTIVITY_SOLID_PATH,
+  REACTIVITY_VUE_VAPOR_PATH,
   RENDERER_PATH,
   RENDERER_SOLID_PATH,
   RENDERER_VUE_PATH,
+  RENDERER_VUE_VAPOR_PATH,
   jsxPlugin,
   transformFile,
   type JsxEngine,
@@ -83,8 +86,8 @@ for (const a of args) {
   if (a.startsWith("--extra-chars=")) extraChars = a.slice("--extra-chars=".length);
   else if (a.startsWith("--engine=")) {
     const value = a.slice("--engine=".length);
-    if (value !== "react" && value !== "vue" && value !== "solid") {
-      console.error("psp-ui build: --engine must be react, vue, or solid");
+    if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
+      console.error("psp-ui build: --engine must be react, vue, vue-vapor, or solid");
       process.exit(1);
     }
     engine = value;
@@ -92,7 +95,7 @@ for (const a of args) {
   else if (!a.startsWith("-")) appArg = a;
 }
 if (!appArg) {
-  console.error("usage: bun scripts/build.ts <app.tsx | app name> [--engine=react|vue|solid] [--extra-chars=...]");
+  console.error("usage: bun scripts/build.ts <app.tsx | app name> [--engine=react|vue|vue-vapor|solid] [--extra-chars=...]");
   process.exit(1);
 }
 
@@ -160,6 +163,10 @@ function resolveImport(fromFile: string, spec: string): string | null {
     const subpath = spec === "psp-ui" ? "" : spec.slice("psp-ui/".length);
     let exported = packageExports.get(subpath);
     if (engine === "vue" && subpath === "components") exported = COMPONENTS_VUE_PATH;
+    if (engine === "vue-vapor") {
+      if (subpath === "components") exported = COMPONENTS_VUE_VAPOR_PATH;
+      else if (subpath === "reactivity") exported = REACTIVITY_VUE_VAPOR_PATH;
+    }
     if (engine === "solid") {
       if (subpath === "components") exported = COMPONENTS_SOLID_PATH;
       else if (subpath === "hooks") exported = HOOKS_SOLID_PATH;
@@ -178,6 +185,11 @@ function resolveImport(fromFile: string, spec: string): string | null {
   if (engine === "vue") {
     if (resolved === RENDERER_PATH) return RENDERER_VUE_PATH;
     if (resolved === COMPONENTS_PATH) return COMPONENTS_VUE_PATH;
+  }
+  if (engine === "vue-vapor") {
+    if (resolved === RENDERER_PATH) return RENDERER_VUE_VAPOR_PATH;
+    if (resolved === COMPONENTS_PATH) return COMPONENTS_VUE_VAPOR_PATH;
+    if (resolved === REACTIVITY_PATH) return REACTIVITY_VUE_VAPOR_PATH;
   }
   if (engine === "solid") {
     if (resolved === RENDERER_PATH) return RENDERER_SOLID_PATH;

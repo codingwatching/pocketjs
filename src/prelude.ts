@@ -1,5 +1,7 @@
 // Runtime globals that must exist before React-compatible/Vue scheduler modules evaluate.
 
+import { installVueVaporDom } from "./vue-vapor-dom.ts";
+
 if (typeof (globalThis as { queueMicrotask?: unknown }).queueMicrotask !== "function") {
   (globalThis as { queueMicrotask?: (fn: () => void) => void }).queueMicrotask = (
     fn: () => void,
@@ -28,3 +30,5 @@ if (typeof (globalThis as { console?: unknown }).console !== "object") {
     error() {},
   };
 }
+
+installVueVaporDom();

@@ -4,13 +4,13 @@
 // and reads PSP-side microsecond timing from ms0:/psp-ui-bench.jsonl.
 //
 // Example:
-//   PSP_SDK=/path/to/mipsel-sony-psp bun scripts/bench-ppsspp.ts --engines=vue,solid --samples=7
+//   PSP_SDK=/path/to/mipsel-sony-psp bun scripts/bench-ppsspp.ts --engines=vue-vapor,vue,solid --samples=7
 
 import { $ } from "bun";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 
-type Engine = "react" | "vue" | "solid";
+type Engine = "react" | "vue" | "vue-vapor" | "solid";
 
 interface Spec {
   app: string;
@@ -108,7 +108,9 @@ for (let i = 0; i < argv.length; i++) {
     if (a === "--samples") i++;
   } else if (a.startsWith("--engines=") || a === "--engines") {
     engines = value.split(",").map((e) => {
-      if (e !== "react" && e !== "vue" && e !== "solid") throw new Error(`unknown engine ${e}`);
+      if (e !== "react" && e !== "vue" && e !== "vue-vapor" && e !== "solid") {
+        throw new Error(`unknown engine ${e}`);
+      }
       return e;
     });
     if (a === "--engines") i++;
@@ -346,6 +348,35 @@ function buildReport(rows: Sample[], reportEngines: Engine[], reportApps: string
     }
   }
 
+  const comparisonRatios: Record<string, Record<string, Record<string, ReturnType<typeof bootstrapRatio>>>> = {};
+  const comparisonPairs: [Engine, Engine][] = [];
+  if (reportEngines.includes("solid")) {
+    for (const engine of reportEngines) {
+      if (engine !== "solid") comparisonPairs.push([engine, "solid"]);
+    }
+  }
+  if (reportEngines.includes("vue-vapor") && reportEngines.includes("vue")) {
+    comparisonPairs.push(["vue-vapor", "vue"]);
+  }
+
+  for (const [numerator, denominator] of comparisonPairs) {
+    const key = ratioKey(numerator, denominator);
+    comparisonRatios[key] = {};
+    for (const app of reportApps) {
+      comparisonRatios[key][app] = {};
+      const left = rows.filter((r) => r.app.startsWith(`${app}-main`) && r.engine === numerator);
+      const right = rows.filter((r) => r.app.startsWith(`${app}-main`) && r.engine === denominator);
+      for (const metric of METRICS) {
+        comparisonRatios[key][app][metric] = bootstrapRatio(
+          left.map((r) => r[metric]),
+          right.map((r) => r[metric]),
+          iterations,
+          hashString(`${key}:${app}:${metric}`),
+        );
+      }
+    }
+  }
+
   const ratios: Record<string, Record<string, ReturnType<typeof bootstrapRatio>>> = {};
   if (reportEngines.includes("vue") && reportEngines.includes("solid")) {
     for (const app of reportApps) {
@@ -377,7 +408,16 @@ function buildReport(rows: Sample[], reportEngines: Engine[], reportApps: string
     raw_samples: rows,
     groups,
     vue_over_solid_ratios: ratios,
+    comparison_ratios: comparisonRatios,
   };
+}
+
+function ratioKey(numerator: Engine, denominator: Engine): string {
+  return `${numerator}_over_${denominator}`;
+}
+
+function ratioTitle(key: string): string {
+  return key.replace("_over_", "/").replaceAll("-", " ");
 }
 
 function hashString(s: string): number {
@@ -406,14 +446,14 @@ function renderMarkdown(report: ReturnType<typeof buildReport>): string {
   lines.push("");
   lines.push("Lower is better for all timing metrics. Values are mean with t-based 95% CI.");
   lines.push("");
-  if (report.vue_over_solid_ratios.hero) {
-    lines.push("## Rollup");
+  for (const key of Object.keys(report.comparison_ratios)) {
+    lines.push(`## Rollup: ${ratioTitle(key)}`);
     lines.push("");
-    lines.push("| metric | Vue/Solid ratio, geometric mean across apps |");
+    lines.push(`| metric | ${ratioTitle(key)} ratio, geometric mean across apps |`);
     lines.push("|---|---:|");
     for (const metric of ["eval_us", "boot_to_frame0_us", "avg_work_us", "host_wall_ms", "bundle_bytes"] as const) {
       const ratios = report.apps
-        .map((app) => report.vue_over_solid_ratios[app]?.[metric]?.mean_ratio)
+        .map((app) => report.comparison_ratios[key]?.[app]?.[metric]?.mean_ratio)
         .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0);
       if (ratios.length > 0) {
         lines.push(`| ${metric} | ${geomean(ratios).toFixed(3)}x |`);
@@ -425,21 +465,31 @@ function renderMarkdown(report: ReturnType<typeof buildReport>): string {
   for (const metric of ["eval_us", "boot_to_frame0_us", "avg_work_us", "avg_js_us", "avg_jobs_us", "host_wall_ms", "bundle_bytes"] as const) {
     lines.push(`## ${metric}`);
     lines.push("");
-    lines.push("| app | vue | solid | vue/solid mean ratio (bootstrap 95% CI) |");
-    lines.push("|---|---:|---:|---:|");
+    const comparisonKeys = Object.keys(report.comparison_ratios);
+    lines.push(
+      `| app | ${report.engines.join(" | ")}${
+        comparisonKeys.length > 0 ? ` | ${comparisonKeys.map((key) => `${ratioTitle(key)} ratio`).join(" | ")}` : ""
+      } |`,
+    );
+    lines.push(
+      `|---|${report.engines.map(() => "---:|").join("")}${
+        comparisonKeys.length > 0 ? comparisonKeys.map(() => "---:|").join("") : ""
+      }`,
+    );
     for (const app of report.apps) {
-      const vue = report.groups[app]?.vue?.[metric];
-      const solid = report.groups[app]?.solid?.[metric];
-      const ratio = report.vue_over_solid_ratios[app]?.[metric];
-      if (!vue || !solid || !ratio) continue;
-      const ratioText =
-        solid.mean < 10 && metric !== "bundle_bytes"
-          ? "n/a (solid near zero)"
-          : `${ratio.mean_ratio.toFixed(3)} (${ratio.ci95_low.toFixed(3)}..${ratio.ci95_high.toFixed(3)})`;
-      lines.push(
-        `| ${app} | ${formatSummary(metric, vue)} | ${formatSummary(metric, solid)} | ` +
-          `${ratioText} |`,
-      );
+      const engineCells = report.engines.map((engine) => {
+        const summary = report.groups[app]?.[engine]?.[metric];
+        return summary ? formatSummary(metric, summary) : "n/a";
+      });
+      const ratioCells = comparisonKeys.map((key) => {
+        const ratio = report.comparison_ratios[key]?.[app]?.[metric];
+        const denominator = key.slice(key.indexOf("_over_") + "_over_".length) as Engine;
+        const denominatorSummary = report.groups[app]?.[denominator]?.[metric];
+        if (!ratio || !denominatorSummary) return "n/a";
+        if (denominatorSummary.mean < 10 && metric !== "bundle_bytes") return "n/a (denominator near zero)";
+        return `${ratio.mean_ratio.toFixed(3)} (${ratio.ci95_low.toFixed(3)}..${ratio.ci95_high.toFixed(3)})`;
+      });
+      lines.push(`| ${app} | ${[...engineCells, ...ratioCells].join(" | ")} |`);
     }
     lines.push("");
   }

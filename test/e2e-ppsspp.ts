@@ -16,7 +16,7 @@
 // goldens-psp/PPSSPP-COMMIT.txt records the PPSSPP build the goldens came from.
 //
 //   bun run e2e                         # compare React-compatible shim against test/goldens-psp/
-//   bun test/e2e-ppsspp.ts --engine=vue --smoke  # Vue liveness + non-flat frames
+//   bun test/e2e-ppsspp.ts --engine=vue-vapor --smoke  # Vue Vapor liveness + non-flat frames
 //   UPDATE=1 bun run e2e                # regenerate goldens (then eyeball the PNGs!)
 //
 // Host deps: ~/ppsspp-src/build/PPSSPPHeadless (source-built; see
@@ -28,18 +28,22 @@ import { homedir } from "node:os";
 
 const pspUiDir = new URL("..", import.meta.url).pathname; // psp-ui/
 const argv = Bun.argv.slice(2);
-let engine: "react" | "vue" = "react";
+let engine: "react" | "vue" | "vue-vapor" = "react";
 let smoke = process.env.SMOKE === "1";
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--smoke") smoke = true;
   else if (a.startsWith("--engine=")) {
     const value = a.slice("--engine=".length);
-    if (value !== "react" && value !== "vue") throw new Error("--engine must be react or vue");
+    if (value !== "react" && value !== "vue" && value !== "vue-vapor") {
+      throw new Error("--engine must be react, vue, or vue-vapor");
+    }
     engine = value;
   } else if (a === "--engine") {
     const value = argv[++i];
-    if (value !== "react" && value !== "vue") throw new Error("--engine must be react or vue");
+    if (value !== "react" && value !== "vue" && value !== "vue-vapor") {
+      throw new Error("--engine must be react, vue, or vue-vapor");
+    }
     engine = value;
   }
 }

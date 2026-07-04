@@ -1,4 +1,4 @@
-// scripts/psp.ts <app> [--engine=react|vue|solid] [cargo args…] — build the app JS+dcpak (scripts/
+// scripts/psp.ts <app> [--engine=react|vue|vue-vapor|solid] [cargo args…] — build the app JS+dcpak (scripts/
 // build.ts), then the EBOOT:
 //   POCKETJS_APP=<app> rustup run nightly-2026-05-28 cargo psp
 // inside native/, with the exact env block from dreamcart runtime/build.ts
@@ -47,7 +47,7 @@ const rustup =
 
 const argv = Bun.argv.slice(2);
 let appArg = "";
-let engine: "react" | "vue" | "solid" = "react";
+let engine: "react" | "vue" | "vue-vapor" | "solid" = "react";
 let capture = false;
 let bench = false;
 const cargoArgs: string[] = [];
@@ -60,15 +60,15 @@ for (let i = 0; i < argv.length; i++) {
   }
   else if (a.startsWith("--engine=")) {
     const value = a.slice("--engine=".length);
-    if (value !== "react" && value !== "vue" && value !== "solid") {
-      console.error("psp-ui psp: --engine must be react, vue, or solid");
+    if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
+      console.error("psp-ui psp: --engine must be react, vue, vue-vapor, or solid");
       process.exit(1);
     }
     engine = value;
   } else if (a === "--engine") {
     const value = argv[++i];
-    if (value !== "react" && value !== "vue" && value !== "solid") {
-      console.error("psp-ui psp: --engine must be react, vue, or solid");
+    if (value !== "react" && value !== "vue" && value !== "vue-vapor" && value !== "solid") {
+      console.error("psp-ui psp: --engine must be react, vue, vue-vapor, or solid");
       process.exit(1);
     }
     engine = value;
@@ -79,7 +79,7 @@ for (let i = 0; i < argv.length; i++) {
 const features = [capture ? "capture" : "", bench ? "bench" : ""].filter(Boolean);
 if (features.length > 0) cargoArgs.push("--features", features.join(","));
 if (!appArg) {
-  console.error("usage: bun scripts/psp.ts <app> [--engine=react|vue|solid] [--capture|--bench] [cargo args…]   e.g. bun scripts/psp.ts hero --release");
+  console.error("usage: bun scripts/psp.ts <app> [--engine=react|vue|vue-vapor|solid] [--capture|--bench] [cargo args…]   e.g. bun scripts/psp.ts hero --release");
   process.exit(1);
 }
 
