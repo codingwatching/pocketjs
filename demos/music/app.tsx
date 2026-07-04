@@ -11,10 +11,10 @@
 // Design notes: every class a FULL literal (per-track cover accent baked per
 // entry); text single-line.
 
-import { Text, View } from "@pocketjs/framework/components";
-import { onButtonPress, onFrame } from "@pocketjs/framework/lifecycle";
-import { createSignal } from "@pocketjs/framework/reactivity";
-import { BTN } from "@pocketjs/framework/input";
+import { Text, View, defineComponent } from "psp-ui/components";
+import { useButtonPress, useFrame } from "psp-ui/hooks";
+import { createSignal } from "psp-ui/reactivity";
+import { BTN } from "psp-ui/input";
 
 interface Track {
   title: string;
@@ -51,7 +51,7 @@ const PROGRESS_TRACK_W = 160; // progress track px — matches the w-[160] track
 // App
 // ---------------------------------------------------------------------------
 
-export default function Music() {
+export default defineComponent(function Music() {
   const [trackIndex, setTrackIndex] = createSignal(0);
   const [playing, setPlaying] = createSignal(true);
   const [position, setPosition] = createSignal(0); // frames into the current track
@@ -148,4 +148,4 @@ export default function Music() {
       <Text class="text-xs text-slate-500">UP / DOWN focus · CIRCLE play/select · L/R skip track</Text>
     </View>
   );
-}
+});

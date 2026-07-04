@@ -10,9 +10,9 @@
 // press, entirely covered by the engine's default input pass (src/input.ts)
 // — unlike continuous demos, this entry needs no frame hook.
 
-import { Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
-import { animate } from "@pocketjs/framework/animation";
-import { createEffect, createSignal } from "@pocketjs/framework/reactivity";
+import { Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
+import { animate } from "psp-ui/animation";
+import { createEffect, createSignal } from "psp-ui/reactivity";
 
 type ThemeName = "indigo" | "emerald" | "amber" | "rose";
 
@@ -128,7 +128,7 @@ function themeByName(name: ThemeName): ThemeOption {
 // Toggle row
 // ---------------------------------------------------------------------------
 
-function Toggle(props: { label: string; value: boolean; theme: ThemeOption; onToggle: () => void }) {
+const Toggle = defineComponent(function Toggle(props: { label: string; value: boolean; theme: ThemeOption; onToggle: () => void }) {
   let knob: NodeMirror | undefined;
   let initialized = false;
   createEffect(() => {
@@ -155,13 +155,15 @@ function Toggle(props: { label: string; value: boolean; theme: ThemeOption; onTo
         }
       >
         <View
-          ref={knob}
+          nodeRef={(node) => {
+            knob = node ?? undefined;
+          }}
           class={props.theme.knobCls}
         />
       </View>
     </View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Brightness (CIRCLE cycles 1..5, wraps)
@@ -183,7 +185,7 @@ function brightnessFillOffset(level: number): number {
   return -(BRIGHTNESS_TRACK_W * (1 - brightnessScale(level))) / 2;
 }
 
-function Brightness(props: { theme: ThemeOption }) {
+const Brightness = defineComponent(function Brightness(props: { theme: ThemeOption }) {
   const [level, setLevel] = createSignal(BRIGHTNESS_INITIAL_LEVEL);
   let fill: NodeMirror | undefined;
   let thumb: NodeMirror | undefined;
@@ -219,7 +221,9 @@ function Brightness(props: { theme: ThemeOption }) {
       <View class="flex-row items-center gap-2">
         <View class={props.theme.sliderTrackCls}>
           <View
-            ref={fill}
+            nodeRef={(node) => {
+              fill = node ?? undefined;
+            }}
             class={props.theme.sliderFillCls}
             style={{
               scaleX: brightnessScale(BRIGHTNESS_INITIAL_LEVEL),
@@ -227,7 +231,9 @@ function Brightness(props: { theme: ThemeOption }) {
             }}
           />
           <View
-            ref={thumb}
+            nodeRef={(node) => {
+              thumb = node ?? undefined;
+            }}
             class={props.theme.sliderThumbCls}
             style={{ translateX: brightnessWidth(BRIGHTNESS_INITIAL_LEVEL) - BRIGHTNESS_THUMB_W }}
           />
@@ -238,13 +244,13 @@ function Brightness(props: { theme: ThemeOption }) {
       </View>
     </View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Theme swatches
 // ---------------------------------------------------------------------------
 
-function ThemeRow(props: { value: ThemeName; theme: ThemeOption; onPick: (t: ThemeName) => void }) {
+const ThemeRow = defineComponent(function ThemeRow(props: { value: ThemeName; theme: ThemeOption; onPick: (t: ThemeName) => void }) {
   return (
     <View class={props.theme.panelCls}>
       <Text class={props.theme.rowLabelCls}>THEME</Text>
@@ -263,13 +269,13 @@ function ThemeRow(props: { value: ThemeName; theme: ThemeOption; onPick: (t: The
       </View>
     </View>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
 
-export default function Settings() {
+export default defineComponent(function Settings() {
   const [sfx, setSfx] = createSignal(true);
   const [vibration, setVibration] = createSignal(false);
   const [theme, setTheme] = createSignal<ThemeName>("indigo");
@@ -295,4 +301,4 @@ export default function Settings() {
       <Text class={currentTheme().footerCls}>UP / DOWN move focus · CIRCLE toggle / cycle / select</Text>
     </View>
   );
-}
+});

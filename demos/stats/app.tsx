@@ -7,11 +7,11 @@
 // Frame driving stays component-scoped through PocketJS lifecycle callbacks: button presses
 // switch tabs, while a capped frame hook advances deterministic counters.
 
-import { Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
-import { animate } from "@pocketjs/framework/animation";
-import { onButtonPress, onFrame } from "@pocketjs/framework/lifecycle";
-import { createMemo, createSignal, onMount } from "@pocketjs/framework/reactivity";
-import { BTN } from "@pocketjs/framework/input";
+import { Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
+import { animate } from "psp-ui/animation";
+import { useButtonPress, useFrame } from "psp-ui/hooks";
+import { createMemo, createSignal, onMount } from "psp-ui/reactivity";
+import { BTN } from "psp-ui/input";
 
 const COUNT_FRAMES = 75;
 const BAR_ANIM_FRAMES = 26;
@@ -92,7 +92,7 @@ function barFillOffset(scale: number): number {
 
 /** OVERVIEW tab: bars use native transform-only tweens, matching switch/slider
  *  motion without triggering per-frame layout work. */
-function Overview() {
+const Overview = defineComponent(function Overview() {
   const fills: Array<NodeMirror | undefined> = [];
 
   onMount(() => {
@@ -115,8 +115,8 @@ function Overview() {
           </View>
           <View class="w-[280] h-2 rounded-full shadow bg-slate-200 overflow-hidden">
             <View
-              ref={(node) => {
-                fills[i] = node;
+              nodeRef={(node) => {
+                fills[i] = node ?? undefined;
               }}
               class={bar.fill}
               style={{ scaleX: 0, translateX: barFillOffset(0) }}
@@ -127,7 +127,7 @@ function Overview() {
       ))}
     </View>
   );
-}
+});
 
 /** SYSTEMS tab: status board. Rows appear one after another with short delays;
  *  opacity starts at 0, so there is no visible flash from default gray. */
@@ -155,7 +155,7 @@ function Systems(props: { frame: () => number }) {
 // App
 // ---------------------------------------------------------------------------
 
-export default function Stats() {
+export default defineComponent(function Stats() {
   const [frameN, setFrameN] = createSignal(0);
   const [tab, setTab] = createSignal(0);
   const [systemsFrame, setSystemsFrame] = createSignal(0);
@@ -248,4 +248,4 @@ export default function Stats() {
       <Text class="text-xs text-slate-500">LEFT / RIGHT switch tab</Text>
     </View>
   );
-}
+});

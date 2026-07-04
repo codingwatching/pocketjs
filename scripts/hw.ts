@@ -21,6 +21,19 @@ const MAIN_SUFFIX = "-main.tsx";
 const argv = Bun.argv.slice(2);
 const flags = new Set(argv.filter((a) => a.startsWith("-")));
 const positional = argv.filter((a) => !a.startsWith("-"));
+let engine: "react" | "vue" | "solid" = "react";
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a.startsWith("--engine=")) {
+    const value = a.slice("--engine=".length);
+    if (value !== "react" && value !== "vue" && value !== "solid") throw new Error("--engine must be react, vue, or solid");
+    engine = value;
+  } else if (a === "--engine") {
+    const value = argv[++i];
+    if (value !== "react" && value !== "vue" && value !== "solid") throw new Error("--engine must be react, vue, or solid");
+    engine = value;
+  }
+}
 const release = flags.has("-r") || flags.has("--release");
 const once = flags.has("--once");
 const noBuild = flags.has("--no-build");
@@ -45,8 +58,8 @@ function resolveDemo(name?: string): string | null {
 }
 
 function usage(): void {
-  console.log("Usage: bun run hw [demo] [-r|--release] [--trace] [--once] [--no-build]\n");
-  console.log("Runs a PocketJS demo on a real PSP over USB (PSPLINK + usbhostfs).");
+  console.log("Usage: bun run hw [demo] [--engine=react|vue|solid] [-r|--release] [--trace] [--once] [--no-build]\n");
+  console.log("Runs a psp-ui demo on a real PSP over USB (PSPLINK + usbhostfs).");
   console.log("Launch PSPLINK on the PSP from the XMB Game menu when prompted.\n");
   console.log("Demos: " + listDemos().join(", "));
 }
@@ -100,9 +113,9 @@ async function findBasePort(start: number): Promise<number> {
 async function build(): Promise<boolean> {
   if (noBuild) return existsSync(prxPath);
   const cargoArgs = release ? ["--release"] : [];
-  console.log(`building ${demo} (${profile}${trace ? ", trace" : ""})...`);
-  const res = await $`bun ${pspUiDir}scripts/psp.ts ${demo} ${cargoArgs}`
-    .env({ ...process.env, POCKETJS_TRACE: trace ? "1" : "" })
+  console.log(`building ${demo} (${profile}, engine=${engine}${trace ? ", trace" : ""})...`);
+  const res = await $`bun ${pspUiDir}scripts/psp.ts ${demo} --engine=${engine} ${cargoArgs}`
+    .env({ ...process.env, PSPUI_TRACE: trace ? "1" : "" })
     .nothrow();
   if (res.exitCode !== 0 || !existsSync(prxPath)) {
     console.error("build failed - not reloading");

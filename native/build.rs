@@ -45,23 +45,26 @@ fn main() {
     // PSPJS_CAPTURE_INPUT).
     let capture_input = env::var("POCKETJS_CAPTURE_INPUT").unwrap_or_default();
     // Optional real-hardware boot trace. scripts/hw.ts serves the build dir as
-    // host0:, so main.rs can append trace lines to host0:/PocketJS-trace.txt.
-    let trace = env::var("POCKETJS_TRACE").unwrap_or_default();
+    // host0:, so main.rs can append trace lines to host0:/psp-ui-trace.txt.
+    let trace = env::var("PSPUI_TRACE").unwrap_or_default();
+    let engine = env::var("PSPUI_ENGINE").unwrap_or_default();
     // Per-demo capture window (frames dumped = cap_start..cap_start+cap_n);
     // empty -> main.rs defaults (16/32).
     let cap_start = env::var("POCKETJS_CAP_START").unwrap_or_default();
     let cap_n = env::var("POCKETJS_CAP_N").unwrap_or_default();
 
-    println!("cargo:rustc-env=POCKETJS_APP={app}");
-    println!("cargo:rustc-env=POCKETJS_CAPTURE_INPUT={capture_input}");
-    println!("cargo:rustc-env=POCKETJS_TRACE={trace}");
-    println!("cargo:rustc-env=POCKETJS_CAP_START={cap_start}");
-    println!("cargo:rustc-env=POCKETJS_CAP_N={cap_n}");
-    println!("cargo:rerun-if-env-changed=POCKETJS_APP");
-    println!("cargo:rerun-if-env-changed=POCKETJS_CAPTURE_INPUT");
-    println!("cargo:rerun-if-env-changed=POCKETJS_TRACE");
-    println!("cargo:rerun-if-env-changed=POCKETJS_CAP_START");
-    println!("cargo:rerun-if-env-changed=POCKETJS_CAP_N");
+    println!("cargo:rustc-env=PSPUI_APP={app}");
+    println!("cargo:rustc-env=PSPUI_ENGINE={engine}");
+    println!("cargo:rustc-env=PSPUI_CAPTURE_INPUT={capture_input}");
+    println!("cargo:rustc-env=PSPUI_TRACE={trace}");
+    println!("cargo:rustc-env=PSPUI_CAP_START={cap_start}");
+    println!("cargo:rustc-env=PSPUI_CAP_N={cap_n}");
+    println!("cargo:rerun-if-env-changed=PSPUI_APP");
+    println!("cargo:rerun-if-env-changed=PSPUI_ENGINE");
+    println!("cargo:rerun-if-env-changed=PSPUI_CAPTURE_INPUT");
+    println!("cargo:rerun-if-env-changed=PSPUI_TRACE");
+    println!("cargo:rerun-if-env-changed=PSPUI_CAP_START");
+    println!("cargo:rerun-if-env-changed=PSPUI_CAP_N");
     if let Ok(entries) = fs::read_dir(dist) {
         for e in entries.flatten() {
             println!("cargo:rerun-if-changed={}", e.path().display());

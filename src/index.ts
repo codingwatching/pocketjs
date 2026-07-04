@@ -3,18 +3,10 @@
 // Frame contract (every host): once per vblank/rAF tick the host calls
 // `globalThis.frame(buttons)` (spec BTN bitmask). render() installs that
 // handler as app frame hooks, input edge-detection + focus + onPress, THEN the
-// renderer's end-of-frame sweep [R] — so Solid effects triggered by input run
+// renderer's end-of-frame sweep [R] — so effects triggered by input run
 // before detached subtrees are destroyed.
 
-// queueMicrotask polyfill (QuickJS lacks it; Solid's resource/transition paths
-// reference it lazily, so installing at module-eval time is early enough).
-if (typeof (globalThis as { queueMicrotask?: unknown }).queueMicrotask !== "function") {
-  (globalThis as { queueMicrotask?: (fn: () => void) => void }).queueMicrotask = (
-    fn: () => void,
-  ) => {
-    Promise.resolve().then(fn);
-  };
-}
+import "./prelude.ts";
 
 import { detectHost, installFrameHandler, installHost, type HostOps } from "./host.ts";
 import {

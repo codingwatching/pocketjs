@@ -1,13 +1,21 @@
-// Ambient module declarations for untyped babel presets (build-time only).
-// babel-preset-solid and @babel/preset-typescript ship no .d.ts; both are
-// only ever passed opaquely into @babel/core's `presets` array.
+// Ambient module declarations for untyped Babel plugins/presets (build-time only).
 
-declare module "babel-preset-solid" {
+declare module "@babel/preset-react" {
   const preset: unknown;
   export default preset;
 }
 
 declare module "@babel/preset-typescript" {
+  const preset: unknown;
+  export default preset;
+}
+
+declare module "@vue/babel-plugin-jsx" {
+  const plugin: unknown;
+  export default plugin;
+}
+
+declare module "babel-preset-solid" {
   const preset: unknown;
   export default preset;
 }

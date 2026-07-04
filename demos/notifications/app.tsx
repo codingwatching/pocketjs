@@ -11,10 +11,10 @@
 // 480x272 (DESIGN.md punts kinetic scroll, so the list can't overflow the
 // screen); every class a FULL literal.
 
-import { For, Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
-import { animate } from "@pocketjs/framework/animation";
-import { onFrame } from "@pocketjs/framework/lifecycle";
-import { createSignal, onMount } from "@pocketjs/framework/reactivity";
+import { For, Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
+import { animate } from "psp-ui/animation";
+import { useFrame } from "psp-ui/hooks";
+import { createSignal, onMount } from "psp-ui/reactivity";
 
 interface Notice {
   id: string;
@@ -65,7 +65,7 @@ const ROW_RISE_FRAMES = 16; // >= the 180ms rise tween, plus margin
 // App
 // ---------------------------------------------------------------------------
 
-export default function Notifications() {
+export default defineComponent(function Notifications() {
   const [items, setItems] = createSignal<Notice[]>(INITIAL);
   const [dismissingId, setDismissingId] = createSignal<string | null>(null);
   const [dismissFrame, setDismissFrame] = createSignal(0);
@@ -143,14 +143,17 @@ export default function Notifications() {
             });
             return (
               <View
-                ref={(row) => {
-                  rowRefs.set(item.id, row);
+                nodeRef={(row) => {
+                  if (row) rowRefs.set(item.id, row);
+                  else rowRefs.delete(item.id);
                 }}
                 class="flex-col"
                 style={{ translateY: riseOffsets()[item.id] ?? 0 }}
               >
                 <View
-                  ref={el}
+                  nodeRef={(node) => {
+                    el = node ?? undefined;
+                  }}
                   style={{ opacity: 0, translateX: 16 }}
                   class="flex-row items-center gap-3 p-1 rounded-lg shadow bg-white border-slate-200 focus:bg-blue-50 focus:border-blue-500 transition-colors duration-150"
                   focusable
@@ -178,4 +181,4 @@ export default function Notifications() {
       <Text class="text-xs text-slate-500">UP / DOWN move focus · CIRCLE dismiss</Text>
     </View>
   );
-}
+});

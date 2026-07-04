@@ -9,9 +9,9 @@
 // focus emphasis = translate-y lift + bg/border color (never scale — glyphs
 // don't scale), all text single-line, every class a FULL literal.
 
-import { Show, Text, View, type NodeMirror } from "@pocketjs/framework/components";
-import { animate, spring } from "@pocketjs/framework/animation";
-import { createSignal, onMount } from "@pocketjs/framework/reactivity";
+import { Show, Text, View, defineComponent, type NodeMirror } from "psp-ui/components";
+import { animate, spring } from "psp-ui/animation";
+import { createSignal, onMount } from "psp-ui/reactivity";
 
 interface Card {
   title: string;
@@ -54,14 +54,16 @@ const CARDS: Card[] = [
 
 /** Detail panel — remounts (keyed <Show>) per card, so the translate-y spring
  *  replays on every open; colors are static on the first visible frame. */
-function Detail(props: { card: Card }) {
+const Detail = defineComponent(function Detail(props: { card: Card }) {
   let el: NodeMirror | undefined;
   onMount(() => {
     if (el) spring(el, "translateY", 0);
   });
   return (
     <View
-      ref={el}
+      nodeRef={(node) => {
+        el = node ?? undefined;
+      }}
       style={{ translateY: 22 }}
       class="flex-row items-center gap-3 p-3 rounded-xl shadow-md bg-white border-slate-200"
     >
@@ -72,9 +74,9 @@ function Detail(props: { card: Card }) {
       </View>
     </View>
   );
-}
+});
 
-export default function Cards() {
+export default defineComponent(function Cards() {
   const [open, setOpen] = createSignal(-1);
   const selected = () => (open() >= 0 ? CARDS[open()] : undefined);
 
@@ -90,12 +92,16 @@ export default function Cards() {
   return (
     <View class="relative flex-col w-full h-full p-4 gap-3 bg-slate-50 overflow-hidden">
       <View
-        ref={streakA}
+        nodeRef={(node) => {
+          streakA = node ?? undefined;
+        }}
         class="absolute left-0 top-[58] w-64 h-1 rounded-full opacity-50 bg-gradient-to-r from-blue-300 to-transparent"
         style={{ translateX: 24 }}
       />
       <View
-        ref={streakB}
+        nodeRef={(node) => {
+          streakB = node ?? undefined;
+        }}
         class="absolute left-[210] top-[246] w-56 h-1 rounded-full opacity-40 bg-gradient-to-l from-cyan-300 to-transparent"
         style={{ translateX: 0 }}
       />
@@ -131,4 +137,4 @@ export default function Cards() {
       <Text class="text-xs text-slate-500">LEFT / RIGHT move focus · CIRCLE toggle details</Text>
     </View>
   );
-}
+});

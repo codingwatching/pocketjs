@@ -15,8 +15,9 @@
 // only expected to drift when the emulator itself changes, which is why
 // goldens-psp/PPSSPP-COMMIT.txt records the PPSSPP build the goldens came from.
 //
-//   bun run e2e            # compare against test/goldens-psp/
-//   UPDATE=1 bun run e2e   # regenerate goldens (then eyeball the PNGs!)
+//   bun run e2e                         # compare React-compatible shim against test/goldens-psp/
+//   bun test/e2e-ppsspp.ts --engine=vue --smoke  # Vue liveness + non-flat frames
+//   UPDATE=1 bun run e2e                # regenerate goldens (then eyeball the PNGs!)
 //
 // Host deps: ~/ppsspp-src/build/PPSSPPHeadless (source-built; see
 // framework/test/bsp-compare/ppsspp-capture.md on origin/main) and ImageMagick.
@@ -25,9 +26,25 @@ import { $ } from "bun";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 
-const pspUiDir = new URL("..", import.meta.url).pathname; // PocketJS/
-const goldensDir = `${pspUiDir}test/goldens-psp`;
-const outDir = `${pspUiDir}dist/e2e-ppsspp`;
+const pspUiDir = new URL("..", import.meta.url).pathname; // psp-ui/
+const argv = Bun.argv.slice(2);
+let engine: "react" | "vue" = "react";
+let smoke = process.env.SMOKE === "1";
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i];
+  if (a === "--smoke") smoke = true;
+  else if (a.startsWith("--engine=")) {
+    const value = a.slice("--engine=".length);
+    if (value !== "react" && value !== "vue") throw new Error("--engine must be react or vue");
+    engine = value;
+  } else if (a === "--engine") {
+    const value = argv[++i];
+    if (value !== "react" && value !== "vue") throw new Error("--engine must be react or vue");
+    engine = value;
+  }
+}
+const goldensDir = `${pspUiDir}test/${engine === "react" ? "goldens-psp" : `goldens-psp-${engine}`}`;
+const outDir = `${pspUiDir}dist/e2e-ppsspp${engine === "react" ? "" : `-${engine}`}`;
 const headless = process.env.PPSSPP_HEADLESS || `${homedir()}/ppsspp-src/build/PPSSPPHeadless`;
 // PPSSPPHeadless maps ms0: to ~/.ppsspp — dumps land in ~/.ppsspp/dc_cap.
 // CAUTION: contents persist across runs; always clean before each run.
@@ -179,7 +196,7 @@ if (!existsSync(headless)) {
   console.error(`PPSSPPHeadless not found at ${headless} (set PPSSPP_HEADLESS)`);
   process.exit(2);
 }
-if (!Bun.which("magick")) {
+if (!smoke && !Bun.which("magick")) {
   console.error("ImageMagick `magick` not found (brew install imagemagick)");
   process.exit(2);
 }
@@ -197,11 +214,11 @@ const stampedCommit = existsSync(commitStamp) ? readFileSync(commitStamp, "utf8"
 let failed = false;
 
 for (const spec of SPECS) {
-  console.log(`\n## ${spec.app} (input: ${spec.inputScript})`);
+  console.log(`\n## ${spec.app} (engine=${engine}, input: ${spec.inputScript})`);
 
   // 1. Build the capture EBOOT with the baked input script + capture window.
   console.log("# build capture EBOOT ...");
-  await $`bun scripts/psp.ts ${spec.app} --capture`
+  await $`bun scripts/psp.ts ${spec.app} --engine=${engine} --capture`
     .cwd(pspUiDir)
     .env({
       ...process.env,
@@ -262,6 +279,11 @@ for (const spec of SPECS) {
     if (distinct.size < 3) {
       console.error(`FAIL ${spec.app}.${shot.name}: frame ${shot.frame} is flat (${distinct.size} distinct pixels)`);
       failed = true;
+      continue;
+    }
+
+    if (smoke) {
+      console.log(`ok ${spec.app}.${shot.name} (frame ${shot.frame}, non-flat)`);
       continue;
     }
 
