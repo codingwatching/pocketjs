@@ -102,7 +102,7 @@ export default function Cards() {
 
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class="text-xs text-blue-600 tracking-wide">PSP-UI SHOWCASE</Text>
+          <Text class="text-xs text-blue-600 tracking-wide">POCKETJS SHOWCASE</Text>
           <Text class="text-2xl text-slate-950 font-bold">Feature Cards</Text>
         </View>
         <Text class="text-xs text-slate-500">3 MODULES</Text>

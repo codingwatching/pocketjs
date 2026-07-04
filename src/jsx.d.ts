@@ -1,7 +1,7 @@
-// JSX typings for psp-ui application code.
+// JSX typings for PocketJS application code.
 //
 // The public UI surface is imported components (`View`, `Text`, `Image`) from
-// `psp-ui`. Lower-case host tags (`view`, `text`, `image`) are renderer
+// `PocketJS`. Lower-case host tags (`view`, `text`, `image`) are renderer
 // implementation details and are intentionally not declared as global JSX
 // intrinsics; accidental app usage should fail typecheck.
 

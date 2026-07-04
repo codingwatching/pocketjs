@@ -42,7 +42,7 @@ export default function Hero() {
         <View class="flex-row items-center gap-3">
           <Image class="w-10 h-10 rounded-lg shadow" src="logo.png" />
           <View class="flex-col">
-            <Text class="text-base text-slate-950 font-bold tracking-wide">psp-ui</Text>
+            <Text class="text-base text-slate-950 font-bold tracking-wide">PocketJS</Text>
             <Text class="text-xs text-slate-500 tracking-wide">SOLID + RUST + SCEGU</Text>
           </View>
         </View>

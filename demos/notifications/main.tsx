@@ -1,4 +1,4 @@
-// @title psp-ui: Notifications
+// @title PocketJS: Notifications
 import Notifications from "./app.tsx";
 import { mount } from "@pocketjs";
 

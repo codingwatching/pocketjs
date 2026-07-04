@@ -1,4 +1,4 @@
-// psp-ui spec — THE single source of truth for every cross-language constant.
+// PocketJS spec — THE single source of truth for every cross-language constant.
 //
 // Everything the TS runtime (src/), the compiler (compiler/), the Rust core
 // (core/), the wasm host and the PSP native host agree on is pinned HERE, in
@@ -624,7 +624,7 @@ export const DRAW_OP = {
 // ---------------------------------------------------------------------------
 // DCPAK container constants
 // ---------------------------------------------------------------------------
-// psp-ui packs (styles.bin, font atlases, images) reuse the dreamcart .dcpak
+// PocketJS packs (styles.bin, font atlases, images) reuse the dreamcart .dcpak
 // container byte-for-byte so existing tooling can open them. Values copied
 // from dreamcart framework/bake/dcpak.ts + docs/dcpak-format.md (v1).
 // Header: magic u32, version u16, flags u16, entryCount u32, dirOffset u32,

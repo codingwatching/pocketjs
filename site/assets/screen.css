@@ -1,0 +1,133 @@
+/* ======================================================================
+   PocketJS hero — the 480×272 display, enlarged, with translucent
+   emulator-style virtual controls overlaid on top. Tapping a control drives
+   the live WebAssembly demo (see assets/home.js). No device shell.
+   Everything scoped under .screen-emu; sizes in container-query units.
+   ====================================================================== */
+
+.screen-emu {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 480 / 272;
+  container-type: inline-size;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #05070d;
+  box-shadow:
+    0 0 0 1px rgba(120, 160, 230, 0.16),
+    0 28px 56px -22px rgba(0, 0, 0, 0.7),
+    0 0 70px -26px rgba(56, 189, 248, 0.32);
+}
+.screen-emu canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  outline: none;
+}
+.emu-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 3cqw;
+  color: #5b6b86;
+}
+
+/* translucent control clusters — bottom corners, like a phone emulator */
+.emu-dpad,
+.emu-faces {
+  position: absolute;
+  bottom: 5%;
+  width: 22%;
+  aspect-ratio: 1;
+  z-index: 2;
+}
+.emu-dpad { left: 3.5%; }
+.emu-faces { right: 3.5%; }
+
+.emu-key {
+  position: absolute;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(51, 66, 97, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.08);
+  transition: background 0.1s ease, transform 0.05s ease, border-color 0.1s ease;
+}
+.emu-key svg { width: 46%; height: 46%; }
+.emu-key:hover { background: rgba(51, 66, 97, 0.44); }
+.emu-key.is-down,
+.emu-key:active {
+  background: rgba(96, 165, 250, 0.6);
+  border-color: rgba(191, 219, 254, 0.9);
+  transform: scale(0.9);
+}
+
+/* d-pad — ONE connected cross (inline SVG), transparent arm hit-areas over it */
+.emu-cross {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+}
+.emu-dpad .emu-key {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.92);
+}
+.emu-dpad .emu-key svg { width: 42%; height: 42%; }
+.emu-dpad .up    { top: 2%;    left: 35%; width: 30%; height: 34%; }
+.emu-dpad .down  { bottom: 2%; left: 35%; width: 30%; height: 34%; }
+.emu-dpad .left  { left: 2%;   top: 35%;  height: 30%; width: 34%; }
+.emu-dpad .right { right: 2%;  top: 35%;  height: 30%; width: 34%; }
+.emu-dpad .emu-key.is-down,
+.emu-dpad .emu-key:active {
+  background: rgba(96, 165, 250, 0.42);
+  border-radius: 6px;
+  transform: none;
+}
+
+/* face buttons diamond */
+.emu-faces .emu-key { width: 36%; aspect-ratio: 1; border-radius: 50%; }
+.emu-faces .tri   { top: 0;     left: 32%; color: #9ff2c6; }
+.emu-faces .sq    { top: 32%; left: 0;     color: #f8bfe0; }
+.emu-faces .ci    { top: 32%; right: 0;    color: #ffbcc2; }
+.emu-faces .cross { bottom: 0;  left: 32%; color: #b3ccff; }
+
+/* SELECT / START */
+.emu-sys {
+  position: absolute;
+  bottom: 6%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  gap: 2cqw;
+}
+.emu-sys-btn {
+  border: 0;
+  cursor: pointer;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 2.2cqw;
+  letter-spacing: 0.08em;
+  padding: 1cqw 2.4cqw;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(51, 66, 97, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  transition: background 0.1s ease;
+}
+.emu-sys-btn.is-down,
+.emu-sys-btn:active {
+  background: rgba(96, 165, 250, 0.6);
+  color: #fff;
+}

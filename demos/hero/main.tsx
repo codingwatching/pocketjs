@@ -1,4 +1,4 @@
-// @title psp-ui: Hero
+// @title PocketJS: Hero
 import Hero from "./app.tsx";
 import { mount } from "@pocketjs";
 

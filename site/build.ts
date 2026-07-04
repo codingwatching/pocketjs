@@ -1,0 +1,297 @@
+// site/build.ts — the pocketjs.dev static-site generator.
+//
+//   bun site/build.ts            # -> site/dist/  (the deployable tree)
+//
+// Produces:
+//   /pg/runtime.js        the ONE PocketJS runtime bundle (import-map target)
+//   /pg/compiler.js       the in-browser build pipeline (babel+tailwind+bake)
+//   /pg/playground.bundle.js  CodeMirror editor + host loop + glue
+//   /pg/pocketjs.wasm     Rust core + software rasterizer
+//   /pg/fonts/*.ttf       Inter (the browser font baker fetches these)
+//   /demo-assets/*        demo images (the browser image baker fetches these)
+//   /pg/demos.json        editable single-file demos (name/title/source)
+//   /playground/          the live editor page
+//   /docs/*, /index.html  rendered from site/content (added below)
+
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, cpSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { marked } from "marked";
+import { createHighlighter } from "shiki";
+import { renderPage } from "./templates.ts";
+import { DOC_NAV } from "./nav.ts";
+
+const ROOT = new URL("..", import.meta.url).pathname; // repo root
+const SITE = ROOT + "site/";
+const OUT = SITE + "dist/";
+const SHIMS = SITE + "playground/babel-shims/";
+
+const write = (rel: string, data: string | Uint8Array) => {
+  const p = OUT + rel;
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, data);
+};
+const copy = (from: string, toRel: string) => {
+  const p = OUT + toRel;
+  mkdirSync(dirname(p), { recursive: true });
+  cpSync(from, p, { recursive: true });
+};
+
+// --- node-builtin shims: let @babel/core + preset-solid bundle for the browser
+const SHIM_MAP: Record<string, string> = { assert: "assert.js", "node:assert": "assert.js", path: "path.js", "node:path": "path.js" };
+const SHIM_EMPTY = new Set([
+  "fs", "node:fs", "fs/promises", "node:fs/promises", "os", "node:os", "module", "node:module",
+  "url", "node:url", "util", "node:util", "zlib", "node:zlib", "stream", "node:stream",
+  "tty", "node:tty", "crypto", "node:crypto", "v8", "node:v8", "process", "node:process",
+]);
+const shimPlugin: import("bun").BunPlugin = {
+  name: "node-shims",
+  setup(b) {
+    b.onResolve({ filter: /.*/ }, (a) => {
+      if (SHIM_MAP[a.path]) return { path: SHIMS + SHIM_MAP[a.path] };
+      if (SHIM_EMPTY.has(a.path)) return { path: SHIMS + "empty.js" };
+      return undefined;
+    });
+  },
+};
+
+// A `process` shim, prepended before any bundled import runs (babel reads the
+// global process.* at module-eval time — a define/import shim is too late).
+const PROCESS_PRELUDE =
+  `globalThis.process||=({env:{NODE_ENV:"production"},platform:"browser",arch:"wasm32",` +
+  `versions:{node:"20.0.0"},version:"v20.0.0",argv:[],argv0:"",execPath:"",cwd:function(){return"/"},` +
+  `chdir:function(){},nextTick:function(f){var a=[].slice.call(arguments,1);` +
+  `Promise.resolve().then(function(){f.apply(null,a)})},on:function(){},once:function(){},off:function(){},` +
+  `removeListener:function(){},emit:function(){},emitWarning:function(){},exit:function(){},` +
+  `hrtime:function(){return[0,0]},browser:true});globalThis.global||=globalThis;\n`;
+
+async function bundle(entry: string, outfile: string, opts: { shims?: boolean; prelude?: string } = {}) {
+  const res = await Bun.build({
+    entrypoints: [SITE + entry],
+    target: "browser",
+    format: "esm",
+    conditions: ["browser"],
+    define: { "process.env.NODE_ENV": '"production"', "process.env.BABEL_ENV": '"production"', "process.platform": '"browser"' },
+    minify: true,
+    sourcemap: "none",
+    plugins: opts.shims ? [shimPlugin] : [],
+  });
+  if (!res.success) {
+    for (const l of res.logs) console.error(String(l));
+    throw new Error(`bundle failed: ${entry}`);
+  }
+  const code = (opts.prelude ?? "") + (await res.outputs[0].text());
+  write(outfile, code);
+  console.log(`  ${outfile}  (${(code.length / 1024).toFixed(0)} KiB)`);
+}
+
+// --- editable single-file demos (launcher imports siblings -> excluded)
+function demoManifest() {
+  const dir = ROOT + "demos/";
+  const out: { name: string; title: string; source: string }[] = [];
+  for (const name of readdirSync(dir).sort()) {
+    const app = dir + name + "/app.tsx";
+    const main = dir + name + "/main.tsx";
+    if (!existsSync(app)) continue;
+    const source = readFileSync(app, "utf8");
+    if (/from\s+["']\.\.?\//.test(source)) continue; // multi-file demo (launcher)
+    let title = name[0].toUpperCase() + name.slice(1);
+    if (existsSync(main)) {
+      const m = readFileSync(main, "utf8").match(/@title\s+PocketJS:\s*(.+)/);
+      if (m) title = m[1].trim();
+    }
+    out.push({ name, title, source });
+  }
+  return out;
+}
+
+async function main() {
+  console.log("pocketjs.dev build:");
+  rmSync(OUT, { recursive: true, force: true });
+  mkdirSync(OUT, { recursive: true });
+
+  // 1. bundles
+  await bundle("playground/runtime-entry.ts", "pg/runtime.js");
+  await bundle("playground/compiler-entry.ts", "pg/compiler.js", { shims: true, prelude: PROCESS_PRELUDE });
+  await bundle("playground/playground.js", "pg/playground.bundle.js");
+
+  // 2. runtime assets
+  copy(ROOT + "host-web/pocketjs.wasm", "pg/pocketjs.wasm");
+  copy(ROOT + "assets/fonts/Inter-Regular.ttf", "pg/fonts/Inter-Regular.ttf");
+  copy(ROOT + "assets/fonts/Inter-Bold.ttf", "pg/fonts/Inter-Bold.ttf");
+  for (const f of readdirSync(ROOT + "assets/images/")) copy(ROOT + "assets/images/" + f, "demo-assets/" + f);
+
+  // 3. demos manifest
+  const demos = demoManifest();
+  write("pg/demos.json", JSON.stringify(demos));
+  console.log(`  pg/demos.json  (${demos.length} demos: ${demos.map((d) => d.name).join(", ")})`);
+
+  // 4. prebuilt showcase bundles for the homepage hero (no compiler needed)
+  const showcase = ["settings-main", "launcher-main", "music-main"];
+  for (const s of showcase) {
+    const js = ROOT + "dist/" + s + ".js";
+    const pak = ROOT + "dist/" + s + ".dcpak";
+    if (existsSync(js)) copy(js, "pg/demo-bundles/" + s + ".js");
+    if (existsSync(pak)) copy(pak, "pg/demo-bundles/" + s + ".dcpak");
+  }
+
+  // 5. static assets + Tailwind CSS (compiled AFTER pages exist so the content
+  //    scan sees every class; we render pages to a temp first, then compile).
+  if (existsSync(SITE + "assets/favicon.svg")) copy(SITE + "assets/favicon.svg", "favicon.svg");
+
+  // 6. playground page
+  write("playground/index.html", renderPage({
+    title: "Playground",
+    active: "playground",
+    body: readFileSync(SITE + "playground/page.html", "utf8"),
+    bodyClass: "pg-page",
+    head: IMPORT_MAP + '\n<link rel="stylesheet" href="/assets/screen.css">',
+    scripts: ['<script type="module" src="/pg/playground.bundle.js"></script>'],
+  }));
+  copy(SITE + "assets/screen.css", "assets/screen.css");
+
+  // 7. homepage — bespoke "cinematic" design: its own chrome + home.css, the
+  //    live demo styled by screen.css and driven by home.js. Not wrapped in the
+  //    shared header/footer (those stay for docs + playground).
+  write("index.html", renderHome());
+  copy(SITE + "assets/home.css", "assets/home.css");
+  copy(SITE + "assets/screen.css", "assets/screen.css");
+  await bundle("assets/home.js", "assets/home.js");
+
+  // 8. docs
+  await buildDocs();
+
+  // 8b. 404
+  write("404.html", renderPage({
+    title: "Not found",
+    active: "",
+    bodyClass: "",
+    head: "",
+    scripts: [],
+    body: `<section class="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-5 py-24 text-center">
+      <div class="font-mono text-6xl font-bold text-gradient">404</div>
+      <h1 class="mt-4 text-2xl font-bold text-slate-100">This screen doesn't exist.</h1>
+      <p class="mt-2 text-slate-400">The page you're looking for isn't in the tree — try the docs or head home.</p>
+      <div class="mt-7 flex gap-3"><a href="/" class="btn btn-primary px-5 py-2.5">Home</a><a href="/docs/overview/" class="btn px-5 py-2.5">Docs</a></div>
+    </section>`,
+  }));
+
+  // 9. Tailwind CSS (@source in tailwind.css scans the site/ SOURCE for classes)
+  await compileCss();
+
+  console.log("pocketjs.dev build: done -> site/dist/");
+}
+
+// The homepage is a standalone document (cinematic design owns its own header +
+// footer + CSS). site/home.html holds the body; site/assets/home.css the styles.
+const HOME_DESC =
+  "PocketJS renders a real Solid app — JSX, Tailwind, signals and full TypeScript — natively on the metal: real flexbox, sub-pixel text and hardware-accelerated animation, at a fluid 60 FPS in 32 MB of RAM. Bare Metal Modern Web, starting on the Sony PSP.";
+function renderHome(): string {
+  const body = readFileSync(SITE + "home.html", "utf8");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PocketJS — Bare Metal Modern Web</title>
+<meta name="description" content="${HOME_DESC}">
+<meta property="og:title" content="PocketJS — Bare Metal Modern Web">
+<meta property="og:description" content="${HOME_DESC}">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#05070d">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/home.css">
+<link rel="stylesheet" href="/assets/screen.css">
+</head>
+<body>
+${body}
+<script type="module" src="/assets/home.js"></script>
+</body>
+</html>`;
+}
+
+async function compileCss() {
+  const proc = Bun.spawnSync(
+    ["bunx", "@tailwindcss/cli", "-i", SITE + "assets/tailwind.css", "-o", OUT + "assets/site.css", "--minify"],
+    { cwd: ROOT, stdout: "pipe", stderr: "pipe" },
+  );
+  if (proc.exitCode !== 0) {
+    console.error(proc.stderr.toString());
+    throw new Error("tailwind build failed");
+  }
+  const bytes = Bun.file(OUT + "assets/site.css").size;
+  console.log(`  assets/site.css  (${(bytes / 1024).toFixed(0)} KiB)`);
+}
+
+// import-map so compiled apps + the homepage resolve @pocketjs/* to the one runtime
+const IMPORT_MAP = `<script type="importmap">
+{"imports":{
+  "@pocketjs":"/pg/runtime.js",
+  "@pocketjs/components":"/pg/runtime.js",
+  "@pocketjs/reactivity":"/pg/runtime.js",
+  "@pocketjs/animation":"/pg/runtime.js",
+  "@pocketjs/lifecycle":"/pg/runtime.js",
+  "@pocketjs/input":"/pg/runtime.js",
+  "@pocketjs/renderer":"/pg/runtime.js"
+}}
+</script>`;
+
+async function buildDocs() {
+  const docsDir = SITE + "content/docs/";
+  if (!existsSync(docsDir)) return;
+
+  // Syntax highlighting: Shiki (build-time, self-contained themed HTML) matched
+  // to the playground editor's one-dark-pro. Override marked's code renderer so
+  // every fenced block becomes a highlighted <pre class="shiki">.
+  const highlighter = await createHighlighter({
+    themes: ["one-dark-pro"],
+    langs: ["tsx", "typescript", "jsx", "javascript", "json", "bash", "rust", "toml", "html", "css", "diff"],
+  });
+  const LANG_ALIAS: Record<string, string> = { ts: "typescript", js: "javascript", sh: "bash", shell: "bash", console: "bash", jsonc: "json", rs: "rust", text: "text", txt: "text" };
+  const loaded = new Set(highlighter.getLoadedLanguages());
+  marked.use({
+    renderer: {
+      code(token: { text?: string; lang?: string }) {
+        const text = token.text ?? "";
+        const raw = (token.lang ?? "").trim().split(/\s+/)[0].toLowerCase();
+        const lang = LANG_ALIAS[raw] ?? raw;
+        const use = loaded.has(lang) ? lang : "text";
+        return highlighter.codeToHtml(text, { theme: "one-dark-pro", lang: use });
+      },
+    },
+  });
+  const sidebarFor = (active: string) =>
+    DOC_NAV.map(
+      (sec) =>
+        `<div class="doc-sec"><div class="doc-sec-t">${sec.title}</div>` +
+        sec.items
+          .map((it) => `<a href="/docs/${it.slug}/" class="${it.slug === active ? "on" : ""}">${it.title}</a>`)
+          .join("") +
+        `</div>`,
+    ).join("");
+  const allSlugs = DOC_NAV.flatMap((s) => s.items);
+  for (let i = 0; i < allSlugs.length; i++) {
+    const { slug, title } = allSlugs[i];
+    const md = docsDir + slug + ".md";
+    if (!existsSync(md)) {
+      console.warn(`  docs: MISSING ${slug}.md`);
+      continue;
+    }
+    const html = await marked.parse(readFileSync(md, "utf8"));
+    const prev = allSlugs[i - 1];
+    const next = allSlugs[i + 1];
+    const pager =
+      `<nav class="doc-pager">` +
+      (prev ? `<a href="/docs/${prev.slug}/" class="prev"><span>Previous</span>${prev.title}</a>` : `<span></span>`) +
+      (next ? `<a href="/docs/${next.slug}/" class="next"><span>Next</span>${next.title}</a>` : `<span></span>`) +
+      `</nav>`;
+    const body =
+      `<div class="doc-shell"><aside class="doc-nav">${sidebarFor(slug)}</aside>` +
+      `<article class="doc-body" data-slug="${slug}"><div class="prose prose-invert max-w-none doc-content">${html}</div>${pager}</article></div>`;
+    write(`docs/${slug}/index.html`, renderPage({ title, active: "docs", body, bodyClass: "doc-page", head: IMPORT_MAP, scripts: [] }));
+  }
+  // /docs -> first doc
+  write("docs/index.html", `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=/docs/${allSlugs[0].slug}/">`);
+  console.log(`  docs  (${allSlugs.length} pages)`);
+}
+
+await main();

@@ -1,4 +1,4 @@
-// @title psp-ui: Demo Launcher
+// @title PocketJS: Demo Launcher
 
 import { mount } from "@pocketjs";
 import Launcher from "./app.tsx";

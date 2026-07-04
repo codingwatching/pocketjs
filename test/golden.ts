@@ -1,6 +1,6 @@
 // test/golden.ts — headless byte-exact pixel goldens for the wasm rasterizer.
 //
-// Loads host-web/psp-ui.wasm under Bun, installs the SAME HostOps binding the
+// Loads host-web/pocketjs.wasm under Bun, installs the SAME HostOps binding the
 // browser host uses (host-web/wasm-ops.js), evals a dist/<demo>.js bundle with
 // globalThis.ui + globalThis.__dcpak pre-installed (the host contract), drives
 // N fixed-dt frames with a scripted input function, captures the RGBA
@@ -19,10 +19,10 @@ import { existsSync, mkdirSync } from "node:fs";
 import { createWasmUi } from "../host-web/wasm-ops.js";
 import { BTN, SCREEN_H, SCREEN_W } from "../spec/spec.ts";
 
-const ROOT = new URL("..", import.meta.url).pathname; // psp-ui/
+const ROOT = new URL("..", import.meta.url).pathname; // PocketJS/
 const DIST = ROOT + "dist/";
 const GOLDEN_DIR = ROOT + "test/goldens/";
-const WASM_PATH = ROOT + "host-web/psp-ui.wasm";
+const WASM_PATH = ROOT + "host-web/pocketjs.wasm";
 const UPDATE = !!process.env.UPDATE;
 
 const W = SCREEN_W;

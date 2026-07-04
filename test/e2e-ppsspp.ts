@@ -25,7 +25,7 @@ import { $ } from "bun";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 
-const pspUiDir = new URL("..", import.meta.url).pathname; // psp-ui/
+const pspUiDir = new URL("..", import.meta.url).pathname; // PocketJS/
 const goldensDir = `${pspUiDir}test/goldens-psp`;
 const outDir = `${pspUiDir}dist/e2e-ppsspp`;
 const headless = process.env.PPSSPP_HEADLESS || `${homedir()}/ppsspp-src/build/PPSSPPHeadless`;
@@ -44,7 +44,7 @@ const update = process.env.UPDATE === "1";
 //                at or before the current frame, so press = set, release = 0.
 //                Edge-detection (src/input.ts) needs a release between presses.
 //   capStart/N   capture window (frames capStart..capStart+capN dumped),
-//                baked into the EBOOT via PSPUI_CAP_START/PSPUI_CAP_N.
+//                baked into the EBOOT via POCKETJS_CAP_START/POCKETJS_CAP_N.
 //   shots        frames to golden, each within [capStart, capStart+capN).
 //
 // Frame arithmetic: frame 0 is the first frame() call (after the slow QuickJS
@@ -205,9 +205,9 @@ for (const spec of SPECS) {
     .cwd(pspUiDir)
     .env({
       ...process.env,
-      PSPUI_CAPTURE_INPUT: spec.inputScript,
-      PSPUI_CAP_START: String(spec.capStart),
-      PSPUI_CAP_N: String(spec.capN),
+      POCKETJS_CAPTURE_INPUT: spec.inputScript,
+      POCKETJS_CAP_START: String(spec.capStart),
+      POCKETJS_CAP_N: String(spec.capN),
     })
     .quiet();
 
@@ -296,7 +296,7 @@ for (const spec of SPECS) {
         console.error(
           `  note: PPSSPP build differs (goldens: ${stampedCommit.slice(0, 12)}, ` +
             `local: ${ppssppCommit.slice(0, 12)}) — emulator drift, not necessarily a ` +
-            `psp-ui regression. Re-baseline with UPDATE=1, or fall back to threshold ` +
+            `PocketJS regression. Re-baseline with UPDATE=1, or fall back to threshold ` +
             `compare (origin/main framework/test/bsp-compare/diff.ts: IoU>=0.995, meanRGB<=8).`,
         );
       }

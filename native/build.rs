@@ -1,10 +1,10 @@
 //! Embeds the built app bundle + asset pack into the EBOOT at build time.
 //! Pattern copied from the dreamcart runtime (runtime/build.rs, the
-//! PSPJS_GAME pattern), renamed to PSPUI_APP.
+//! PSPJS_GAME pattern), renamed to POCKETJS_APP.
 //!
-//! Set `PSPUI_APP` to an app name whose build outputs exist in ../dist/
+//! Set `POCKETJS_APP` to an app name whose build outputs exist in ../dist/
 //! (written by scripts/build.ts as `<app>.js` + `<app>.dcpak`):
-//!   PSPUI_APP=hero bun scripts/psp.ts
+//!   POCKETJS_APP=hero bun scripts/psp.ts
 //!
 //! Both embeds have EMPTY fallbacks so include_str!/include_bytes! in main.rs
 //! always resolve — an EBOOT built with no app boots to the JS-error screen
@@ -14,7 +14,7 @@ use std::path::Path;
 use std::{env, fs};
 
 fn main() {
-    let app = env::var("PSPUI_APP").unwrap_or_default();
+    let app = env::var("POCKETJS_APP").unwrap_or_default();
     let dist = Path::new("../dist");
     let out_dir = env::var("OUT_DIR").unwrap();
 
@@ -43,25 +43,25 @@ fn main() {
     // "frame:mask,frame:mask" baked into the EBOOT, consumed by main.rs only
     // under --features capture (same pattern as dreamcart runtime/build.rs
     // PSPJS_CAPTURE_INPUT).
-    let capture_input = env::var("PSPUI_CAPTURE_INPUT").unwrap_or_default();
+    let capture_input = env::var("POCKETJS_CAPTURE_INPUT").unwrap_or_default();
     // Optional real-hardware boot trace. scripts/hw.ts serves the build dir as
-    // host0:, so main.rs can append trace lines to host0:/psp-ui-trace.txt.
-    let trace = env::var("PSPUI_TRACE").unwrap_or_default();
+    // host0:, so main.rs can append trace lines to host0:/PocketJS-trace.txt.
+    let trace = env::var("POCKETJS_TRACE").unwrap_or_default();
     // Per-demo capture window (frames dumped = cap_start..cap_start+cap_n);
     // empty -> main.rs defaults (16/32).
-    let cap_start = env::var("PSPUI_CAP_START").unwrap_or_default();
-    let cap_n = env::var("PSPUI_CAP_N").unwrap_or_default();
+    let cap_start = env::var("POCKETJS_CAP_START").unwrap_or_default();
+    let cap_n = env::var("POCKETJS_CAP_N").unwrap_or_default();
 
-    println!("cargo:rustc-env=PSPUI_APP={app}");
-    println!("cargo:rustc-env=PSPUI_CAPTURE_INPUT={capture_input}");
-    println!("cargo:rustc-env=PSPUI_TRACE={trace}");
-    println!("cargo:rustc-env=PSPUI_CAP_START={cap_start}");
-    println!("cargo:rustc-env=PSPUI_CAP_N={cap_n}");
-    println!("cargo:rerun-if-env-changed=PSPUI_APP");
-    println!("cargo:rerun-if-env-changed=PSPUI_CAPTURE_INPUT");
-    println!("cargo:rerun-if-env-changed=PSPUI_TRACE");
-    println!("cargo:rerun-if-env-changed=PSPUI_CAP_START");
-    println!("cargo:rerun-if-env-changed=PSPUI_CAP_N");
+    println!("cargo:rustc-env=POCKETJS_APP={app}");
+    println!("cargo:rustc-env=POCKETJS_CAPTURE_INPUT={capture_input}");
+    println!("cargo:rustc-env=POCKETJS_TRACE={trace}");
+    println!("cargo:rustc-env=POCKETJS_CAP_START={cap_start}");
+    println!("cargo:rustc-env=POCKETJS_CAP_N={cap_n}");
+    println!("cargo:rerun-if-env-changed=POCKETJS_APP");
+    println!("cargo:rerun-if-env-changed=POCKETJS_CAPTURE_INPUT");
+    println!("cargo:rerun-if-env-changed=POCKETJS_TRACE");
+    println!("cargo:rerun-if-env-changed=POCKETJS_CAP_START");
+    println!("cargo:rerun-if-env-changed=POCKETJS_CAP_N");
     if let Ok(entries) = fs::read_dir(dist) {
         for e in entries.flatten() {
             println!("cargo:rerun-if-changed={}", e.path().display());

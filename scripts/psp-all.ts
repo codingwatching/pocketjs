@@ -1,4 +1,4 @@
-// scripts/psp-all.ts — package EVERY psp-ui demo into a PSP memory-stick
+// scripts/psp-all.ts — package EVERY PocketJS demo into a PSP memory-stick
 // layout, each with a distinct PARAM.SFO title and a procedurally rendered
 // ICON0.PNG/PIC1.PNG (box art): a title's accent color is HASHED from its
 // own text — no per-demo art asset, no manual box-art authoring. Declare a
@@ -8,7 +8,7 @@
 //   bun scripts/psp-all.ts [--release|-r]   # default: --release (memory
 //                                            # stick builds should be small)
 //
-// Output: dist/psp/PSP/GAME/psp-ui-<demo>/EBOOT.PBP (one per
+// Output: dist/psp/PSP/GAME/PocketJS-<demo>/EBOOT.PBP (one per
 // demos/<demo>/main.tsx found). Copy dist/psp/PSP to a memory stick's root to install
 // all of them at once. This script only writes under dist/ — it never
 // touches a mounted memory stick itself.
@@ -16,7 +16,7 @@
 // Metadata convention: a demo's mounting entry (demos/<name>/main.tsx)
 // carries a `// @title <Display Name>` comment (matches the exact tag the
 // main dreamcart repo's scripts/build-psp-all.ts already uses for its own
-// games — same convention, ported standalone since psp-ui stays independent
+// games — same convention, ported standalone since PocketJS stays independent
 // of that framework per DESIGN.md). No tag -> falls back to the bare demo
 // name.
 //
@@ -85,7 +85,7 @@ function commandPath(name: string): string | null {
 }
 
 function folderName(name: string): string {
-  return `psp-ui-${name.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+  return `PocketJS-${name.replace(/[^A-Za-z0-9_-]/g, "_")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -431,16 +431,16 @@ export async function renderBoxArt(title: string, w: number, h: number): Promise
   const margin = Math.max(8, Math.round(w * 0.06));
 
   const badgePx = Math.max(7, Math.round(h * 0.085));
-  drawLine(buf, w, h, badgeFont, "PSP-UI", margin, Math.round(h * 0.24), badgePx, ink, {
+  drawLine(buf, w, h, badgeFont, "PocketJS", margin, Math.round(h * 0.24), badgePx, ink, {
     alpha: 0.92,
     tracking: badgePx * 0.14,
     shadowAlpha: 0.55,
     shadowColor: [255, 255, 255],
   });
 
-  // Drop the redundant "psp-ui:" lead-in from the big title — the badge
+  // Drop the redundant "PocketJS:" lead-in from the big title — the badge
   // already establishes the brand.
-  const displayTitle = title.replace(/^psp-ui:\s*/i, "");
+  const displayTitle = title.replace(/^PocketJS:\s*/i, "");
   const titlePx = Math.max(11, Math.round(h * 0.155));
   const maxWidth = w - margin * 2;
   let lines = wrapByWidth(titleFont, displayTitle, titlePx, maxWidth);
@@ -569,7 +569,7 @@ if (import.meta.main) {
   if (Bun.argv.includes("--help") || Bun.argv.includes("-h")) {
     console.log("Usage: bun scripts/psp-all.ts [--debug]\n");
     console.log("Builds every demos/<name>/main.tsx into a PSP memory-stick layout:");
-    console.log("  dist/psp/PSP/GAME/psp-ui-<name>/EBOOT.PBP\n");
+    console.log("  dist/psp/PSP/GAME/PocketJS-<name>/EBOOT.PBP\n");
     console.log("Each gets a PARAM.SFO title (from that demo's `// @title` comment,");
     console.log("falling back to the bare demo name) plus a procedurally rendered");
     console.log("ICON0.PNG/PIC1.PNG (hash(title) -> gradient + Inter title text).");
@@ -616,7 +616,7 @@ if (import.meta.main) {
   await Bun.write(
     join(outRoot, "README.txt"),
     [
-      "psp-ui demo bundle",
+      "PocketJS demo bundle",
       "",
       "Copy the PSP directory in this folder to the root of a PSP memory stick.",
       "Each demo is under PSP/GAME/<folder>/EBOOT.PBP.",
@@ -628,6 +628,6 @@ if (import.meta.main) {
     ].join("\n"),
   );
 
-  console.log(`\nBuilt ${built.length} psp-ui demo(s): ${pspGameRoot}`);
+  console.log(`\nBuilt ${built.length} PocketJS demo(s): ${pspGameRoot}`);
   console.log("Copy dist/psp/PSP to the root of a PSP memory stick to install all of them.");
 }

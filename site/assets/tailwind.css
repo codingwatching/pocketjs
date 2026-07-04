@@ -1,0 +1,338 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Scan every place a class can appear (TS template strings, HTML, JS glue). */
+@source "../**/*.{ts,html,js}";
+
+/* ---- brand theme ---------------------------------------------------------- */
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+
+  /* near-black navy base + layered surfaces */
+  --color-ink: #090c14;
+  --color-ink-2: #0b0f1a;
+  --color-surface: #0f1626;
+  --color-surface-2: #141d31;
+  --color-line: #1e293b;
+  --color-line-2: #2b3a55;
+
+  /* the blue→cyan brand ramp (matches the logo + demos) */
+  --color-brand: #38bdf8;
+  --color-brand-2: #22d3ee;
+  --color-brand-3: #60a5fa;
+}
+
+/* ---- base ----------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-ink);
+    color: var(--color-slate-300);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-brand) 40%, transparent);
+    color: #fff;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  /* subtle top-of-page aurora */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 620px;
+    pointer-events: none;
+    z-index: -1;
+    background:
+      radial-gradient(60% 90% at 22% -10%, color-mix(in oklab, var(--color-brand-3) 20%, transparent), transparent 70%),
+      radial-gradient(50% 80% at 90% -20%, color-mix(in oklab, var(--color-brand-2) 16%, transparent), transparent 70%);
+  }
+}
+
+/* ---- reusable brand bits -------------------------------------------------- */
+@utility text-gradient {
+  background: linear-gradient(120deg, var(--color-brand-3), var(--color-brand-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.95rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid var(--color-line-2);
+    background: var(--color-surface-2);
+    color: var(--color-slate-100);
+    cursor: pointer;
+    transition:
+      transform 0.12s ease,
+      background 0.12s ease,
+      border-color 0.12s ease;
+  }
+  .btn:hover {
+    border-color: var(--color-brand);
+    transform: translateY(-1px);
+  }
+  .btn-primary {
+    border-color: transparent;
+    color: #04121b;
+    background: linear-gradient(120deg, var(--color-brand-3), var(--color-brand-2));
+  }
+  .btn-primary:hover {
+    filter: brightness(1.06);
+  }
+  .btn-ghost {
+    background: transparent;
+  }
+
+  .card {
+    border: 1px solid var(--color-line);
+    background: color-mix(in oklab, var(--color-surface) 70%, transparent);
+    border-radius: 0.9rem;
+  }
+
+  /* inline code + fenced blocks in prose and elsewhere */
+  .prose :where(code):not(:where(pre code)) {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-line);
+    border-radius: 0.35rem;
+    padding: 0.12em 0.4em;
+    color: var(--color-brand-2);
+  }
+  .prose :where(code):not(:where(pre code))::before,
+  .prose :where(code):not(:where(pre code))::after {
+    content: none;
+  }
+  .prose pre {
+    background: var(--color-ink-2);
+    border: 1px solid var(--color-line);
+    border-radius: 0.7rem;
+  }
+  /* Shiki-highlighted docs code blocks (theme bg is inline; keep our chrome). */
+  .prose pre.shiki {
+    border: 1px solid var(--color-line);
+    border-radius: 0.7rem;
+    padding: 0.95rem 1.1rem;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.65;
+  }
+  .prose pre.shiki code {
+    font-family: var(--font-mono);
+    background: transparent;
+    padding: 0;
+    border: 0;
+    color: inherit;
+  }
+
+  /* ---- handheld device frame (hero + playground) ------------------------- */
+  .pocket-frame {
+    width: 100%;
+    max-width: 440px;
+    padding: 14px;
+    border-radius: 22px;
+    border: 1px solid var(--color-line-2);
+    background:
+      linear-gradient(160deg, color-mix(in oklab, var(--color-surface-2) 90%, #fff 4%), var(--color-ink-2));
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.05) inset,
+      0 30px 60px -30px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(56, 189, 248, 0.06);
+  }
+  .pocket-screen {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid #05070d;
+    box-shadow: 0 0 0 6px #05070d, 0 0 24px -4px rgba(56, 189, 248, 0.25) inset;
+    aspect-ratio: 480 / 272;
+  }
+  .pocket-screen canvas,
+  .pg-screen canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+    outline: none;
+  }
+  .pocket-loading {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-slate-500);
+  }
+
+  /* ---- code sample card -------------------------------------------------- */
+  .code-card {
+    border: 1px solid var(--color-line);
+    border-radius: 0.85rem;
+    overflow: hidden;
+    background: var(--color-ink-2);
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--color-line);
+    background: color-mix(in oklab, var(--color-surface) 60%, transparent);
+  }
+  .code-head .dot {
+    height: 0.6rem;
+    width: 0.6rem;
+    border-radius: 999px;
+    background: var(--color-line-2);
+  }
+  .code-body {
+    margin: 0;
+    padding: 1.15rem 1.25rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--color-slate-300);
+  }
+  /* syntax tints (home.ts highlight + prose fences) */
+  .code-body .k, .tok-k { color: #c084fc; }
+  .code-body .s, .tok-s { color: #7dd3fc; }
+  .code-body .c, .tok-c { color: #64748b; font-style: italic; }
+  .code-body .t, .tok-t { color: #5eead4; }
+
+  /* ---- playground -------------------------------------------------------- */
+  .pg-wrap {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 3.5rem);
+    min-height: 540px;
+  }
+  .pg-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-ink-2);
+    flex-wrap: wrap;
+  }
+  .pg-tb-left { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .pg-tb-right { display: flex; align-items: center; gap: 0.9rem; }
+  .pg-tb-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-slate-500); }
+  #pg-demo {
+    background: var(--color-surface-2);
+    color: var(--color-slate-100);
+    border: 1px solid var(--color-line-2);
+    border-radius: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+  }
+  .pg-status { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-slate-500); }
+  .pg-status[data-kind="ok"] { color: #34d399; }
+  .pg-status[data-kind="err"] { color: #f87171; }
+  .pg-status[data-kind="busy"] { color: var(--color-brand-2); }
+  .pg-fps { font-family: var(--font-mono); font-size: 0.75rem; color: #34d399; min-width: 3.5rem; text-align: right; }
+  .pg-split { flex: 1; display: grid; grid-template-columns: 1fr; min-height: 0; }
+  @media (min-width: 900px) { .pg-split { grid-template-columns: 1fr 1fr; } }
+  .pg-editor-pane { min-height: 0; border-bottom: 1px solid var(--color-line); overflow: hidden; }
+  @media (min-width: 900px) { .pg-editor-pane { border-bottom: 0; border-right: 1px solid var(--color-line); } }
+  .pg-editor { height: 100%; }
+  .pg-editor .cm-editor { height: 100%; }
+  .pg-editor .cm-editor.cm-focused { outline: none; }
+  .pg-preview-pane {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    background:
+      radial-gradient(80% 50% at 50% 0%, color-mix(in oklab, var(--color-brand-3) 8%, transparent), transparent 70%),
+      var(--color-ink);
+  }
+  .pg-device { width: 100%; max-width: 460px; }
+  .pg-screen {
+    position: relative;
+    aspect-ratio: 480 / 272;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 0 0 6px #05070d, 0 20px 40px -24px #000;
+  }
+  .pg-pad { margin-top: 1rem; display: flex; align-items: center; justify-content: space-between; }
+  .pg-dpad { position: relative; width: 96px; height: 96px; }
+  .pg-dpad .pad { position: absolute; }
+  .pg-dpad .up { top: 0; left: 33px; }
+  .pg-dpad .down { bottom: 0; left: 33px; }
+  .pg-dpad .left { left: 0; top: 33px; }
+  .pg-dpad .right { right: 0; top: 33px; }
+  .pg-face { position: relative; width: 108px; height: 96px; }
+  .pg-face .pad { position: absolute; border-radius: 999px; }
+  .pg-face .tri { top: 0; left: 38px; color: #6ee7b7; }
+  .pg-face .sq { top: 32px; left: 4px; color: #f9a8d4; }
+  .pg-face .ci { top: 32px; right: 4px; color: #fca5a5; }
+  .pg-face .cr { bottom: 0; left: 38px; color: #93c5fd; }
+  .pad {
+    width: 30px; height: 30px; display: grid; place-items: center;
+    border: 1px solid var(--color-line-2); background: var(--color-surface-2);
+    color: var(--color-slate-300); border-radius: 7px; cursor: pointer; font-size: 0.7rem;
+    user-select: none; transition: background 0.1s, transform 0.05s;
+  }
+  .pad:hover { border-color: var(--color-brand); }
+  .pad.held, .pad:active { background: var(--color-brand); color: #04121b; transform: scale(0.94); }
+  .pg-sys { display: flex; gap: 0.75rem; }
+  .pad.sys { width: auto; padding: 0 0.7rem; height: 24px; font-size: 0.62rem; letter-spacing: 0.05em; }
+  .pg-error {
+    width: 100%; max-width: 620px; margin: 0; padding: 0.75rem 0.9rem;
+    background: color-mix(in oklab, #7f1d1d 30%, var(--color-ink-2));
+    border: 1px solid #b91c1c; border-radius: 0.6rem; color: #fecaca;
+    font-family: var(--font-mono); font-size: 0.72rem; white-space: pre-wrap;
+    overflow-x: auto; max-height: 220px; overflow-y: auto;
+  }
+  .pg-hint { max-width: 560px; text-align: center; font-size: 0.78rem; color: var(--color-slate-500); }
+  .pg-hint code { font-family: var(--font-mono); color: var(--color-brand-2); }
+
+  /* ---- docs layout ------------------------------------------------------- */
+  .doc-shell { display: grid; grid-template-columns: 1fr; gap: 0; max-width: 80rem; margin: 0 auto; }
+  @media (min-width: 1000px) { .doc-shell { grid-template-columns: 250px minmax(0, 1fr); } }
+  .doc-nav {
+    display: none; padding: 2rem 1.25rem; border-right: 1px solid var(--color-line);
+    position: sticky; top: 3.5rem; align-self: start; max-height: calc(100vh - 3.5rem); overflow-y: auto;
+  }
+  @media (min-width: 1000px) { .doc-nav { display: block; } }
+  .doc-sec { margin-bottom: 1.4rem; }
+  .doc-sec-t { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-slate-500); margin-bottom: 0.5rem; }
+  .doc-nav a { display: block; padding: 0.3rem 0.6rem; border-radius: 0.4rem; font-size: 0.88rem; color: var(--color-slate-400); }
+  .doc-nav a:hover { color: var(--color-slate-100); background: var(--color-surface); }
+  .doc-nav a.on { color: var(--color-brand-2); background: color-mix(in oklab, var(--color-brand) 12%, transparent); font-weight: 600; }
+  .doc-body { padding: 2.5rem 1.5rem 4rem; max-width: 52rem; }
+  @media (min-width: 1000px) { .doc-body { padding: 2.5rem 3rem 5rem; } }
+  .doc-pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--color-line); }
+  .doc-pager a { display: flex; flex-direction: column; padding: 0.75rem 1rem; border: 1px solid var(--color-line); border-radius: 0.6rem; font-size: 0.9rem; color: var(--color-slate-200); max-width: 48%; }
+  .doc-pager a:hover { border-color: var(--color-brand); }
+  .doc-pager a.next { text-align: right; margin-left: auto; }
+  .doc-pager span { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-slate-500); }
+}

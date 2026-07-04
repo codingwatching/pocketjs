@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 use core::ffi::c_void;
 
 use libquickjs_sys::*;
-use psp_ui_core::Ui;
+use pocketjs_core::Ui;
 
 static mut UI: Option<Ui> = None;
 

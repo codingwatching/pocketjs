@@ -279,7 +279,7 @@ export default function Settings() {
     <View class={currentTheme().pageCls}>
       <View class="flex-row items-end justify-between">
         <View class="flex-col">
-          <Text class={currentTheme().eyebrowCls}>PSP-UI SHOWCASE</Text>
+          <Text class={currentTheme().eyebrowCls}>POCKETJS SHOWCASE</Text>
           <Text class={currentTheme().titleCls}>Settings</Text>
         </View>
         <Text class={currentTheme().optionsCls}>4 OPTIONS</Text>
