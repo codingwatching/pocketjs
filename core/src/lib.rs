@@ -150,7 +150,9 @@ impl Ui {
     /// Starts transitions for the animatable old→new diff if the node already
     /// had an established style and the new record carries a transition block.
     pub fn set_style(&mut self, id: i32, style_id: i32) {
-        let Some(slot) = self.tree.resolve(id) else { return };
+        let Some(slot) = self.tree.resolve(id) else {
+            return;
+        };
         let old = style::resolve(&self.tree.slots[slot as usize], &self.styles, true);
         let was_initialized = self.tree.slots[slot as usize].style_initialized;
         {
@@ -174,7 +176,9 @@ impl Ui {
         if kind == 0xff {
             return;
         }
-        let Some(slot) = self.tree.resolve(id) else { return };
+        let Some(slot) = self.tree.resolve(id) else {
+            return;
+        };
         let bits = prop_bits(kind, value);
         // A direct set wins over any running animation on the same prop.
         let nid = self.tree.slots[slot as usize].id(slot);
@@ -192,7 +196,9 @@ impl Ui {
     /// Set the UTF-8 content of a text node. Empty text nodes are excluded
     /// from layout until they become non-empty.
     pub fn set_text(&mut self, id: i32, text: &str) {
-        let Some(slot) = self.tree.resolve(id) else { return };
+        let Some(slot) = self.tree.resolve(id) else {
+            return;
+        };
         if self.tree.slots[slot as usize].node_type != spec::NodeType::Text as u8
             || self.tree.slots[slot as usize].text == text
         {
@@ -244,7 +250,13 @@ impl Ui {
         unsafe {
             core::ptr::copy_nonoverlapping(data.as_ptr(), chunks.as_mut_ptr() as *mut u8, byte_len);
         }
-        self.textures.push(Texture { data: chunks, byte_len, w, h, psm });
+        self.textures.push(Texture {
+            data: chunks,
+            byte_len,
+            w,
+            h,
+            psm,
+        });
         (self.textures.len() - 1) as i32
     }
 
@@ -255,12 +267,44 @@ impl Ui {
         if tex >= 0 && tex as usize >= self.textures.len() {
             return;
         }
-        let Some(slot) = self.tree.resolve(id) else { return };
+        let Some(slot) = self.tree.resolve(id) else {
+            return;
+        };
         let node = &mut self.tree.slots[slot as usize];
         if node.node_type == spec::NodeType::Image as u8 {
             node.tex = if tex < 0 { -1 } else { tex };
             node.sprite_frames = 0; // set_image reverts a sprite to a static image
+            node.transition_from = -1;
+            node.transition_to = -1;
         }
+    }
+
+    /// Bind a native 3D image transition to an image node. The two handles
+    /// stay resident on the node while progress is read from prop::FLIP_PROGRESS
+    /// so callers can use the existing explicit animate() op.
+    pub fn set_image_transition(&mut self, id: i32, from_tex: i32, to_tex: i32, direction: i32) {
+        if (from_tex >= 0 && from_tex as usize >= self.textures.len())
+            || (to_tex >= 0 && to_tex as usize >= self.textures.len())
+        {
+            return;
+        }
+        let Some(slot) = self.tree.resolve(id) else {
+            return;
+        };
+        let node = &mut self.tree.slots[slot as usize];
+        if node.node_type != spec::NodeType::Image as u8 {
+            return;
+        }
+        if from_tex < 0 || to_tex < 0 {
+            node.transition_from = -1;
+            node.transition_to = -1;
+            return;
+        }
+        node.transition_from = from_tex;
+        node.transition_to = to_tex;
+        node.transition_dir = if direction < 0 { -1 } else { 1 };
+        node.tex = to_tex;
+        node.sprite_frames = 0;
     }
 
     /// Bind an ANIMATED SPRITE to an image node: `atlas` is an uploaded texture
@@ -274,7 +318,9 @@ impl Ui {
             return;
         }
         let frame = self.frame;
-        let Some(slot) = self.tree.resolve(id) else { return };
+        let Some(slot) = self.tree.resolve(id) else {
+            return;
+        };
         let node = &mut self.tree.slots[slot as usize];
         if node.node_type != spec::NodeType::Image as u8 {
             return;
@@ -282,9 +328,13 @@ impl Ui {
         if frames == 0 || atlas < 0 {
             node.sprite_frames = 0;
             node.tex = -1;
+            node.transition_from = -1;
+            node.transition_to = -1;
             return;
         }
         node.tex = atlas;
+        node.transition_from = -1;
+        node.transition_to = -1;
         node.sprite_frames = frames.min(u16::MAX as u32) as u16;
         node.sprite_cols = cols.clamp(1, u16::MAX as u32) as u16;
         node.sprite_step = step.clamp(1, u16::MAX as u32) as u16;
@@ -328,13 +378,18 @@ impl Ui {
         easing: u8,
         delay_ms: u32,
     ) -> i32 {
-        if !spec::is_animatable(prop) || easing > spec::Easing::SpringBouncy as u8 {
+        if (!spec::is_animatable(prop) && prop != spec::prop::FLIP_PROGRESS)
+            || easing > spec::Easing::SpringBouncy as u8
+        {
             return -1;
         }
-        let Some(slot) = self.tree.resolve(id) else { return -1 };
+        let Some(slot) = self.tree.resolve(id) else {
+            return -1;
+        };
         let kind = spec::PROP_VALUE_KIND[prop as usize];
         let is_color = kind == spec::value_kind::COLOR;
-        let from = style::resolve(&self.tree.slots[slot as usize], &self.styles, true).get_bits(prop);
+        let from =
+            style::resolve(&self.tree.slots[slot as usize], &self.styles, true).get_bits(prop);
         let to_bits = prop_bits(kind, to);
         let nid = self.tree.slots[slot as usize].id(slot);
         if !is_color {
@@ -379,7 +434,9 @@ impl Ui {
     /// Cancel a running animation (leaves the prop at its current value, as a
     /// dynamic override).
     pub fn cancel_anim(&mut self, anim_id: i32) {
-        let Some(tslot) = self.anims.resolve(anim_id) else { return };
+        let Some(tslot) = self.anims.resolve(anim_id) else {
+            return;
+        };
         let (node_id, prop) = {
             let t = &self.anims.tracks[tslot as usize];
             (t.node, t.prop)
@@ -400,7 +457,13 @@ impl Ui {
     /// natively — zero JS runs on focus change. Variant swaps run through the
     /// record's transition block like `set_style`.
     pub fn set_focus(&mut self, id: i32) {
-        let target = if id == 0 { 0 } else if self.tree.resolve(id).is_some() { id } else { return };
+        let target = if id == 0 {
+            0
+        } else if self.tree.resolve(id).is_some() {
+            id
+        } else {
+            return;
+        };
         if target == self.focused {
             return;
         }
@@ -422,7 +485,9 @@ impl Ui {
     /// Set the `active:` pressed state (same native variant machinery as
     /// focus; exposed for the hosts' input layer — not a spec op).
     pub fn set_active(&mut self, id: i32, active: bool) {
-        let Some(slot) = self.tree.resolve(id) else { return };
+        let Some(slot) = self.tree.resolve(id) else {
+            return;
+        };
         if self.tree.slots[slot as usize].active == active {
             return;
         }
@@ -486,7 +551,13 @@ impl Ui {
         if self.layout.dirty {
             layout::relayout(&mut self.tree, &self.styles, &self.fonts, &mut self.layout);
         }
-        draw::build(&self.tree, &self.styles, &self.fonts, self.frame, &mut self.draw_list);
+        draw::build(
+            &self.tree,
+            &self.styles,
+            &self.fonts,
+            self.frame,
+            &mut self.draw_list,
+        );
         &self.draw_list
     }
 
@@ -534,7 +605,9 @@ impl Ui {
     fn text_layout_root(&self, mut slot: u32) -> u32 {
         loop {
             let parent = self.tree.slots[slot as usize].parent;
-            let Some(parent_slot) = self.tree.resolve(parent) else { return slot };
+            let Some(parent_slot) = self.tree.resolve(parent) else {
+                return slot;
+            };
             if self.tree.slots[parent_slot as usize].node_type != spec::NodeType::Text as u8 {
                 return slot;
             }

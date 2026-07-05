@@ -188,6 +188,54 @@ const frame = createSpriteAnimation(
 `Image` takes no children. See the [Build pipeline](/docs/build-pipeline/) for
 how images become pak textures.
 
+### Native 3D Image Transitions
+
+`SceneTransition3D` is a thin image-node wrapper for PSP-native texture flips.
+It binds two static image keys, writes the initial `flipProgress`, and then you
+animate that prop with the normal animation API:
+
+:::framework-code
+```tsx solid
+import { createSignal } from "solid-js";
+import { SceneTransition3D, type NodeMirror } from "@pocketjs/framework/components";
+import { animate } from "@pocketjs/framework/animation";
+
+let node: NodeMirror | undefined;
+const [from, setFrom] = createSignal("tile-00.png");
+const [to, setTo] = createSignal("tile-01.png");
+
+<SceneTransition3D
+  nodeRef={(next) => { node = next; }}
+  class="w-[188] h-[188]"
+  from={from()}
+  to={to()}
+  progress={0}
+/>;
+
+if (node) animate(node, "flipProgress", 1, { dur: 420, easing: "out-back" });
+```
+
+```tsx vue-vapor
+import { ref } from "vue";
+import { SceneTransition3D, type NodeMirror } from "@pocketjs/framework/vue-vapor/components";
+import { animate } from "@pocketjs/framework/vue-vapor/animation";
+
+const from = ref("tile-00.png");
+const to = ref("tile-01.png");
+let node: NodeMirror | undefined;
+
+<SceneTransition3D
+  nodeRef={(next) => { node = next ?? undefined; }}
+  class="w-[188] h-[188]"
+  from={() => from.value}
+  to={() => to.value}
+  progress={0}
+/>;
+
+if (node) animate(node, "flipProgress", 1, { dur: 420, easing: "out-back" });
+```
+:::
+
 ## Props
 
 Each primitive has a small, explicit prop interface. `ViewProps`, `TextProps`,
@@ -203,6 +251,7 @@ own wrapper components.
 | `onPress`   |   ✓    |        |         | `() => void`                               | Fires when focused and confirmed. |
 | `ref`       |   ✓    |   ✓    |   ✓     | `(node: NodeMirror) => void \| NodeMirror` | Handle to the mirror node. |
 | `src`       |        |        |   ✓     | `string`                                   | Baked texture name. |
+| `transition3d` |     |        |   ✓     | `{ from, to, progress?, direction? }`      | Native image transition state. |
 
 ### `style` vs `class`
 

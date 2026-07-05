@@ -7,7 +7,7 @@
 
 import type { JSX as SolidJSX } from "solid-js";
 import { createElement, spread } from "./renderer.ts";
-import type { NodeMirror } from "./renderer.ts";
+import type { ImageTransition3DValue, NodeMirror } from "./renderer.ts";
 
 type StyleObject = Record<string, number | string>;
 type RefProp =
@@ -37,6 +37,7 @@ export interface TextProps {
 export interface ImageProps {
   class?: string;
   src?: string;
+  transition3d?: ImageTransition3DValue | false | null;
   style?: StyleObject;
   ref?: RefProp;
   nodeRef?: RefProp;

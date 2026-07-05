@@ -85,6 +85,11 @@ export const SIZE_FULL = -1;
 //   uploadTexture(buf, w, h, psm) -> handle          [pow2 <= 512, copied]
 //   setImage(id, texHandle)                [texHandle < 0 clears the image —
 //                                           handles are 0-based, so 0 is real]
+//   setImageTransition(id, fromTex, toTex, direction)
+//                                         [image nodes only; binds a native
+//                                          3D texture transition. Progress is
+//                                          PROP.flipProgress so animate() can
+//                                          tick it in the core.]
 //   animate(id, propId, to:f64, durMs, easing, delayMs) -> animId [from = current]
 //   cancelAnim(animId)
 //   setFocus(idOr0)                        [applies focus: variant natively]
@@ -110,6 +115,7 @@ export const OP = {
   loadFontAtlas: 15,
   measureText: 16,
   setSprite: 17,
+  setImageTransition: 18,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -180,6 +186,7 @@ export const PROP = {
   rotate: 131, //       f32 degrees (about the node center)
   scaleX: 132, //       f32 (1 = identity, about the node center)
   scaleY: 133, //       f32 (1 = identity, about the node center)
+  flipProgress: 134, // f32 0..1, drives native image transition draw state
 } as const;
 
 export type PropName = keyof typeof PROP;
@@ -190,7 +197,9 @@ export type PropName = keyof typeof PROP;
 // ANIMATABLE is an ORDERED list: the index of a prop in this list is its
 // "anim bit" — the bit used in the style-table transition `mask` (u32) and in
 // core anim bookkeeping. Append-only; never reorder. 30/32 bits used.
-// Everything not listed here is NOT animatable (enums, focus, shadow index...).
+// Everything not listed here is NOT style-transition animatable (enums, focus,
+// shadow index...). `flipProgress` is explicit-animate-only because the style
+// transition mask is a u32 and these 32 bits are already occupied.
 
 export const ANIMATABLE: readonly PropName[] = [
   // bit 0..
@@ -291,6 +300,7 @@ export const PROP_VALUE_KIND: Record<PropName, number> = {
   translateX: VALUE_KIND.f32, translateY: VALUE_KIND.f32,
   scale: VALUE_KIND.f32, rotate: VALUE_KIND.f32,
   scaleX: VALUE_KIND.f32, scaleY: VALUE_KIND.f32,
+  flipProgress: VALUE_KIND.f32,
 };
 
 // ---------------------------------------------------------------------------
@@ -598,6 +608,11 @@ export const FONT_FLAG_BOLD = 1 << 0;
 //                                      word: bits 0-15 gid, bits 16-31 reserved(0) }
 //   TEX_QUAD    (9 words):  op, texHandle, xy, wh, u0, v0, u1, v1 (f32 bits,
 //                           normalized 0..1), color (modulate; 0xFFFFFFFF = none)
+//   TEX_3D_QUAD (10 words): op, texHandle, xy, wh, u0, v0, u1, v1 (f32 bits,
+//                           normalized 0..1), color, angleY degrees (f32 bits).
+//                           PSP draws this through the native 3D T&L pipe;
+//                           software hosts use a deterministic projected
+//                           trapezoid fallback.
 //   SCISSOR     (3 words):  op, xy, wh — push clip rect. The core emits rects
 //                           already intersected with every enclosing scissor,
 //                           so backends just SET the rect (a depth counter,
@@ -620,6 +635,7 @@ export const DRAW_OP = {
   scissor: 5,
   scissorPop: 6,
   tri: 7,
+  tex3dQuad: 8,
 } as const;
 
 // ---------------------------------------------------------------------------

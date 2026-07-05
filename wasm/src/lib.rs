@@ -126,6 +126,11 @@ pub extern "C" fn ui_set_image(id: i32, tex: i32) {
 }
 
 #[no_mangle]
+pub extern "C" fn ui_set_image_transition(id: i32, from_tex: i32, to_tex: i32, direction: i32) {
+    ui().set_image_transition(id, from_tex, to_tex, direction)
+}
+
+#[no_mangle]
 pub extern "C" fn ui_set_sprite(id: i32, atlas: i32, frames: u32, cols: u32, step: u32) {
     ui().set_sprite(id, atlas, frames, cols, step)
 }

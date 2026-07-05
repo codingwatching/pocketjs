@@ -265,7 +265,7 @@ export function generateRust(): string {
   // --- drawlist ------------------------------------------------------------------
   put("/// DrawList op codes (core -> backend Vec<u32> words; layout in spec.ts).");
   put("/// Word counts incl. header: RECT 4, GRAD_RECT 6, GLYPH_RUN 3+2n,");
-  put("/// TEX_QUAD 9, SCISSOR 3, SCISSOR_POP 1, TRI 7.");
+  put("/// TEX_QUAD 9, TEX_3D_QUAD 10, SCISSOR 3, SCISSOR_POP 1, TRI 7.");
   put("pub mod draw_op {");
   for (const [name, v] of Object.entries(DRAW_OP)) {
     put(`    pub const ${screaming(name)}: u32 = ${v};`);

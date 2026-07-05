@@ -67,6 +67,12 @@ pub struct Node {
     /// Uploaded texture handle (image nodes only; -1 = none). For an animated
     /// sprite this is the ATLAS texture; the drawn frame is a UV sub-rect of it.
     pub tex: i32,
+    /// Native 3D image transition handles. When both are >=0, draw.rs renders
+    /// them through the flipProgress prop instead of node.tex.
+    pub transition_from: i32,
+    pub transition_to: i32,
+    /// -1 = left/back, +1 = right/forward.
+    pub transition_dir: i8,
     /// Animated-sprite frame count over `tex` (0 = plain image, no animation).
     pub sprite_frames: u16,
     /// Atlas grid columns (frame i sits at col i%cols, row i/cols).
@@ -99,6 +105,9 @@ impl Node {
             anim_values: Vec::new(),
             text: String::new(),
             tex: -1,
+            transition_from: -1,
+            transition_to: -1,
+            transition_dir: 1,
             sprite_frames: 0,
             sprite_cols: 0,
             sprite_step: 0,
@@ -150,14 +159,20 @@ impl Tree {
     /// full-screen flex column (via dynamic overrides so any user style still
     /// layers under them predictably).
     pub fn new() -> Tree {
-        let mut t = Tree { slots: Vec::new(), free: Vec::new() };
+        let mut t = Tree {
+            slots: Vec::new(),
+            free: Vec::new(),
+        };
         t.slots.push(Node::empty(0)); // slot 0: never allocated
         let mut root = Node::empty(0);
         root.node_type = spec::NodeType::View as u8;
         root.alive = true;
-        root.overrides.push((spec::prop::WIDTH, (spec::SCREEN_W as f32).to_bits()));
-        root.overrides.push((spec::prop::HEIGHT, (spec::SCREEN_H as f32).to_bits()));
-        root.overrides.push((spec::prop::FLEX_DIR, spec::FlexDir::Col as u32));
+        root.overrides
+            .push((spec::prop::WIDTH, (spec::SCREEN_W as f32).to_bits()));
+        root.overrides
+            .push((spec::prop::HEIGHT, (spec::SCREEN_H as f32).to_bits()));
+        root.overrides
+            .push((spec::prop::FLEX_DIR, spec::FlexDir::Col as u32));
         t.slots.push(root); // slot 1 == spec::ROOT_ID (gen 0)
         t
     }
@@ -217,11 +232,15 @@ impl Tree {
 
     /// Unlink `child_id` from its parent (if attached). Does not free it.
     pub fn detach(&mut self, child_id: i32) {
-        let Some(cslot) = self.resolve(child_id) else { return };
+        let Some(cslot) = self.resolve(child_id) else {
+            return;
+        };
         let parent_id = self.slots[cslot as usize].parent;
         if parent_id != 0 {
             if let Some(pslot) = self.resolve(parent_id) {
-                self.slots[pslot as usize].children.retain(|&c| c != child_id);
+                self.slots[pslot as usize]
+                    .children
+                    .retain(|&c| c != child_id);
             }
             self.slots[cslot as usize].parent = 0;
         }
@@ -295,7 +314,9 @@ impl Tree {
 
     /// Detach `child` from `parent` (keeps the node alive for re-insert).
     pub fn remove_child(&mut self, parent_id: i32, child_id: i32) -> bool {
-        let Some(cslot) = self.resolve(child_id) else { return false };
+        let Some(cslot) = self.resolve(child_id) else {
+            return false;
+        };
         if self.slots[cslot as usize].parent != parent_id || self.resolve(parent_id).is_none() {
             return false;
         }

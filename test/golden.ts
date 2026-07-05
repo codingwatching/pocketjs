@@ -262,28 +262,20 @@ const SPECS: Spec[] = [
                 : 0,
   },
   {
-    // gallery: full-screen L/R paging over baked bitmap tiles. Page 0
-    // (SYNTHWAVE) reveals over 16f; RIGHT@22 moves grid focus tile0->tile1
-    // (FocusGrid), CIRCLE@30 selects it (hint bar -> "VIEWING NEON"); f42 is
-    // page 0 settled with tile 1 focused + selected. RTRIGGER@50/100/150 page
-    // right through GOLDEN HOUR -> EVERGREEN -> NEBULA (settled at f82/132/178,
-    // past the 18-frame slide; in-window neighbours are prefetched so no
-    // spinner). LTRIGGER@190 pages back to EVERGREEN — f200 is MID-slide and
-    // must show tiles, not a spinner (guards the reveal-latch: a replay
-    // regression would render the loading spinner here); f226 settled.
+    // gallery: static bitmap grid pages using the native 3D image transition.
+    // f42 is the initial six-tile page, RTRIGGER@50/100/150 steps right with
+    // settled captures at f82/f132/f178, and LTRIGGER@190 steps left. f200 is
+    // deliberately mid-flip so the wasm fallback must render projected tiles
+    // instead of a blank/loading state; f226 is settled.
     name: "gallery-main",
     frames: 236,
     capture: [42, 82, 132, 178, 200, 226],
     input: (f) =>
-      f === 22
-        ? BTN.RIGHT
-        : f === 30
-          ? BTN.CIRCLE
-          : f === 50 || f === 100 || f === 150
-            ? BTN.RTRIGGER
-            : f === 190
-              ? BTN.LTRIGGER
-              : 0,
+      f === 50 || f === 100 || f === 150
+        ? BTN.RTRIGGER
+        : f === 190
+          ? BTN.LTRIGGER
+          : 0,
   },
 ];
 

@@ -28,6 +28,7 @@ import {
   setProp,
   setStyleResolver,
   type HostProps,
+  type ImageTransition3DValue,
   type NodeMirror,
 } from "./native-tree.ts";
 
@@ -53,6 +54,7 @@ export {
   setProp,
   setStyleResolver,
   type NodeMirror,
+  type ImageTransition3DValue,
 };
 
 function setProperty<T>(node: NodeMirror, name: string, value: T, prev?: T): void {

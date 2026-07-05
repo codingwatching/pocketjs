@@ -46,7 +46,7 @@ function animatablePropId(prop: PropName): number {
   if (propId === undefined) {
     throw new Error(`PocketJS: unknown prop '${prop}'`);
   }
-  if (animBit(prop) < 0) {
+  if (animBit(prop) < 0 && prop !== "flipProgress") {
     throw new Error(`PocketJS: prop '${prop}' is not animatable (see spec ANIMATABLE)`);
   }
   return propId;

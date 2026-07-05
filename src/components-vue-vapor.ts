@@ -22,6 +22,7 @@ import {
   insertNode,
   setProp,
   type HostProps,
+  type ImageTransition3DValue,
   type NodeMirror,
 } from "./native-tree.ts";
 import { createRenderRoot, type RenderRoot } from "./renderer-vue-vapor.ts";
@@ -68,6 +69,7 @@ export interface ImageProps {
   class?: string;
   className?: string;
   src?: string;
+  transition3d?: ImageTransition3DValue | false | null;
   style?: StyleObject;
   nodeRef?: NodeRef;
 }
@@ -456,6 +458,29 @@ export const ActionBar = definePocketVaporComponent((_props: ActionBarProps, { a
   });
   return state.marker;
 }, NO_FALLTHROUGH);
+
+export interface SceneTransition3DProps extends Omit<ImageProps, "src" | "transition3d"> {
+  from: string | (() => string);
+  to: string | (() => string);
+  progress?: number | (() => number);
+  direction?: number | (() => number);
+}
+
+export const SceneTransition3D = definePocketVaporComponent((
+  _props: SceneTransition3DProps,
+  { attrs, slots }: VaporCtx,
+) =>
+  createPrimitiveNode("image", attrs, slots, {
+    omit: ["from", "to", "progress", "direction"],
+    extra: () => ({
+      transition3d: {
+        from: valueOf(attrs.from) as string,
+        to: valueOf(attrs.to) as string,
+        progress: (valueOf(attrs.progress) as number | undefined) ?? 1,
+        direction: (valueOf(attrs.direction) as number | undefined) ?? 1,
+      },
+    }),
+  }), NO_FALLTHROUGH);
 
 export interface GridProps extends ViewProps, Partial<FocusGridOptions> {
   gap?: number;

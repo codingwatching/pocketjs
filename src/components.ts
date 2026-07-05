@@ -7,7 +7,7 @@ import { animate, type EasingName } from "./anim.ts";
 import { pushButtonHandlerBlock, onButtonPress, onFrame, type ButtonPressOptions } from "./frame.ts";
 import { pushFocusGrid, pushFocusScope, type FocusGridOptions, type FocusScopeOptions } from "./input.ts";
 import { getOverlayRoot } from "./overlay.ts";
-import { View, type ViewProps } from "./primitives.ts";
+import { Image, View, type ImageProps, type ViewProps } from "./primitives.ts";
 import {
   createElement,
   detachNode,
@@ -231,6 +231,42 @@ export function ActionBar(props: ActionBarProps): SolidJSX.Element {
           props.class ??
           "absolute left-3 right-3 bottom-3 flex-row items-center justify-between px-2 py-1 rounded-lg shadow-md bg-white border-slate-200",
       }),
+  });
+}
+
+export interface SceneTransition3DProps extends Omit<ImageProps, "src" | "transition3d"> {
+  /** Static image key shown at the start of the flip. */
+  from: string;
+  /** Static image key shown at the end of the flip. */
+  to: string;
+  /** 0..1 transition progress. Animate `flipProgress` for native ticking. */
+  progress?: number | (() => number);
+  /** -1 for L/back, +1 for R/forward. */
+  direction?: number | (() => number);
+}
+
+function resolveNumber(value: number | (() => number) | undefined, fallback: number): number {
+  return typeof value === "function" ? value() : (value ?? fallback);
+}
+
+/**
+ * One image node backed by a native 3D transition. The component only binds
+ * the two texture handles and initial `flipProgress`; callers can then run
+ * `animate(node, "flipProgress", 1)` so the Rust core advances it per vblank.
+ */
+export function SceneTransition3D(props: SceneTransition3DProps): SolidJSX.Element {
+  const [transitionProps, imageProps] = splitProps(props, ["from", "to", "progress", "direction"]);
+  const transition = () => ({
+    from: transitionProps.from,
+    to: transitionProps.to,
+    progress: resolveNumber(transitionProps.progress, 1),
+    direction: resolveNumber(transitionProps.direction, 1),
+  });
+  return Image({
+    ...imageProps,
+    get transition3d() {
+      return transition();
+    },
   });
 }
 

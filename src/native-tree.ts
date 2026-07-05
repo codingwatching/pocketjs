@@ -47,6 +47,7 @@ const NATIVE_ATTRIBUTE_NAMES = new Set([
   "className",
   "style",
   "src",
+  "transition3d",
   "onPress",
   "on:press",
   "focusable",
@@ -300,6 +301,23 @@ export function resetTextures(): void {
   textures.clear();
 }
 
+function textureHandleFor(value: unknown, label: string): number {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`PocketJS: transition3d.${label} must be a non-empty image key`);
+  }
+  const handle = textures.get(value);
+  if (handle === undefined) {
+    if (getHost().strict) {
+      throw new Error(
+        `PocketJS: unknown image src "${value}" - no texture registered under that key`,
+      );
+    }
+    missCounters.unknownTexture++;
+    return -1;
+  }
+  return handle;
+}
+
 /** A `sprite` key → its atlas texture handle + animation metadata. */
 export interface SpriteMeta {
   /** uploadTexture handle of the atlas. */
@@ -498,6 +516,7 @@ function setSrc(node: NodeMirror, value: unknown): void {
   const ops = getOps();
   if (value == null || value === "") {
     ops.setImage(node.id, -1);
+    ops.setImageTransition(node.id, -1, -1, 1);
     return;
   }
   if (typeof value !== "string") {
@@ -514,6 +533,37 @@ function setSrc(node: NodeMirror, value: unknown): void {
     return;
   }
   ops.setImage(node.id, handle);
+  ops.setImageTransition(node.id, -1, -1, 1);
+}
+
+export interface ImageTransition3DValue {
+  from: string;
+  to: string;
+  progress?: number;
+  direction?: number;
+}
+
+function setImageTransition3D(node: NodeMirror, value: unknown): void {
+  const ops = getOps();
+  if (value == null || value === false) {
+    ops.setImageTransition(node.id, -1, -1, 1);
+    ops.setProp(node.id, PROP.flipProgress, encodePropValue("flipProgress", 1));
+    return;
+  }
+  if (typeof value !== "object") {
+    throw new Error("PocketJS: transition3d must be an object { from, to, progress?, direction? }");
+  }
+  const next = value as Partial<ImageTransition3DValue>;
+  const from = textureHandleFor(next.from, "from");
+  const to = textureHandleFor(next.to, "to");
+  if (from < 0 || to < 0) {
+    ops.setImageTransition(node.id, -1, -1, 1);
+    return;
+  }
+  const direction = (next.direction ?? 1) < 0 ? -1 : 1;
+  const progress = Math.max(0, Math.min(1, next.progress ?? 1));
+  ops.setImageTransition(node.id, from, to, direction);
+  ops.setProp(node.id, PROP.flipProgress, encodePropValue("flipProgress", progress));
 }
 
 /** `sprite` prop → bind an animated sprite atlas. Auto-play is native; JS never
@@ -574,6 +624,9 @@ export function setProp<T>(node: NodeMirror, name: string, value: T, prev?: T): 
       return value;
     case "src":
       setSrc(node, value);
+      return value;
+    case "transition3d":
+      setImageTransition3D(node, value);
       return value;
     case "sprite":
       setSpriteSrc(node, value);

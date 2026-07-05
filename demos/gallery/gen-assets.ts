@@ -1,12 +1,12 @@
-// demos/gallery/gen-assets.ts — render the gallery's cover shaders and bake them.
+// demos/gallery/gen-assets.ts — render the gallery's static cover bitmaps.
 //
 //   bun demos/gallery/gen-assets.ts
 //
-// For each tile it renders a GLSL shader (demos/gallery/shaders.ts) in a headless
-// Chrome WebGL2 context at 256x256, box-downsamples to a 64x64 pow2 texture (4x
-// supersampled AA), and writes tile-NN.png next to this file plus a tiles.ts
-// manifest. `bun scripts/build.ts gallery-main` then bakes each PNG into the pak
-// (via compiler/pak.ts decodePng). PNG encoder subset matches decodePng exactly
+// For each tile it renders a GLSL shader (demos/gallery/shaders.ts) in a
+// headless Chrome WebGL2 context at 128x128, box-downsamples to a static 64x64
+// pow2 texture, and writes tile-NN.png next to this file plus a tiles.ts
+// manifest. `bun scripts/build.ts gallery-main` then bakes each PNG into the
+// pak as ui:img.<name>. PNG encoder subset matches decodePng exactly
 // (colorType 6, bitDepth 8, filter 0, single node:zlib IDAT).
 
 import { deflateSync } from "node:zlib";
@@ -14,14 +14,8 @@ import { decodePng } from "../../compiler/pak.ts";
 import { PALETTES, PRELUDE, SHADERS, TILES } from "./shaders.ts";
 
 const HERE = new URL(".", import.meta.url).pathname; // demos/gallery/
-const FRAME_RENDER = 128; // per-frame render size (2x supersampled)
-const FRAME = 64; // per-frame final size (pow2 cell)
-const FRAMES = 8; // animation frames per cover (a seamless loop)
-const ACOLS = 4; // atlas grid columns
-const AROWS = 2; // atlas grid rows (ACOLS*AROWS >= FRAMES)
-const ATLAS_W = ACOLS * FRAME; // 256 (pow2, <= TEX_MAX_DIM)
-const ATLAS_H = AROWS * FRAME; // 128 (pow2)
-const FRAME_STEP = 4; // vblanks per frame (8*4 = 32 ~= 0.53s loop)
+const TILE_RENDER = 128; // render size (2x supersampled)
+const TILE_SIZE = 64; // final static bitmap size (pow2 cell)
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9343;
 
@@ -141,48 +135,33 @@ async function main() {
   if (!okSetup) throw new Error("WebGL2 harness failed to init");
 
   const names: string[] = [];
-  const spriteMeta: Record<string, { cols: number; rows: number; frames: number; step: number }> = {};
   for (const tile of TILES) {
     const pal = PALETTES[tile.page];
     const frag = fragFor(SHADERS[tile.shader].body);
-    // Composite FRAMES loop frames into one pow2 atlas (ACOLS x AROWS grid).
-    const atlas = new Uint8Array(ATLAS_W * ATLAS_H * 4);
-    for (let i = 0; i < ATLAS_W * ATLAS_H; i++) atlas[i * 4 + 3] = 255;
-    for (let f = 0; f < FRAMES; f++) {
-      const uni = { iTime: f / FRAMES, iSeed: tile.seed, pa: pal.a, pb: pal.b, pc: pal.c, pd: pal.d };
-      const call = `window.bake(${JSON.stringify(frag)}, ${FRAME_RENDER}, ${JSON.stringify(uni)})`;
-      const res = await evalJs(call);
-      if (!res || res.error) {
-        throw new Error(`shader '${SHADERS[tile.shader].name}' tile ${tile.index} frame ${f}: ${res?.error ?? "no result"}`);
-      }
-      const png = Uint8Array.from(atob(String(res.url).split(",")[1]), (ch) => ch.charCodeAt(0));
-      const img = decodePng(png);
-      if (img.width !== FRAME_RENDER || img.height !== FRAME_RENDER) {
-        throw new Error(`unexpected render size ${img.width}x${img.height}`);
-      }
-      const cell = downsampleFrame(img.rgba, FRAME_RENDER, FRAME);
-      const col = f % ACOLS, row = Math.floor(f / ACOLS);
-      for (let y = 0; y < FRAME; y++) {
-        const dst = ((row * FRAME + y) * ATLAS_W + col * FRAME) * 4;
-        const src = y * FRAME * 4;
-        atlas.set(cell.subarray(src, src + FRAME * 4), dst);
-      }
+    const uni = { iTime: 0, iSeed: tile.seed, pa: pal.a, pb: pal.b, pc: pal.c, pd: pal.d };
+    const call = `window.bake(${JSON.stringify(frag)}, ${TILE_RENDER}, ${JSON.stringify(uni)})`;
+    const res = await evalJs(call);
+    if (!res || res.error) {
+      throw new Error(`shader '${SHADERS[tile.shader].name}' tile ${tile.index}: ${res?.error ?? "no result"}`);
     }
+    const png = Uint8Array.from(atob(String(res.url).split(",")[1]), (ch) => ch.charCodeAt(0));
+    const img = decodePng(png);
+    if (img.width !== TILE_RENDER || img.height !== TILE_RENDER) {
+      throw new Error(`unexpected render size ${img.width}x${img.height}`);
+    }
+    const cell = downsampleFrame(img.rgba, TILE_RENDER, TILE_SIZE);
     const name = `tile-${String(tile.index).padStart(2, "0")}.png`;
     names.push(name);
-    spriteMeta[name] = { cols: ACOLS, rows: AROWS, frames: FRAMES, step: FRAME_STEP };
-    await Bun.write(HERE + name, encodePng(ATLAS_W, ATLAS_H, atlas));
-    console.log(`  baked ${name}  <- ${SHADERS[tile.shader].name} (page ${tile.page}, ${FRAMES}f atlas ${ATLAS_W}x${ATLAS_H})`);
+    await Bun.write(HERE + name, encodePng(TILE_SIZE, TILE_SIZE, cell));
+    console.log(`  baked ${name}  <- ${SHADERS[tile.shader].name} (page ${tile.page}, static ${TILE_SIZE}x${TILE_SIZE})`);
   }
-  await Bun.write(HERE + "sprites.json", JSON.stringify(spriteMeta, null, 2) + "\n");
 
   const manifest =
     `// AUTO-GENERATED by demos/gallery/gen-assets.ts — the gallery's shader-baked\n` +
-    `// animated cover atlases. Names are FULL string literals so scripts/build.ts\n` +
-    `// collects them; sprites.json marks them as sprite atlases so each is baked\n` +
-    `// into the pak as a ui:sprite.<name> entry (a plain .ts, NOT *.generated.ts,\n` +
-    `// so the pass-1 walker scans it).\n\n` +
-    `export const FRAME_SIZE = ${FRAME};\n` +
+    `// static cover bitmaps. Names are FULL string literals so scripts/build.ts\n` +
+    `// collects them into the pak as ui:img.<name> entries (a plain .ts, NOT\n` +
+    `// *.generated.ts, so the pass-1 walker scans it).\n\n` +
+    `export const FRAME_SIZE = ${TILE_SIZE};\n` +
     `export const GALLERY_PAGES = 4;\n` +
     `export const TILES_PER_PAGE = 6;\n\n` +
     `export const TILE_SRCS: string[] = [\n` +
@@ -190,7 +169,7 @@ async function main() {
   await Bun.write(HERE + "tiles.ts", manifest);
 
   ws.close(); proc.kill();
-  console.log(`gallery: baked ${names.length} animated covers (${FRAMES}f, ${ATLAS_W}x${ATLAS_H}) + tiles.ts + sprites.json`);
+  console.log(`gallery: baked ${names.length} static covers (${TILE_SIZE}x${TILE_SIZE}) + tiles.ts`);
 }
 
 await main();

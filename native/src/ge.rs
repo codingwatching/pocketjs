@@ -31,12 +31,13 @@ use alloc::vec::Vec;
 use core::ffi::c_void;
 use core::ptr::null;
 
+use pocketjs_core::{spec, text::Atlas, Ui};
 use psp::sys::{
-    self, BlendFactor, BlendOp, ClearBuffer, GuPrimitive, GuState, MipmapLevel,
-    TextureColorComponent, TextureEffect, TextureFilter, TexturePixelFormat, VertexType,
+    self, BlendFactor, BlendOp, ClearBuffer, GuPrimitive, GuState, MatrixMode, MipmapLevel,
+    ScePspFVector3, TextureColorComponent, TextureEffect, TextureFilter, TexturePixelFormat,
+    VertexType,
 };
 use psp::{SCREEN_HEIGHT, SCREEN_WIDTH};
-use pocketjs_core::{spec, text::Atlas, Ui};
 
 // ---------------------------------------------------------------------------
 // Vertex formats (GE fixed component order: [uv][color][pos])
@@ -68,14 +69,33 @@ struct VertTC {
     _pad: i16,
 }
 
+/// TEXTURE_32BITF | COLOR_8888 | VERTEX_32BITF | TRANSFORM_3D.
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct VertTC3D {
+    u: f32,
+    v: f32,
+    color: u32,
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
 const VTYPE_C: VertexType = VertexType::from_bits_truncate(
-    VertexType::COLOR_8888.bits() | VertexType::VERTEX_16BIT.bits() | VertexType::TRANSFORM_2D.bits(),
+    VertexType::COLOR_8888.bits()
+        | VertexType::VERTEX_16BIT.bits()
+        | VertexType::TRANSFORM_2D.bits(),
 );
 const VTYPE_TC: VertexType = VertexType::from_bits_truncate(
     VertexType::TEXTURE_16BIT.bits()
         | VertexType::COLOR_8888.bits()
         | VertexType::VERTEX_16BIT.bits()
         | VertexType::TRANSFORM_2D.bits(),
+);
+const VTYPE_TC_3D: VertexType = VertexType::from_bits_truncate(
+    VertexType::TEXTURE_32BITF.bits()
+        | VertexType::COLOR_8888.bits()
+        | VertexType::VERTEX_32BITF.bits(),
 );
 
 // ---------------------------------------------------------------------------
@@ -113,7 +133,11 @@ static mut FONT_TEXTURES: Option<Vec<Option<FontTexture>>> = None;
 /// Bump-allocate `bytes` (16-byte aligned) valid until `reset_pool()`.
 unsafe fn pool_alloc(bytes: usize) -> *mut u8 {
     if POOL.is_none() {
-        POOL = Some(Pool { blocks: Vec::new(), cur: 0, off: 0 });
+        POOL = Some(Pool {
+            blocks: Vec::new(),
+            cur: 0,
+            off: 0,
+        });
     }
     let pool = POOL.as_mut().unwrap();
     let need = (bytes + 15) & !15;
@@ -288,7 +312,13 @@ const MAX_PRIM_VERTS: i32 = 65532;
 /// dcache-writeback a batch, then enqueue its draw — chunked so no single
 /// PRIM exceeds the 16-bit vertex-count field (dense glyph runs can).
 #[inline]
-unsafe fn flush(prim: GuPrimitive, vtype: VertexType, count: i32, verts: *const c_void, bytes: usize) {
+unsafe fn flush(
+    prim: GuPrimitive,
+    vtype: VertexType,
+    count: i32,
+    verts: *const c_void,
+    bytes: usize,
+) {
     if count <= 0 {
         return;
     }
@@ -317,7 +347,13 @@ unsafe fn apply_texture(pixels: &[u8], w: u32, h: u32, psm: u32) {
     };
     sys::sceGuEnable(GuState::Texture2D);
     sys::sceGuTexMode(fmt, 0, 0, 0);
-    sys::sceGuTexImage(MipmapLevel::None, w as i32, h as i32, w as i32, pixels.as_ptr() as *const c_void);
+    sys::sceGuTexImage(
+        MipmapLevel::None,
+        w as i32,
+        h as i32,
+        w as i32,
+        pixels.as_ptr() as *const c_void,
+    );
     sys::sceGuTexFunc(TextureEffect::Modulate, TextureColorComponent::Rgba);
     // NEAREST matches the wasm software rasterizer (wasm/src/raster.rs) that the
     // byte-exact goldens are defined against — keeping PSP consistent with the
@@ -338,6 +374,140 @@ unsafe fn apply_font_texture(tex: &FontTexture) {
     );
     sys::sceGuTexFunc(TextureEffect::Modulate, TextureColorComponent::Rgba);
     sys::sceGuTexFilter(TextureFilter::Nearest, TextureFilter::Nearest);
+}
+
+const DEG: f32 = core::f32::consts::PI / 180.0;
+const GALLERY_3D_FOV_Y: f32 = 46.0;
+const GALLERY_3D_CAMERA_Z: f32 = 520.0;
+// cameraZ * tan(fovY / 2) / (screenH / 2), precomputed to avoid libm in no_std.
+const GALLERY_3D_WORLD_PER_PIXEL: f32 = 1.7367;
+
+fn shade_color(color: u32, shade: f32) -> u32 {
+    let s = if shade < 0.0 {
+        0.0
+    } else if shade > 1.0 {
+        1.0
+    } else {
+        shade
+    };
+    let r = (((color & 0xff) as f32 * s) + 0.5) as u32;
+    let g = ((((color >> 8) & 0xff) as f32 * s) + 0.5) as u32;
+    let b = ((((color >> 16) & 0xff) as f32 * s) + 0.5) as u32;
+    (color & 0xff00_0000) | (b << 16) | (g << 8) | r
+}
+
+fn sinf(x: f32) -> f32 {
+    let pi = core::f32::consts::PI;
+    let mut r = x - (2.0 * pi) * ((x + pi) / (2.0 * pi)) as i32 as f32;
+    if r > pi / 2.0 {
+        r = pi - r;
+    } else if r < -pi / 2.0 {
+        r = -pi - r;
+    }
+    let x2 = r * r;
+    r * (1.0 + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0))))
+}
+
+#[inline]
+fn cosf(x: f32) -> f32 {
+    sinf(x + core::f32::consts::PI / 2.0)
+}
+
+unsafe fn setup_3d_matrices() {
+    sys::sceGumMatrixMode(MatrixMode::Projection);
+    sys::sceGumLoadIdentity();
+    sys::sceGumPerspective(
+        GALLERY_3D_FOV_Y,
+        SCREEN_WIDTH as f32 / SCREEN_HEIGHT as f32,
+        8.0,
+        2048.0,
+    );
+    sys::sceGumMatrixMode(MatrixMode::View);
+    sys::sceGumLoadIdentity();
+    sys::sceGumLookAt(
+        &ScePspFVector3 {
+            x: 0.0,
+            y: 0.0,
+            z: GALLERY_3D_CAMERA_Z,
+        },
+        &ScePspFVector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        &ScePspFVector3 {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        },
+    );
+    sys::sceGumMatrixMode(MatrixMode::Model);
+    sys::sceGumLoadIdentity();
+}
+
+unsafe fn draw_tex_3d_quad(ui: &Ui, p: &[u32]) {
+    let handle = p[0] as i32;
+    let (x, y) = xy(p[1]);
+    let (w, h) = wh(p[2]);
+    let u0 = f32::from_bits(p[3]);
+    let v0 = f32::from_bits(p[4]);
+    let u1 = f32::from_bits(p[5]);
+    let v1 = f32::from_bits(p[6]);
+    let color = p[7];
+    let angle = f32::from_bits(p[8]) * DEG;
+    if w <= 0 || h <= 0 {
+        return;
+    }
+    let Some((pixels, tw, th, psm)) = ui.texture(handle) else {
+        return;
+    };
+    apply_texture(pixels, tw, th, psm);
+    setup_3d_matrices();
+
+    let hw = w as f32 * 0.5 * GALLERY_3D_WORLD_PER_PIXEL;
+    let hh = h as f32 * 0.5 * GALLERY_3D_WORLD_PER_PIXEL;
+    let (s, c) = (sinf(angle), cosf(angle));
+    let fold = if s < 0.0 { -s } else { s };
+    let side = if angle < 0.0 { -1.0 } else { 1.0 };
+    let cx = (x as f32 + w as f32 * 0.5 - SCREEN_WIDTH as f32 * 0.5) * GALLERY_3D_WORLD_PER_PIXEL
+        + side * fold * 28.0 * GALLERY_3D_WORLD_PER_PIXEL;
+    let cy =
+        (SCREEN_HEIGHT as f32 * 0.5 - (y as f32 + h as f32 * 0.5)) * GALLERY_3D_WORLD_PER_PIXEL;
+    let facing = if c < 0.0 { -c } else { c };
+    let lift_back = -118.0 * fold;
+    let color = shade_color(color, 0.46 + 0.54 * facing);
+    let uv = [
+        (u0 * tw as f32, v0 * th as f32),
+        (u1 * tw as f32, v0 * th as f32),
+        (u0 * tw as f32, v1 * th as f32),
+        (u1 * tw as f32, v1 * th as f32),
+    ];
+    let local = [(-hw, hh), (hw, hh), (-hw, -hh), (hw, -hh)];
+
+    let bytes = 4 * core::mem::size_of::<VertTC3D>();
+    let verts = pool_alloc(bytes) as *mut VertTC3D;
+    for i in 0..4usize {
+        let (lx, ly) = local[i];
+        let xr = lx * c;
+        let zr = -lx * s + lift_back;
+        *verts.add(i) = VertTC3D {
+            u: uv[i].0,
+            v: uv[i].1,
+            color,
+            x: cx + xr,
+            y: cy + ly,
+            z: zr,
+        };
+    }
+    sys::sceKernelDcacheWritebackRange(verts as *const c_void, bytes as u32);
+    sys::sceGumDrawArray(
+        GuPrimitive::TriangleStrip,
+        VTYPE_TC_3D,
+        4,
+        null(),
+        verts as *const c_void,
+    );
+    sys::sceGuDisable(GuState::Texture2D);
 }
 
 #[inline]
@@ -383,7 +553,13 @@ pub unsafe fn render(ui: &Ui, words: &[u32]) {
     // Pass state: alpha blending on for everything (opacity, coverage text
     // cells with alpha colors, texture alpha).
     sys::sceGuEnable(GuState::Blend);
-    sys::sceGuBlendFunc(BlendOp::Add, BlendFactor::SrcAlpha, BlendFactor::OneMinusSrcAlpha, 0, 0);
+    sys::sceGuBlendFunc(
+        BlendOp::Add,
+        BlendFactor::SrcAlpha,
+        BlendFactor::OneMinusSrcAlpha,
+        0,
+        0,
+    );
     sys::sceGuDisable(GuState::Texture2D);
 
     // Scissor stack: the core emits rects already intersected with every
@@ -410,7 +586,13 @@ pub unsafe fn render(ui: &Ui, words: &[u32]) {
                     let (x, y) = xy(words[o + 1]);
                     let (w, h) = wh(words[o + 2]);
                     let color = words[o + 3];
-                    *verts.add(k * 2) = VertC { color, x, y, z: 0, _pad: 0 };
+                    *verts.add(k * 2) = VertC {
+                        color,
+                        x,
+                        y,
+                        z: 0,
+                        _pad: 0,
+                    };
                     *verts.add(k * 2 + 1) = VertC {
                         color,
                         x: (x as i32 + w) as i16,
@@ -419,7 +601,13 @@ pub unsafe fn render(ui: &Ui, words: &[u32]) {
                         _pad: 0,
                     };
                 }
-                flush(GuPrimitive::Sprites, VTYPE_C, (count * 2) as i32, verts as *const c_void, bytes);
+                flush(
+                    GuPrimitive::Sprites,
+                    VTYPE_C,
+                    (count * 2) as i32,
+                    verts as *const c_void,
+                    bytes,
+                );
                 i = end;
             }
             spec::draw_op::GRAD_RECT if i + 6 <= n => {
@@ -438,11 +626,41 @@ pub unsafe fn render(ui: &Ui, words: &[u32]) {
                 };
                 let bytes = 4 * core::mem::size_of::<VertC>();
                 let verts = pool_alloc(bytes) as *mut VertC;
-                *verts.add(0) = VertC { color: tl, x: x0, y: y0, z: 0, _pad: 0 };
-                *verts.add(1) = VertC { color: tr, x: x1, y: y0, z: 0, _pad: 0 };
-                *verts.add(2) = VertC { color: bl, x: x0, y: y1, z: 0, _pad: 0 };
-                *verts.add(3) = VertC { color: br, x: x1, y: y1, z: 0, _pad: 0 };
-                flush(GuPrimitive::TriangleStrip, VTYPE_C, 4, verts as *const c_void, bytes);
+                *verts.add(0) = VertC {
+                    color: tl,
+                    x: x0,
+                    y: y0,
+                    z: 0,
+                    _pad: 0,
+                };
+                *verts.add(1) = VertC {
+                    color: tr,
+                    x: x1,
+                    y: y0,
+                    z: 0,
+                    _pad: 0,
+                };
+                *verts.add(2) = VertC {
+                    color: bl,
+                    x: x0,
+                    y: y1,
+                    z: 0,
+                    _pad: 0,
+                };
+                *verts.add(3) = VertC {
+                    color: br,
+                    x: x1,
+                    y: y1,
+                    z: 0,
+                    _pad: 0,
+                };
+                flush(
+                    GuPrimitive::TriangleStrip,
+                    VTYPE_C,
+                    4,
+                    verts as *const c_void,
+                    bytes,
+                );
                 i += 6;
             }
             spec::draw_op::TRI if i + 7 <= n => {
@@ -458,11 +676,22 @@ pub unsafe fn render(ui: &Ui, words: &[u32]) {
                     let o = i + k * 7;
                     for c in 0..3usize {
                         let (x, y) = xy(words[o + 1 + c]);
-                        *verts.add(k * 3 + c) =
-                            VertC { color: words[o + 4 + c], x, y, z: 0, _pad: 0 };
+                        *verts.add(k * 3 + c) = VertC {
+                            color: words[o + 4 + c],
+                            x,
+                            y,
+                            z: 0,
+                            _pad: 0,
+                        };
                     }
                 }
-                flush(GuPrimitive::Triangles, VTYPE_C, (count * 3) as i32, verts as *const c_void, bytes);
+                flush(
+                    GuPrimitive::Triangles,
+                    VTYPE_C,
+                    (count * 3) as i32,
+                    verts as *const c_void,
+                    bytes,
+                );
                 i = end;
             }
             spec::draw_op::GLYPH_RUN if i + 3 <= n => {
@@ -580,7 +809,13 @@ pub unsafe fn render(ui: &Ui, words: &[u32]) {
                                 }
                             }
                         }
-                        flush(GuPrimitive::Sprites, VTYPE_C, vi as i32, verts as *const c_void, bytes);
+                        flush(
+                            GuPrimitive::Sprites,
+                            VTYPE_C,
+                            vi as i32,
+                            verts as *const c_void,
+                            bytes,
+                        );
                     }
                 }
                 i = next;
@@ -618,10 +853,20 @@ pub unsafe fn render(ui: &Ui, words: &[u32]) {
                         z: 0,
                         _pad: 0,
                     };
-                    flush(GuPrimitive::Sprites, VTYPE_TC, 2, verts as *const c_void, bytes);
+                    flush(
+                        GuPrimitive::Sprites,
+                        VTYPE_TC,
+                        2,
+                        verts as *const c_void,
+                        bytes,
+                    );
                     sys::sceGuDisable(GuState::Texture2D);
                 }
                 i += 9;
+            }
+            spec::draw_op::TEX3D_QUAD if i + 10 <= n => {
+                draw_tex_3d_quad(ui, &words[i + 1..i + 10]);
+                i += 10;
             }
             spec::draw_op::SCISSOR if i + 3 <= n => {
                 let (x, y) = xy(words[i + 1]);

@@ -24,6 +24,7 @@ import {
   runSweep,
   setProp,
   setStyleResolver,
+  type ImageTransition3DValue,
   type NodeMirror,
 } from "./native-tree.ts";
 
@@ -60,6 +61,7 @@ export {
   setProp,
   setStyleResolver,
   type NodeMirror,
+  type ImageTransition3DValue,
 };
 
 export interface RenderRoot {

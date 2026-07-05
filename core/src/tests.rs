@@ -114,7 +114,7 @@ fn decode_wh(word: u32) -> (i32, i32) {
 /// Walk a DrawList asserting the pinned CPU-clip invariant: every coordinate
 /// in [0, SCREEN_W] x [0, SCREEN_H], rect extents in range, scissors
 /// balanced, only known ops. Returns per-op counts (indexed by op code).
-fn validate_drawlist(words: &[u32]) -> [u32; 8] {
+fn validate_drawlist(words: &[u32]) -> [u32; 9] {
     let (sw, sh) = (spec::SCREEN_W as i32, spec::SCREEN_H as i32);
     let xy_ok = |w: u32| {
         let (x, y) = decode_xy(w);
@@ -126,7 +126,7 @@ fn validate_drawlist(words: &[u32]) -> [u32; 8] {
         let (w, h) = decode_wh(whw);
         assert!(x + w <= sw && y + h <= sh, "rect exceeds screen: {x},{y} {w}x{h}");
     };
-    let mut counts = [0u32; 8];
+    let mut counts = [0u32; 9];
     let mut depth = 0i32;
     let mut i = 0usize;
     while i < words.len() {
@@ -157,6 +157,15 @@ fn validate_drawlist(words: &[u32]) -> [u32; 8] {
                     assert!((0.0..=1.0).contains(&f), "UV out of range: {f}");
                 }
                 i += 9;
+            }
+            spec::draw_op::TEX3D_QUAD => {
+                rect_ok(words[i + 2], words[i + 3]);
+                for uv in 4..8 {
+                    let f = f32::from_bits(words[i + uv]);
+                    assert!((0.0..=1.0).contains(&f), "UV out of range: {f}");
+                }
+                assert!(f32::from_bits(words[i + 9]).is_finite(), "bad 3D angle");
+                i += 10;
             }
             spec::draw_op::SCISSOR => {
                 rect_ok(words[i + 1], words[i + 2]);
@@ -963,6 +972,36 @@ fn image_tex_quad_clips_with_uv_reinterpolation() {
     assert_eq!(f32::from_bits(words[i + 4]), 0.0); // u0
     assert_eq!(f32::from_bits(words[i + 6]), 0.5); // u1
     assert_eq!(f32::from_bits(words[i + 7]), 1.0); // v1
+}
+
+#[test]
+fn image_transition_emits_3d_quads_while_flipping() {
+    let mut ui = Ui::new();
+    let pixels = alloc::vec![0xffu8; 16 * 16 * 4];
+    let from = ui.upload_texture(&pixels, 16, 16, spec::psm::PSM_8888);
+    let to = ui.upload_texture(&pixels, 16, 16, spec::psm::PSM_8888);
+    let img = ui.create_node(spec::NodeType::Image as u8);
+    ui.set_prop(img, spec::prop::WIDTH, 120.0);
+    ui.set_prop(img, spec::prop::HEIGHT, 80.0);
+    ui.set_prop(img, spec::prop::POS_TYPE, spec::PosType::Absolute as u32 as f64);
+    ui.set_prop(img, spec::prop::INSET_T, 20.0);
+    ui.set_prop(img, spec::prop::INSET_L, 30.0);
+    ui.set_image_transition(img, from, to, 1);
+    ui.set_prop(img, spec::prop::FLIP_PROGRESS, 0.5);
+    ui.insert_before(spec::ROOT_ID, img, 0);
+    ui.tick();
+
+    let words = ui.draw().words.clone();
+    let counts = validate_drawlist(&words);
+    assert_eq!(counts[spec::draw_op::TEX3D_QUAD as usize], 2);
+    assert_eq!(counts[spec::draw_op::TEX_QUAD as usize], 0);
+
+    ui.set_prop(img, spec::prop::FLIP_PROGRESS, 1.0);
+    ui.tick();
+    let words = ui.draw().words.clone();
+    let counts = validate_drawlist(&words);
+    assert_eq!(counts[spec::draw_op::TEX3D_QUAD as usize], 0);
+    assert_eq!(counts[spec::draw_op::TEX_QUAD as usize], 1);
 }
 
 #[test]

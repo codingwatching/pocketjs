@@ -109,6 +109,7 @@ function makeMockHost(strict = true): MockHost {
       return 900 + calls.length;
     },
     setImage: rec("setImage"),
+    setImageTransition: rec("setImageTransition"),
     setSprite: rec("setSprite"),
     animate(...args: number[]) {
       calls.push(["animate", ...args]);
@@ -523,6 +524,20 @@ describe("setProperty dispatch table [R]", () => {
     expect(() => setProp(el, "src", "nope.png", "logo.png")).toThrow(
       /unknown image src/,
     );
+  });
+
+  test("transition3d binds image handles and flip progress", () => {
+    registerTexture("from.png", 3);
+    registerTexture("to.png", 4);
+    const el = createElement("image");
+    setProp(
+      el,
+      "transition3d",
+      { from: "from.png", to: "to.png", progress: 0.25, direction: -1 },
+      undefined,
+    );
+    expect(host.of("setImageTransition")).toEqual([["setImageTransition", el.id, 3, 4, -1]]);
+    expect(host.of("setProp")).toEqual([["setProp", el.id, PROP.flipProgress, 0.25]]);
   });
 
   test("clearing src sends setImage(-1) — 0 is a real (first) texture handle", () => {

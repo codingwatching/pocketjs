@@ -43,6 +43,13 @@ export interface HostOps {
   /** texHandle < 0 clears the image (handles are 0-based: 0 is a real one). */
   setImage(id: number, texHandle: number): void;
   /**
+   * Bind a PSP-native 3D image transition to an image node. `fromTex` and
+   * `toTex` are uploaded texture handles; negative values clear it. Progress
+   * is the animatable `flipProgress` prop so the core can tick the transition
+   * after JS starts it.
+   */
+  setImageTransition(id: number, fromTex: number, toTex: number, direction: number): void;
+  /**
    * Bind an animated sprite atlas to an image node: `atlas` is an uploaded
    * texture (a `cols`-wide grid of `frames` cells); the core auto-plays it,
    * one cell every `step` vblanks. `frames <= 0` clears it. Zero per-frame JS.

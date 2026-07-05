@@ -242,6 +242,21 @@ unsafe extern "C" fn js_set_image(
     JS_UNDEFINED
 }
 
+unsafe extern "C" fn js_set_image_transition(
+    ctx: *mut JSContext,
+    _this: JSValue,
+    argc: i32,
+    argv: *mut JSValue,
+) -> JSValue {
+    ui().set_image_transition(
+        arg_i32(ctx, argc, argv, 0),
+        arg_i32(ctx, argc, argv, 1),
+        arg_i32(ctx, argc, argv, 2),
+        arg_i32(ctx, argc, argv, 3),
+    );
+    JS_UNDEFINED
+}
+
 unsafe extern "C" fn js_set_sprite(
     ctx: *mut JSContext,
     _this: JSValue,
@@ -361,7 +376,14 @@ unsafe fn add_fn(
     f: unsafe extern "C" fn(*mut JSContext, JSValue, i32, *mut JSValue) -> JSValue,
     nargs: i32,
 ) {
-    let v = JS_NewCFunction2(ctx, Some(f), name.as_ptr() as *const _, nargs, JS_CFUNC_generic, 0);
+    let v = JS_NewCFunction2(
+        ctx,
+        Some(f),
+        name.as_ptr() as *const _,
+        nargs,
+        JS_CFUNC_generic,
+        0,
+    );
     JS_SetPropertyStr(ctx, obj, name.as_ptr() as *const _, v);
 }
 
@@ -385,6 +407,13 @@ pub unsafe fn register(
     add_fn(ctx, ui_obj, b"replaceText\0", js_replace_text, 2);
     add_fn(ctx, ui_obj, b"uploadTexture\0", js_upload_texture, 4);
     add_fn(ctx, ui_obj, b"setImage\0", js_set_image, 2);
+    add_fn(
+        ctx,
+        ui_obj,
+        b"setImageTransition\0",
+        js_set_image_transition,
+        4,
+    );
     add_fn(ctx, ui_obj, b"setSprite\0", js_set_sprite, 5);
     add_fn(ctx, ui_obj, b"animate\0", js_animate, 6);
     add_fn(ctx, ui_obj, b"cancelAnim\0", js_cancel_anim, 1);
@@ -417,10 +446,30 @@ pub unsafe fn register(
         cname.extend_from_slice(s.name.as_bytes());
         cname.push(0);
         let meta = JS_NewObject(ctx);
-        JS_SetPropertyStr(ctx, meta, b"handle\0".as_ptr() as *const _, JS_NewInt32(ctx, s.handle));
-        JS_SetPropertyStr(ctx, meta, b"frames\0".as_ptr() as *const _, JS_NewInt32(ctx, s.frames as i32));
-        JS_SetPropertyStr(ctx, meta, b"cols\0".as_ptr() as *const _, JS_NewInt32(ctx, s.cols as i32));
-        JS_SetPropertyStr(ctx, meta, b"step\0".as_ptr() as *const _, JS_NewInt32(ctx, s.step as i32));
+        JS_SetPropertyStr(
+            ctx,
+            meta,
+            b"handle\0".as_ptr() as *const _,
+            JS_NewInt32(ctx, s.handle),
+        );
+        JS_SetPropertyStr(
+            ctx,
+            meta,
+            b"frames\0".as_ptr() as *const _,
+            JS_NewInt32(ctx, s.frames as i32),
+        );
+        JS_SetPropertyStr(
+            ctx,
+            meta,
+            b"cols\0".as_ptr() as *const _,
+            JS_NewInt32(ctx, s.cols as i32),
+        );
+        JS_SetPropertyStr(
+            ctx,
+            meta,
+            b"step\0".as_ptr() as *const _,
+            JS_NewInt32(ctx, s.step as i32),
+        );
         JS_SetPropertyStr(ctx, spr_obj, cname.as_ptr() as *const _, meta);
     }
     JS_SetPropertyStr(ctx, ui_obj, b"__sprites\0".as_ptr() as *const _, spr_obj);

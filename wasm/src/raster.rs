@@ -65,6 +65,16 @@ fn wh(word: u32) -> (i32, i32) {
 }
 
 #[inline]
+fn xy_word(x: i32, y: i32) -> u32 {
+    (x as i16 as u16 as u32) | ((y as i16 as u16 as u32) << 16)
+}
+
+#[inline]
+fn wh_word(w: i32, h: i32) -> u32 {
+    (w.max(0) as u16 as u32) | ((h.max(0) as u16 as u32) << 16)
+}
+
+#[inline]
 fn channels(color: u32) -> (u32, u32, u32, u32) {
     (color & 0xff, (color >> 8) & 0xff, (color >> 16) & 0xff, color >> 24)
 }
@@ -182,6 +192,13 @@ pub fn render(ui: &Ui, words: &[u32], fb: &mut [u8]) {
                 }
                 tex_quad(ui, fb, clip, &words[i + 1..i + 9]);
                 i += 9;
+            }
+            draw_op::TEX3D_QUAD => {
+                if i + 10 > words.len() {
+                    return;
+                }
+                tex_3d_quad(ui, fb, clip, &words[i + 1..i + 10]);
+                i += 10;
             }
             draw_op::SCISSOR => {
                 if i + 3 > words.len() || depth >= stack.len() {
@@ -430,4 +447,28 @@ fn tex_quad(ui: &Ui, fb: &mut [u8], clip: Clip, p: &[u32]) {
             blend_px(fb, px, py, r, g, b, a);
         }
     }
+}
+
+fn tex_3d_quad(ui: &Ui, fb: &mut [u8], clip: Clip, p: &[u32]) {
+    let (x, y) = xy(p[1]);
+    let (w, h) = wh(p[2]);
+    if w <= 0 || h <= 0 {
+        return;
+    }
+    let angle = f32::from_bits(p[8]);
+    let radians = angle * core::f32::consts::PI / 180.0;
+    let c = radians.cos().abs().max(0.08);
+    let projected_w = ((w as f32 * c) + 0.5) as i32;
+    let projected_x = x + (w - projected_w) / 2;
+    let fallback = [
+        p[0],
+        xy_word(projected_x, y),
+        wh_word(projected_w.max(1), h),
+        p[3],
+        p[4],
+        p[5],
+        p[6],
+        p[7],
+    ];
+    tex_quad(ui, fb, clip, &fallback);
 }

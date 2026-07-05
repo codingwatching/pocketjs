@@ -36,6 +36,8 @@ Signatures are authoritative from `src/host.ts` (`HostOps`) and `spec/spec.ts`. 
 | 14 | `loadStyles` | `(buf) → void` | **web/test hosts only.** Optional. Feeds the compiled `styles.bin`. On PSP the native binary feeds core from the pak. |
 | 15 | `loadFontAtlas` | `(buf) → void` | **web/test hosts only.** Optional. One call per baked font atlas blob. |
 | 16 | `measureText` | `(str, fontSlot) → width` | JS-side convenience returning width in px. Layout still measures natively. |
+| 17 | `setSprite` | `(id, atlas, frames, cols, step) → void` | Binds an auto-playing sprite atlas to an image node; the core selects UV cells per vblank. |
+| 18 | `setImageTransition` | `(id, fromTex, toTex, direction) → void` | Binds two static texture handles to an image node for native 3D transition drawing. Progress is the `flipProgress` prop and can be advanced with `animate`. |
 
 For the meaning of `PROP` ids, `ENUMS`, and how a `class` string becomes a `styleId`, see [Styling](/docs/styling/) and the [API reference](/docs/api/). For `animate`/`easing` semantics see [Animation](/docs/animation/).
 

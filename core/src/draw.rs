@@ -77,7 +77,8 @@ fn sinf(x: f32) -> f32 {
         r = -PI - r;
     }
     let x2 = r * r;
-    r * (1.0 + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362880.0)))))
+    r * (1.0
+        + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362880.0)))))
 }
 
 #[inline]
@@ -97,11 +98,22 @@ pub struct Affine {
 }
 
 impl Affine {
-    pub const IDENTITY: Affine = Affine { a: 1.0, b: 0.0, c: 0.0, d: 1.0, tx: 0.0, ty: 0.0 };
+    pub const IDENTITY: Affine = Affine {
+        a: 1.0,
+        b: 0.0,
+        c: 0.0,
+        d: 1.0,
+        tx: 0.0,
+        ty: 0.0,
+    };
 
     #[inline]
     fn translate(tx: f32, ty: f32) -> Affine {
-        Affine { tx, ty, ..Affine::IDENTITY }
+        Affine {
+            tx,
+            ty,
+            ..Affine::IDENTITY
+        }
     }
 
     /// self ∘ other (apply `other` first, then `self`).
@@ -118,7 +130,10 @@ impl Affine {
 
     #[inline]
     fn apply(&self, x: f32, y: f32) -> (f32, f32) {
-        (self.a * x + self.c * y + self.tx, self.b * x + self.d * y + self.ty)
+        (
+            self.a * x + self.c * y + self.tx,
+            self.b * x + self.d * y + self.ty,
+        )
     }
 
     /// True when the transform maps axis-aligned rects to axis-aligned,
@@ -139,7 +154,12 @@ struct Clip {
 }
 
 impl Clip {
-    const SCREEN: Clip = Clip { x0: 0.0, y0: 0.0, x1: SCREEN_W, y1: SCREEN_H };
+    const SCREEN: Clip = Clip {
+        x0: 0.0,
+        y0: 0.0,
+        x1: SCREEN_W,
+        y1: SCREEN_H,
+    };
 
     fn intersect(&self, o: &Clip) -> Clip {
         Clip {
@@ -208,7 +228,11 @@ fn ceilf(x: f32) -> f32 {
 enum Fill {
     Flat(u32),
     /// from/to already opacity-scaled; dir = spec::GradDir ordinal.
-    Grad { from: u32, to: u32, dir: u32 },
+    Grad {
+        from: u32,
+        to: u32,
+        dir: u32,
+    },
 }
 
 /// Color of a local-rect corner under a fill. Corner order: 0 TL, 1 TR,
@@ -271,29 +295,50 @@ fn pixel_interval_coverage(pixel: i32, start: f32, end: f32) -> u32 {
 
 fn gradient_run_limit(fill: &Fill) -> i32 {
     match *fill {
-        Fill::Grad { dir, .. } if dir == spec::GradDir::ToLeft as u32 || dir == spec::GradDir::ToRight as u32 => 4,
+        Fill::Grad { dir, .. }
+            if dir == spec::GradDir::ToLeft as u32 || dir == spec::GradDir::ToRight as u32 =>
+        {
+            4
+        }
         _ => 1_000_000,
     }
 }
 
 fn vertical_gradient(fill: &Fill) -> bool {
     match *fill {
-        Fill::Grad { dir, .. } => dir == spec::GradDir::ToTop as u32 || dir == spec::GradDir::ToBottom as u32,
+        Fill::Grad { dir, .. } => {
+            dir == spec::GradDir::ToTop as u32 || dir == spec::GradDir::ToBottom as u32
+        }
         _ => false,
     }
 }
 
-fn fill_color_at(fill: &Fill, x0: f32, y0: f32, x1: f32, y1: f32, sx0: i32, sy: i32, sx1: i32, coverage: u32) -> u32 {
+fn fill_color_at(
+    fill: &Fill,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    sx0: i32,
+    sy: i32,
+    sx1: i32,
+    coverage: u32,
+) -> u32 {
     let color = match *fill {
         Fill::Flat(color) => color,
         Fill::Grad { from, to, dir } => {
-            let horizontal = dir == spec::GradDir::ToLeft as u32 || dir == spec::GradDir::ToRight as u32;
+            let horizontal =
+                dir == spec::GradDir::ToLeft as u32 || dir == spec::GradDir::ToRight as u32;
             let (p, denom) = if horizontal {
                 (((sx0 + sx1) as f32 * 0.5) - x0, x1 - x0)
             } else {
                 (sy as f32 + 0.5 - y0, y1 - y0)
             };
-            let f = if denom <= 0.0 { 0.0 } else { clampf(p / denom, 0.0, 1.0) };
+            let f = if denom <= 0.0 {
+                0.0
+            } else {
+                clampf(p / denom, 0.0, 1.0)
+            };
             if dir == spec::GradDir::ToTop as u32 || dir == spec::GradDir::ToLeft as u32 {
                 lerp_color(to, from, f)
             } else {
@@ -319,13 +364,26 @@ struct Walker<'a> {
 /// core's vblank counter (Ui.frame); animated sprites pick their cell from it.
 pub fn build(tree: &Tree, styles: &StyleTable, fonts: &Fonts, frame: u64, dl: &mut DrawList) {
     dl.words.clear();
-    let mut w = Walker { tree, styles, fonts, frame, glyph_scratch: Vec::new() };
+    let mut w = Walker {
+        tree,
+        styles,
+        fonts,
+        frame,
+        glyph_scratch: Vec::new(),
+    };
     let root_slot = crate::tree::split_id(spec::ROOT_ID).1;
     w.paint(root_slot, Affine::IDENTITY, 1.0, Clip::SCREEN, dl);
 }
 
 impl<'a> Walker<'a> {
-    fn paint(&mut self, slot: u32, parent_world: Affine, opacity: f32, clip: Clip, dl: &mut DrawList) {
+    fn paint(
+        &mut self,
+        slot: u32,
+        parent_world: Affine,
+        opacity: f32,
+        clip: Clip,
+        dl: &mut DrawList,
+    ) {
         let node = &self.tree.slots[slot as usize];
         let r = style::resolve(node, self.styles, true);
         if r.display == spec::Display::None as u8 {
@@ -341,7 +399,11 @@ impl<'a> Walker<'a> {
             // rotate == 0 keeps EXACT axis alignment (the trig polyfill is a
             // few ulp off at multiples of pi/2, which would silently demote
             // scale-only transforms to the TRI path).
-            let (s, c) = if r.rotate == 0.0 { (0.0, 1.0) } else { (sinf(rad), cosf(rad)) };
+            let (s, c) = if r.rotate == 0.0 {
+                (0.0, 1.0)
+            } else {
+                (sinf(rad), cosf(rad))
+            };
             let sx = r.scale * r.scale_x;
             let sy = r.scale * r.scale_y;
             // translate(c) * rotate * scale * translate(-c)
@@ -373,7 +435,17 @@ impl<'a> Walker<'a> {
         }
 
         if rounded_ring {
-            self.emit_rounded_box(dl, &world, 0.0, 0.0, l.w, l.h, r.radius, Fill::Flat(border_color), &clip);
+            self.emit_rounded_box(
+                dl,
+                &world,
+                0.0,
+                0.0,
+                l.w,
+                l.h,
+                r.radius,
+                Fill::Flat(border_color),
+                &clip,
+            );
             let bw = r.border_width.min(l.w * 0.5).min(l.h * 0.5);
             if has_grad {
                 let fill = Fill::Grad {
@@ -381,7 +453,17 @@ impl<'a> Walker<'a> {
                     to: scale_alpha(r.grad_to, op),
                     dir: r.grad_dir,
                 };
-                self.emit_rounded_box(dl, &world, bw, bw, l.w - bw, l.h - bw, (r.radius - bw).max(0.0), fill, &clip);
+                self.emit_rounded_box(
+                    dl,
+                    &world,
+                    bw,
+                    bw,
+                    l.w - bw,
+                    l.h - bw,
+                    (r.radius - bw).max(0.0),
+                    fill,
+                    &clip,
+                );
             } else {
                 self.emit_rounded_box(
                     dl,
@@ -403,14 +485,35 @@ impl<'a> Walker<'a> {
             };
             self.emit_rounded_box(dl, &world, 0.0, 0.0, l.w, l.h, r.radius, fill, &clip);
         } else if alpha(bg_color) > 0 {
-            self.emit_rounded_box(dl, &world, 0.0, 0.0, l.w, l.h, r.radius, Fill::Flat(bg_color), &clip);
+            self.emit_rounded_box(
+                dl,
+                &world,
+                0.0,
+                0.0,
+                l.w,
+                l.h,
+                r.radius,
+                Fill::Flat(bg_color),
+                &clip,
+            );
         }
 
         // -- border: 4 inset strips ------------------------------------------
         let bw = r.border_width;
         if !rounded_ring && bw > 0.0 && alpha(border_color) > 0 {
             if rounded_border {
-                self.emit_rounded_border(dl, &world, 0.0, 0.0, l.w, l.h, r.radius, bw, Fill::Flat(border_color), &clip);
+                self.emit_rounded_border(
+                    dl,
+                    &world,
+                    0.0,
+                    0.0,
+                    l.w,
+                    l.h,
+                    r.radius,
+                    bw,
+                    Fill::Flat(border_color),
+                    &clip,
+                );
             } else {
                 let bc = Fill::Flat(border_color);
                 let bwx = bw.min(l.w * 0.5);
@@ -418,7 +521,8 @@ impl<'a> Walker<'a> {
                 self.emit_box(dl, &world, 0.0, 0.0, l.w, bwy, bc, &clip); // top
                 self.emit_box(dl, &world, 0.0, l.h - bwy, l.w, l.h, bc, &clip); // bottom
                 self.emit_box(dl, &world, 0.0, bwy, bwx, l.h - bwy, bc, &clip); // left
-                self.emit_box(dl, &world, l.w - bwx, bwy, l.w, l.h - bwy, bc, &clip); // right
+                self.emit_box(dl, &world, l.w - bwx, bwy, l.w, l.h - bwy, bc, &clip);
+                // right
             }
         }
 
@@ -430,7 +534,9 @@ impl<'a> Walker<'a> {
         }
 
         // -- image / animated sprite -------------------------------------------
-        if node.node_type == spec::NodeType::Image as u8 && node.tex >= 0 {
+        if node.node_type == spec::NodeType::Image as u8
+            && (node.tex >= 0 || node.transition_to >= 0)
+        {
             // Plain image samples the whole texture; a sprite samples the
             // current frame's atlas cell (auto-played from the vblank counter).
             let (fu0, fv0, fu1, fv1) = if node.sprite_frames > 0 {
@@ -449,7 +555,86 @@ impl<'a> Walker<'a> {
             } else {
                 (0.0, 0.0, 1.0, 1.0)
             };
-            self.emit_tex_quad(dl, &world, l.w, l.h, node.tex as u32, op, &clip, fu0, fv0, fu1, fv1);
+            if node.transition_from >= 0 && node.transition_to >= 0 {
+                let p = clampf(r.flip_progress, 0.0, 1.0);
+                if p <= 0.0 {
+                    self.emit_tex_quad(
+                        dl,
+                        &world,
+                        l.w,
+                        l.h,
+                        node.transition_from as u32,
+                        op,
+                        &clip,
+                        fu0,
+                        fv0,
+                        fu1,
+                        fv1,
+                    );
+                } else if p >= 1.0 {
+                    self.emit_tex_quad(
+                        dl,
+                        &world,
+                        l.w,
+                        l.h,
+                        node.transition_to as u32,
+                        op,
+                        &clip,
+                        fu0,
+                        fv0,
+                        fu1,
+                        fv1,
+                    );
+                } else {
+                    let dir = if node.transition_dir < 0 { -1.0 } else { 1.0 };
+                    let from_angle = -dir * p * 104.0;
+                    let to_angle = dir * (104.0 - p * 104.0);
+                    let from_alpha = op * (1.0 - p * 0.32);
+                    let to_alpha = op * (0.56 + p * 0.44);
+                    self.emit_tex_3d_quad(
+                        dl,
+                        &world,
+                        l.w,
+                        l.h,
+                        node.transition_from as u32,
+                        from_alpha,
+                        &clip,
+                        fu0,
+                        fv0,
+                        fu1,
+                        fv1,
+                        from_angle,
+                    );
+                    self.emit_tex_3d_quad(
+                        dl,
+                        &world,
+                        l.w,
+                        l.h,
+                        node.transition_to as u32,
+                        to_alpha,
+                        &clip,
+                        fu0,
+                        fv0,
+                        fu1,
+                        fv1,
+                        to_angle,
+                    );
+                }
+            } else if node.tex >= 0 {
+                self.emit_tex_quad(
+                    dl,
+                    &world,
+                    l.w,
+                    l.h,
+                    node.tex as u32,
+                    op,
+                    &clip,
+                    fu0,
+                    fv0,
+                    fu1,
+                    fv1,
+                );
+            }
         }
 
         // -- children (overflow-hidden scissor around them; z-index stable
@@ -466,7 +651,10 @@ impl<'a> Walker<'a> {
             }
             dl.words.push(spec::draw_op::SCISSOR);
             dl.words.push(xy_word(child_clip.x0, child_clip.y0));
-            dl.words.push(wh_word(child_clip.x1 - child_clip.x0, child_clip.y1 - child_clip.y0));
+            dl.words.push(wh_word(
+                child_clip.x1 - child_clip.x0,
+                child_clip.y1 - child_clip.y0,
+            ));
             scissored = true;
         }
 
@@ -498,7 +686,12 @@ impl<'a> Walker<'a> {
             world.apply(w, h),
             world.apply(0.0, h),
         ];
-        let mut c = Clip { x0: pts[0].0, y0: pts[0].1, x1: pts[0].0, y1: pts[0].1 };
+        let mut c = Clip {
+            x0: pts[0].0,
+            y0: pts[0].1,
+            x1: pts[0].0,
+            y1: pts[0].1,
+        };
         for &(x, y) in &pts[1..] {
             c.x0 = c.x0.min(x);
             c.y0 = c.y0.min(y);
@@ -518,7 +711,17 @@ impl<'a> Walker<'a> {
     /// path (RECT/GRAD_RECT, clipped with color re-interpolation) or the
     /// rotated path (Sutherland-Hodgman -> TRI ops).
     #[allow(clippy::too_many_arguments)]
-    fn emit_box(&self, dl: &mut DrawList, world: &Affine, x0: f32, y0: f32, x1: f32, y1: f32, fill: Fill, clip: &Clip) {
+    fn emit_box(
+        &self,
+        dl: &mut DrawList,
+        world: &Affine,
+        x0: f32,
+        y0: f32,
+        x1: f32,
+        y1: f32,
+        fill: Fill,
+        clip: &Clip,
+    ) {
         if x1 <= x0 || y1 <= y0 {
             return;
         }
@@ -544,7 +747,9 @@ impl<'a> Walker<'a> {
                 Fill::Grad { from, to, dir } => {
                     // Re-interpolate the endpoint colors over the clipped
                     // span so the visible slice keeps the exact gradient.
-                    let (f0, f1) = if dir == spec::GradDir::ToLeft as u32 || dir == spec::GradDir::ToRight as u32 {
+                    let (f0, f1) = if dir == spec::GradDir::ToLeft as u32
+                        || dir == spec::GradDir::ToRight as u32
+                    {
                         let w = sx1 - sx0;
                         ((c.x0 - sx0) / w, (c.x1 - sx0) / w)
                     } else {
@@ -553,13 +758,17 @@ impl<'a> Walker<'a> {
                     };
                     // ToTop/ToLeft run against the +axis: fraction measured
                     // from the far edge.
-                    let (gf, gt) = if dir == spec::GradDir::ToTop as u32 || dir == spec::GradDir::ToLeft as u32 {
+                    let (gf, gt) = if dir == spec::GradDir::ToTop as u32
+                        || dir == spec::GradDir::ToLeft as u32
+                    {
                         (lerp_color(to, from, f0), lerp_color(to, from, f1))
                     } else {
                         (lerp_color(from, to, f0), lerp_color(from, to, f1))
                     };
                     // Store colors back in "from/to along dir" order.
-                    let (out_from, out_to) = if dir == spec::GradDir::ToTop as u32 || dir == spec::GradDir::ToLeft as u32 {
+                    let (out_from, out_to) = if dir == spec::GradDir::ToTop as u32
+                        || dir == spec::GradDir::ToLeft as u32
+                    {
                         (gt, gf)
                     } else {
                         (gf, gt)
@@ -579,7 +788,11 @@ impl<'a> Walker<'a> {
             let mut poly: Vec<ClipVert> = Vec::with_capacity(8);
             for (i, &(lx, ly)) in corners.iter().enumerate() {
                 let (sx, sy) = world.apply(lx, ly);
-                poly.push(ClipVert { x: sx, y: sy, color: unpack(corner_color(&fill, i)) });
+                poly.push(ClipVert {
+                    x: sx,
+                    y: sy,
+                    color: unpack(corner_color(&fill, i)),
+                });
             }
             let clipped = sutherland_hodgman(&poly, clip);
             if clipped.len() < 3 {
@@ -776,7 +989,11 @@ impl<'a> Walker<'a> {
         let bw = (border_width * scale_y).min(w * 0.5).min(h * 0.5);
         let r = (radius * scale_y).min(w * 0.5).min(h * 0.5);
         if bw <= 0.0 || r <= 0.5 {
-            let local_bw = if scale_y > 0.0 { bw / scale_y } else { border_width };
+            let local_bw = if scale_y > 0.0 {
+                bw / scale_y
+            } else {
+                border_width
+            };
             let bwx = local_bw.min((x1 - x0) * 0.5);
             let bwy = local_bw.min((y1 - y0) * 0.5);
             self.emit_box(dl, world, x0, y0, x1, y0 + bwy, fill, clip);
@@ -807,13 +1024,22 @@ impl<'a> Walker<'a> {
                 continue;
             }
             let row_y = clampf(py as f32 + 0.5, sy0, sy1);
-            let Some((outer_x0, outer_x1)) = self.rounded_interval_at_row(sx0, sy0, sx1, sy1, r, row_y) else {
+            let Some((outer_x0, outer_x1)) =
+                self.rounded_interval_at_row(sx0, sy0, sx1, sy1, r, row_y)
+            else {
                 continue;
             };
 
             let inner = if has_inner && pixel_interval_coverage(py, inner_sy0, inner_sy1) > 0 {
                 let inner_row_y = clampf(py as f32 + 0.5, inner_sy0, inner_sy1);
-                self.rounded_interval_at_row(inner_sx0, inner_sy0, inner_sx1, inner_sy1, inner_r, inner_row_y)
+                self.rounded_interval_at_row(
+                    inner_sx0,
+                    inner_sy0,
+                    inner_sx1,
+                    inner_sy1,
+                    inner_r,
+                    inner_row_y,
+                )
             } else {
                 None
             };
@@ -851,19 +1077,7 @@ impl<'a> Walker<'a> {
                 );
             } else {
                 self.emit_fractional_span(
-                    dl,
-                    &fill,
-                    sx0,
-                    sy0,
-                    sx1,
-                    sy1,
-                    py,
-                    1,
-                    outer_x0,
-                    outer_x1,
-                    ix0,
-                    ix1,
-                    y_coverage,
+                    dl, &fill, sx0, sy0, sx1, sy1, py, 1, outer_x0, outer_x1, ix0, ix1, y_coverage,
                 );
             }
         }
@@ -947,7 +1161,9 @@ impl<'a> Walker<'a> {
                 }
                 let inner_x0 = full_start.max(ix0);
                 let inner_x1 = full_end.min(ix1);
-                self.emit_rounded_span(dl, &fill, sx0, sy0, sx1, sy1, mid_y0, h, inner_x0, inner_x1, 255);
+                self.emit_rounded_span(
+                    dl, &fill, sx0, sy0, sx1, sy1, mid_y0, h, inner_x0, inner_x1, 255,
+                );
                 if full_end < right_edge
                     && full_end >= ix0
                     && full_end < ix1
@@ -1021,9 +1237,15 @@ impl<'a> Walker<'a> {
 
             let inner_x0 = full_start.max(ix0);
             let inner_x1 = full_end.min(ix1);
-            self.emit_rounded_span(dl, &fill, sx0, sy0, sx1, sy1, py, 1, inner_x0, inner_x1, y_coverage);
+            self.emit_rounded_span(
+                dl, &fill, sx0, sy0, sx1, sy1, py, 1, inner_x0, inner_x1, y_coverage,
+            );
 
-            if full_end < right_edge && full_end >= ix0 && full_end < ix1 && !(emitted_left_edge && full_end == left_edge) {
+            if full_end < right_edge
+                && full_end >= ix0
+                && full_end < ix1
+                && !(emitted_left_edge && full_end == left_edge)
+            {
                 let x_coverage = pixel_interval_coverage(full_end, span_x0, span_x1);
                 self.emit_rounded_span(
                     dl,
@@ -1042,7 +1264,17 @@ impl<'a> Walker<'a> {
         }
     }
 
-    fn emit_shadow(&self, dl: &mut DrawList, world: &Affine, w: f32, h: f32, radius: f32, level: u32, opacity: f32, clip: &Clip) {
+    fn emit_shadow(
+        &self,
+        dl: &mut DrawList,
+        world: &Affine,
+        w: f32,
+        h: f32,
+        radius: f32,
+        level: u32,
+        opacity: f32,
+        clip: &Clip,
+    ) {
         if !world.is_axis_aligned() {
             return;
         }
@@ -1120,6 +1352,55 @@ impl<'a> Walker<'a> {
         dl.words.push(scale_alpha(0xffff_ffff, op));
     }
 
+    /// Emit one image as a native 3D textured quad. The PSP backend feeds this
+    /// through the GE's 3D T&L pipe; software hosts draw a deterministic
+    /// trapezoid approximation. We only emit from axis-aligned 2D frames so
+    /// the node's layout box remains the transition's stable viewport.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_tex_3d_quad(
+        &self,
+        dl: &mut DrawList,
+        world: &Affine,
+        w: f32,
+        h: f32,
+        tex: u32,
+        op: f32,
+        clip: &Clip,
+        fu0: f32,
+        fv0: f32,
+        fu1: f32,
+        fv1: f32,
+        angle_y: f32,
+    ) {
+        if !world.is_axis_aligned() || op <= 0.0 {
+            return;
+        }
+        let (sx0, sy0) = world.apply(0.0, 0.0);
+        let (sx1, sy1) = world.apply(w, h);
+        if sx1 <= sx0 || sy1 <= sy0 {
+            return;
+        }
+        let c = Clip {
+            x0: sx0.max(clip.x0),
+            y0: sy0.max(clip.y0),
+            x1: sx1.min(clip.x1),
+            y1: sy1.min(clip.y1),
+        };
+        if c.is_empty() || roundf(c.x1 - c.x0) <= 0.0 || roundf(c.y1 - c.y0) <= 0.0 {
+            return;
+        }
+        dl.words.push(spec::draw_op::TEX3D_QUAD);
+        dl.words.push(tex);
+        dl.words.push(xy_word(c.x0, c.y0));
+        dl.words.push(wh_word(c.x1 - c.x0, c.y1 - c.y0));
+        dl.words.push(fu0.to_bits());
+        dl.words.push(fv0.to_bits());
+        dl.words.push(fu1.to_bits());
+        dl.words.push(fv1.to_bits());
+        dl.words.push(scale_alpha(0xffff_ffff, op));
+        dl.words.push(angle_y.to_bits());
+    }
+
     /// Emit the inline text run of a text element as one GLYPH_RUN.
     #[allow(clippy::too_many_arguments)]
     fn emit_text(
@@ -1137,7 +1418,9 @@ impl<'a> Walker<'a> {
             return;
         }
         let slot = r.font_slot as u8;
-        let Some(atlas) = self.fonts.atlas(slot) else { return };
+        let Some(atlas) = self.fonts.atlas(slot) else {
+            return;
+        };
         let (cell_w, cell_h) = (atlas.cell_w as f32, atlas.cell_h as f32);
         let mut run = alloc::string::String::new();
         // paint() gives us the node ref; re-walk its subtree for the run.
@@ -1148,8 +1431,15 @@ impl<'a> Walker<'a> {
         }
         let mut scratch = core::mem::take(&mut self.glyph_scratch);
         scratch.clear();
-        self.fonts
-            .layout_run(&run, slot, r.tracking, r.line_height, r.text_align, box_w, &mut scratch);
+        self.fonts.layout_run(
+            &run,
+            slot,
+            r.tracking,
+            r.line_height,
+            r.text_align,
+            box_w,
+            &mut scratch,
+        );
         let start = dl.words.len();
         dl.words.push(spec::draw_op::GLYPH_RUN);
         dl.words.push(0); // patched below: slot | count << 16

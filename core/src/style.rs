@@ -64,7 +64,9 @@ pub struct StyleTable {
 
 impl StyleTable {
     pub fn new() -> StyleTable {
-        StyleTable { records: Vec::new() }
+        StyleTable {
+            records: Vec::new(),
+        }
     }
 
     /// Parse a styles.bin blob. `None` on bad magic/version/truncation.
@@ -181,6 +183,7 @@ pub struct Resolved {
     pub rotate: f32,
     pub scale_x: f32,
     pub scale_y: f32,
+    pub flip_progress: f32,
 }
 
 impl Default for Resolved {
@@ -227,6 +230,7 @@ impl Default for Resolved {
             rotate: 0.0,
             scale_x: 1.0,
             scale_y: 1.0,
+            flip_progress: 1.0,
         }
     }
 }
@@ -287,6 +291,7 @@ impl Resolved {
             p::ROTATE => self.rotate = f,
             p::SCALE_X => self.scale_x = f,
             p::SCALE_Y => self.scale_y = f,
+            p::FLIP_PROGRESS => self.flip_progress = f,
             _ => {}
         }
     }
@@ -346,6 +351,7 @@ impl Resolved {
             p::ROTATE => self.rotate.to_bits(),
             p::SCALE_X => self.scale_x.to_bits(),
             p::SCALE_Y => self.scale_y.to_bits(),
+            p::FLIP_PROGRESS => self.flip_progress.to_bits(),
             _ => 0,
         }
     }

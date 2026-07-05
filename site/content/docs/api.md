@@ -5,7 +5,7 @@ Every public export of `@pocketjs/framework`, grouped by import path. Signatures
 | Import path | Exports |
 | --- | --- |
 | `@pocketjs/framework` | `mount`, `render`, host/runtime helpers, types |
-| `@pocketjs/framework/components` | `View`, `Text`, `Image`, `Sprite`, `Screen`, `Focusable`, `FocusScope`, `FocusGrid`, `ActionHandler`, `Portal`, `Modal`, `ActionBar`, `Grid`, `Lazy`, `Gallery` |
+| `@pocketjs/framework/components` | `View`, `Text`, `Image`, `Sprite`, `SceneTransition3D`, `Screen`, `Focusable`, `FocusScope`, `FocusGrid`, `ActionHandler`, `Portal`, `Modal`, `ActionBar`, `Grid`, `Lazy`, `Gallery` |
 | `solid-js` | `createSignal`, `createEffect`, `createMemo`, `onMount`, `onCleanup`, `batch`, `untrack`, `Show`, `For`, `Index`, `Switch`, `Match` |
 | `vue` | `defineComponent`, `ref`, `computed`, `watchEffect`, `onMounted`, `onScopeDispose` |
 | `@pocketjs/framework/animation` | `animate`, `spring`, `cancelAnim` |
@@ -181,10 +181,24 @@ The host primitives, wrapped React Native-style. `View` is the flex container/bo
 | `children` | `JSX.Element` | Child nodes. |
 
 **`TextProps`** — `class`, `style`, `ref`, `children`.
-**`ImageProps`** — `class`, `src` (`string`), `style`, `ref`.
+**`ImageProps`** — `class`, `src` (`string`), `transition3d` (`{ from, to, progress?, direction? }`), `style`, `ref`.
 **`SpriteProps`** — `class`, `sprite` (`string` — a `ui:sprite.<name>` atlas key), `style`, `ref`.
 
-`Sprite` is a native animated primitive: its atlas (a pow2 texture holding a grid of frames) is baked into the pak, and the Rust core cycles the frame cells per vblank — deterministic and with **zero per-frame JS**. It auto-plays from the first frame the moment it is displayed, so a sprite revealed by paging or a `Show`/`Lazy` starts animating on its own. Bake atlases by listing them in a demo's `sprites.json` (`{ "<atlas>.png": { cols, rows, frames, step } }`); `step` is vblanks per frame (fps = 60/step). See `demos/gallery` (its covers are shader-baked animated sprites).
+`Sprite` is a native animated primitive: its atlas (a pow2 texture holding a grid of frames) is baked into the pak, and the Rust core cycles the frame cells per vblank — deterministic and with **zero per-frame JS**. It auto-plays from the first frame the moment it is displayed, so a sprite revealed by paging or a `Show`/`Lazy` starts animating on its own. Bake atlases by listing them in a demo's `sprites.json` (`{ "<atlas>.png": { cols, rows, frames, step } }`); `step` is vblanks per frame (fps = 60/step).
+
+### `SceneTransition3D`
+
+```ts
+interface SceneTransition3DProps extends Omit<ImageProps, "src" | "transition3d"> {
+  from: string;
+  to: string;
+  progress?: number | (() => number);     // 0..1
+  direction?: number | (() => number);    // -1 left/back, +1 right/forward
+}
+function SceneTransition3D(props: SceneTransition3DProps): JSX.Element
+```
+
+An image node that binds two baked static textures to the native 3D transition path. Set `progress` to `0`, then call `animate(node, "flipProgress", 1, ...)` on its `NodeMirror`; the Rust core ticks the flip per vblank, and the PSP backend draws the texture through GE 3D T&L.
 
 ### `Screen`
 
