@@ -12,13 +12,14 @@ export const OG_IMAGE_URL = `${SITE_URL}/og-image.png`;
 
 export interface PageOpts {
   title: string | null; // null uses the bare wordmark (homepage)
-  active: string; // "home" | "docs" | "playground"
+  active: string; // "home" | "docs" | "aot" | "playground"
   body: string;
   bodyClass?: string;
   head?: string;
   scripts?: string[];
   path?: string;
   description?: string;
+  robots?: string;
 }
 
 export const LOGO = `<svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
@@ -70,7 +71,7 @@ const footer = `<footer class="mt-24 border-t border-line/70 bg-ink-2/60">
         </ul>
       </div>
       <div class="text-sm">
-        <h4 class="mb-3 font-semibold text-slate-200">Explore</h4>
+        <h4 class="mb-3 font-semibold text-slate-200">Framework</h4>
         <ul class="space-y-2 text-slate-400">
           <li><a class="hover:text-brand-2" href="/playground/">Playground</a></li>
           <li><a class="hover:text-brand-2" href="/docs/components/">Components</a></li>
@@ -98,6 +99,7 @@ export function renderPage(o: PageOpts): string {
   const fullTitle = o.title ? `${o.title} · PocketJS` : SITE_TITLE;
   const desc = o.description ?? SITE_DESC;
   const canonical = `${SITE_URL}${o.path ?? "/"}`;
+  const robots = o.robots ?? "index,follow";
   const jsonLd = JSON.stringify({
     "@context": "https://schema.org",
     "@type": "SoftwareSourceCode",
@@ -115,7 +117,7 @@ export function renderPage(o: PageOpts): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${fullTitle}</title>
 <meta name="description" content="${desc}">
-<meta name="robots" content="index,follow">
+<meta name="robots" content="${robots}">
 <link rel="canonical" href="${canonical}">
 <meta property="og:title" content="${fullTitle}">
 <meta property="og:description" content="${desc}">
