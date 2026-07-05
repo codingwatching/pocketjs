@@ -12,10 +12,17 @@ int main(void) {
   textbox_init();
   debug_init();
 
+  g.pending_enter = -1;
   map_enter(g.game->start_map, g.game->start_x, g.game->start_y, g.game->start_dir);
 
   for (;;) {
     input_poll();
+    // A map's on-enter script starts as soon as no other script is running.
+    if (!vm_active() && g.pending_enter >= 0) {
+      int sid = g.pending_enter;
+      g.pending_enter = -1;
+      vm_start(sid, -1);
+    }
     vm_tick();
     if (!vm_active()) player_update();
     textbox_tick();

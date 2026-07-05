@@ -3,10 +3,13 @@
 // expand into a solid tile + a synthetic one-line text script (design §11.3).
 
 import { DIR_NAMES, MOVE_NAMES, OP, ACTOR_FLAG, DIR } from "../spec/pjgb.ts";
+import { wrapPages } from "./text.ts";
 import type { Ctx } from "./context.ts";
+import type { TextMode } from "./script.ts";
 import type { PjgbNode, Registry } from "../dsl/index.ts";
 
 const NO_SPRITE = 0xff;
+const NO_SCRIPT8 = 0xff;
 
 export interface ActorModel {
   name: string;
@@ -37,6 +40,7 @@ export interface MapModel {
   tiles: number[];
   collision: number[];
   palbank: number;
+  onEnter: number; // script id or 0xff
   actors: ActorModel[];
   warps: WarpModel[];
   entrances: globalThis.Map<string, { x: number; y: number; dir: number }>;
@@ -55,7 +59,7 @@ const at = (n: PjgbNode): [number, number] => {
 const dirOf = (v: unknown, dflt = DIR.DOWN): number =>
   v == null ? dflt : DIR_NAMES[String(v)] ?? dflt;
 
-export function buildModel(ctx: Ctx, registry: Registry): GameModel {
+export function buildModel(ctx: Ctx, registry: Registry, mode: TextMode = "ascii8"): GameModel {
   const game = registry.game!;
   registry.maps.forEach((m, i) => ctx.mapIndex.set(m.name, i));
 
@@ -116,9 +120,14 @@ export function buildModel(ctx: Ctx, registry: Registry): GameModel {
         case "Sign": {
           const [x, y] = at(c);
           const text = String(prop(c, "text") ?? "");
-          // synthetic script: TEXT <id>; END
-          const textId = ctx.internText(text);
-          const bc = [OP.TEXT, textId & 0xff, (textId >> 8) & 0xff, OP.END];
+          // synthetic script: TEXT <page id> per page; END
+          const pages = mode === "cjk16" ? wrapPages(text, ctx.target) : [text];
+          const bc: number[] = [];
+          for (const page of pages) {
+            const textId = ctx.internText(page);
+            bc.push(OP.TEXT, textId & 0xff, (textId >> 8) & 0xff);
+          }
+          bc.push(OP.END);
           const sid = ctx.addScript(`sign_${index}_${x}_${y}`, bc);
           const signTile = ctx.tileNameToId.get("sign");
           if (signTile !== undefined) {
@@ -149,7 +158,13 @@ export function buildModel(ctx: Ctx, registry: Registry): GameModel {
       }
     }
 
-    return { name: mapDecl.name, index, w, h, tiles, collision, palbank: 0, actors, warps, entrances };
+    const onEnterRef = mapDecl.onEnter as { __pjgbScript: number } | undefined;
+    const onEnter = onEnterRef ? onEnterRef.__pjgbScript : NO_SCRIPT8;
+    if (onEnter !== NO_SCRIPT8 && onEnter > 0xfe) {
+      throw new Error(`map "${mapDecl.name}": onEnter script id ${onEnter} exceeds the u8 field`);
+    }
+
+    return { name: mapDecl.name, index, w, h, tiles, collision, palbank: 0, onEnter, actors, warps, entrances };
   });
 
   // resolve warps against destination entrances

@@ -6,7 +6,7 @@ import { $ } from "bun";
 import { emitCartC } from "./pack.ts";
 
 const ROOT = new URL("../..", import.meta.url).pathname; // repo root
-const RT = ROOT + "aot/runtime";
+const RT = ROOT + "aot/runtime/gba";
 const DIST = ROOT + "aot/dist";
 
 /** GBA header complement checksum over bytes 0xA0..0xBC, written at 0xBD. */

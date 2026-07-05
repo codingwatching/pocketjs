@@ -28,13 +28,15 @@ typedef struct {
   u16 start_x, start_y;
   u8 map_count, sprite_count;
   u16 flag_count, text_count, script_count;
-  u16 font_base, box_tile, rsv;
+  u16 font_base, box_tile;
+  u8 text_mode, rsv;
+  u16 glyph_slot_base, glyph_slot_count;
 } GameHeader;
 _Static_assert(sizeof(GameHeader) == PJGB_GAME_HEADER_SIZE, "GameHeader size");
 
 typedef struct {
   u16 width, height, num_actors, num_warps;
-  u8 bg_palbank, on_load;
+  u8 bg_palbank, on_enter;
   u16 rsv;
   u32 tiles_off, collision_off, actors_off, warps_off;
 } MapHeader;
@@ -120,6 +122,14 @@ typedef struct {
   // persistent state
   u8 flags[16]; // 128 bits
   s16 vars[16];
+
+  // deferred map on-enter script (set by map_enter, started by the main loop —
+  // map_enter can run from inside OP_WARP, where vm_start would clobber the VM)
+  s16 pending_enter; // script id or -1
+
+  // cjk16 glyph slot allocator + OP_RND state
+  u16 slot_next;
+  u16 rng;
 
   u16 keys, keys_prev;
   u32 frame;

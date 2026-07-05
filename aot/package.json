@@ -23,6 +23,7 @@
     "test": "bun run assets && bun test/e2e.ts"
   },
   "devDependencies": {
+    "jsnes": "^2.1.0",
     "typescript": "^5"
   }
 }

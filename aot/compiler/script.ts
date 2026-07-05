@@ -4,10 +4,13 @@
 
 import ts from "typescript";
 import { OP } from "../spec/pjgb.ts";
+import { textCells, wrapPages } from "./text.ts";
 import type { Ctx } from "./context.ts";
 import type { ScriptSite } from "./evaluate.ts";
 
 const FACE_SELF = 0xff; // FACE_PLAYER operand meaning "the actor that started me"
+
+export type TextMode = "ascii8" | "cjk16";
 
 class ScriptError extends Error {
   constructor(node: ts.Node, sf: ts.SourceFile, msg: string) {
@@ -17,11 +20,26 @@ class ScriptError extends Error {
 }
 
 // Op wrappers that leave a value on the VM stack.
-const VALUE_OPS = new Set(["hasFlag", "choose", "battle", "getVar"]);
+const VALUE_OPS = new Set([
+  "hasFlag",
+  "choose",
+  "battle",
+  "getVar",
+  "varEq",
+  "varGt",
+  "varLt",
+  "varGe",
+  "varLe",
+  "rnd",
+]);
 
 class Emitter {
   code: number[] = [];
-  constructor(private ctx: Ctx, private sf: ts.SourceFile) {}
+  constructor(
+    private ctx: Ctx,
+    private sf: ts.SourceFile,
+    private mode: TextMode,
+  ) {}
 
   private u8(v: number): void {
     this.code.push(v & 0xff);
@@ -71,12 +89,20 @@ class Emitter {
     return { name: e.expression.text, args: e.arguments.map((a) => this.staticVal(a)), call: e };
   }
 
+  /** say(): one OP_TEXT per compile-time page (cjk16 wraps; ascii8 is 1:1). */
+  private emitSay(text: string): void {
+    const pages = this.mode === "cjk16" ? wrapPages(text, this.ctx.target) : [text];
+    for (const page of pages) {
+      this.u8(OP.TEXT);
+      this.u16(this.ctx.internText(page));
+    }
+  }
+
   /** Emit an op call. Returns true if it leaves a value on the stack. */
   emitOp(name: string, args: unknown[], node: ts.Node): boolean {
     switch (name) {
       case "say":
-        this.u8(OP.TEXT);
-        this.u16(this.ctx.internText(String(args[0])));
+        this.emitSay(String(args[0]));
         return false;
       case "lockPlayer":
         this.u8(OP.LOCK_PLAYER);
@@ -127,6 +153,38 @@ class Emitter {
         this.u8(OP.PUSH_VAR);
         this.u16(this.ctx.varIdOf(String(args[0])));
         return true;
+      case "varEq":
+      case "varGt":
+      case "varLt":
+      case "varGe":
+      case "varLe": {
+        this.u8(OP.PUSH_VAR);
+        this.u16(this.ctx.varIdOf(String(args[0])));
+        this.u8(OP.PUSH_CONST);
+        this.i16(Number(args[1]));
+        const cmp = { varEq: OP.EQ, varGt: OP.GT, varLt: OP.LT, varGe: OP.GE, varLe: OP.LE }[name];
+        this.u8(cmp);
+        return true;
+      }
+      case "rnd": {
+        const n = Number(args[0]);
+        if (!(n >= 1 && n <= 255)) throw new ScriptError(node, this.sf, `rnd(n) needs 1..255 (got ${n})`);
+        this.u8(OP.RND);
+        this.u8(n);
+        return true;
+      }
+      case "warpTo": {
+        const dest = String(args[0]);
+        if (!dest.includes(":")) throw new ScriptError(node, this.sf, `warpTo needs "map:entrance" (got "${dest}")`);
+        this.u8(OP.WARP);
+        // Operands are patched after buildModel resolves map indices/entrances.
+        this.ctx.warpFixups.push({ scriptId: -1, at: this.code.length, dest });
+        this.u8(0); // map
+        this.u16(0); // x
+        this.u16(0); // y
+        this.u8(0); // dir
+        return false;
+      }
       case "playSfx":
         this.u8(OP.PLAY_SFX);
         this.u16(0);
@@ -137,10 +195,20 @@ class Emitter {
   }
 
   private emitChoice(options: string[], node: ts.Node): void {
-    // The textbox renders choice rows TEXT_ROW0(13)..BOX_ROW1(19) = 7 rows, so
-    // an 8th option would be selectable but never shown. Cap at 7.
-    if (options.length < 1 || options.length > 7) {
-      throw new ScriptError(node, this.sf, `choose() needs 1..7 options (got ${options.length})`);
+    // ascii8: the GBA textbox renders up to 7 rows. cjk16: options are 16px
+    // lines; every target fits maxChoices of them (spec TARGETS).
+    const max = this.mode === "cjk16" ? this.ctx.target.maxChoices : 7;
+    if (options.length < 1 || options.length > max) {
+      throw new ScriptError(node, this.sf, `choose() needs 1..${max} options (got ${options.length})`);
+    }
+    if (this.mode === "cjk16") {
+      for (const o of options) {
+        if (o.includes("\n")) throw new ScriptError(node, this.sf, `choice option must be one line ("${o}")`);
+        const cells = textCells(o);
+        if (cells > this.ctx.target.choiceCols - 2) {
+          throw new ScriptError(node, this.sf, `choice option too wide for ${this.ctx.target.name} (${cells} > ${this.ctx.target.choiceCols - 2} cells): "${o}"`);
+        }
+      }
     }
     this.u8(OP.CHOICE);
     this.u8(options.length);
@@ -176,9 +244,26 @@ class Emitter {
       return;
     }
     if (ts.isIfStatement(s)) return this.compileIf(s);
+    if (ts.isWhileStatement(s)) return this.compileWhile(s);
     if (ts.isBlock(s)) return this.compileBlock(s.statements);
     if (s.kind === ts.SyntaxKind.EmptyStatement) return;
-    throw new ScriptError(s, this.sf, "unsupported statement in a script (v1: yield-ops, if/else, choose+switch)");
+    throw new ScriptError(s, this.sf, "unsupported statement in a script (yield-ops, if/else, while, choose+switch)");
+  }
+
+  // while (yield <predicate>) { ... } — loops over a runtime value.
+  private compileWhile(s: ts.WhileStatement): void {
+    if (!ts.isYieldExpression(s.expression)) {
+      throw new ScriptError(s.expression, this.sf, "while condition must be `yield <predicate>` (e.g. yield varGt(...))");
+    }
+    const { name, args, call } = this.opCall(s.expression.expression!);
+    if (!VALUE_OPS.has(name)) throw new ScriptError(call, this.sf, `"${name}" does not yield a testable value`);
+    const loopStart = this.code.length;
+    this.emitOp(name, args, call); // leaves value
+    const toEnd = this.emitJump(OP.JUMP_IF_FALSE);
+    this.compileStatement(s.statement);
+    const back = this.emitJump(OP.JUMP);
+    this.patchTo(back, loopStart);
+    this.patch(toEnd);
   }
 
   private compileIf(s: ts.IfStatement): void {
@@ -274,13 +359,16 @@ class Emitter {
   }
 }
 
-export function compileScript(site: ScriptSite, ctx: Ctx): number[] {
-  const em = new Emitter(ctx, site.file);
+export function compileScript(site: ScriptSite, ctx: Ctx, mode: TextMode): number[] {
+  const em = new Emitter(ctx, site.file, mode);
   const body = site.body.body;
   if (!body || !ts.isBlock(body)) {
     throw new Error(`script #${site.id}: expected a block body`);
   }
+  const fixupStart = ctx.warpFixups.length;
   em.compileBlock(body.statements);
   em.code.push(OP.END);
+  // Attribute this script's warpTo fixups to its (about-to-be-assigned) id.
+  for (let i = fixupStart; i < ctx.warpFixups.length; i++) ctx.warpFixups[i].scriptId = site.id;
   return em.code;
 }

@@ -1,25 +1,110 @@
-// aot/spec/pjgb.ts — THE single source of truth for the PJGB cartridge format,
-// the script bytecode ISA, and the runtime debug block.
+// aot/spec/pjgb.ts — THE single source of truth for the PJGB game data model,
+// the script bytecode ISA, the text/glyph encoding, and the runtime debug
+// block — shared by ALL cartridge targets (GBA, Game Boy, NES).
 //
 // Both sides derive from this file:
 //   - the compiler (aot/compiler/*) ENCODES these layouts,
-//   - the C runtime (aot/runtime/*) DECODES them, via generated pjgb_gen.h
-//     (aot/spec/gen-c.ts emits the #defines so C can never drift from TS).
+//   - each C runtime (aot/runtime/<target>/*) DECODES them, via a generated
+//     pjgb_gen.h (aot/spec/gen-c.ts emits per-target #defines so C can never
+//     drift from TS).
+//
+// Target split:
+//   - The GBA target ships the PJGB chunk container below verbatim and parses
+//     it at boot (flat 32 MB ROM space makes that free).
+//   - The GB/NES targets do NOT parse a container: the compiler residualizes
+//     the same logical records into per-bank C arrays (gen_data.c) because
+//     banked 8-bit ROMs have no flat address space. The RECORD layouts
+//     (actors, warps, text tokens, script bytecode, debug block) stay
+//     byte-identical across targets; only the packaging differs.
 //
 // Conventions (non-negotiable, matches the repo-wide rule in ../../spec/spec.ts):
-//   - Little-endian EVERYWHERE (GBA ARM7TDMI is LE).
+//   - Little-endian EVERYWHERE (all three CPUs are LE).
 //   - All offsets in comments are from the start of the containing blob/chunk.
 //   - GBA colors are 15-bit BGR555: bit0-4 R, 5-9 G, 10-14 B, bit15 unused.
 
 // ---------------------------------------------------------------------------
-// Screen / hardware
+// Screen / hardware (GBA values; per-target values live in TARGETS below)
 // ---------------------------------------------------------------------------
 export const SCREEN_W = 240;
 export const SCREEN_H = 160;
-export const TILE_PX = 8; // one GBA tile is 8x8 px
+export const TILE_PX = 8; // one BG tile is 8x8 px on every target
 export const SCREEN_TILES_W = SCREEN_W / TILE_PX; // 30
 export const SCREEN_TILES_H = SCREEN_H / TILE_PX; // 20
-export const TILE_4BPP_BYTES = 32; // 8x8 @ 4bpp
+export const TILE_4BPP_BYTES = 32; // 8x8 @ 4bpp (GBA)
+export const TILE_2BPP_BYTES = 16; // 8x8 @ 2bpp (GB interleaved / NES planar)
+
+// ---------------------------------------------------------------------------
+// Targets. One authored game compiles to any of these; the compiler wraps
+// text and sizes VRAM slot regions per target, so these numbers are part of
+// the binary contract (they shape text banks and glyph slot ids).
+// ---------------------------------------------------------------------------
+export interface TargetSpec {
+  name: "gba" | "gb" | "nes";
+  screenW: number;
+  screenH: number;
+  /** Max map size in tiles (w, h). NES is bounded by a single nametable. */
+  maxMapW: number;
+  maxMapH: number;
+  /** Bytes per 8x8 tile in this target's native format. */
+  tileBytes: number;
+  /** Text metrics for cjk16 mode: halfcell columns and 16px lines per page. */
+  textCols: number;
+  textLines: number;
+  /** Halfcell columns available for a choice row (incl. 2-cell cursor). */
+  choiceCols: number;
+  /** Max choice options per menu. */
+  maxChoices: number;
+  /** Dynamic glyph slot budget (1 slot = 1 halfcell = 2 stacked 8x8 tiles). */
+  glyphSlots: number;
+  /** Absolute bus address of the debug block. */
+  debugAddr: number;
+}
+
+export const TARGETS: Record<"gba" | "gb" | "nes", TargetSpec> = {
+  gba: {
+    name: "gba",
+    screenW: 240,
+    screenH: 160,
+    maxMapW: 32,
+    maxMapH: 32,
+    tileBytes: TILE_4BPP_BYTES,
+    textCols: 28,
+    textLines: 3,
+    choiceCols: 20,
+    maxChoices: 4,
+    glyphSlots: 84, // 28 cols x 3 lines
+    debugAddr: 0x02000000, // EWRAM base
+  },
+  gb: {
+    name: "gb",
+    screenW: 160,
+    screenH: 144,
+    maxMapW: 32,
+    maxMapH: 32,
+    tileBytes: TILE_2BPP_BYTES,
+    textCols: 18,
+    textLines: 2,
+    choiceCols: 18,
+    maxChoices: 4,
+    glyphSlots: 72, // max(18x2 text, 18x4 choices)
+    debugAddr: 0xde00, // top of DMG WRAM, below the GBDK stack
+  },
+  nes: {
+    name: "nes",
+    screenW: 256,
+    screenH: 240,
+    maxMapW: 32,
+    maxMapH: 30, // one nametable; v1 NES does not scroll
+    tileBytes: TILE_2BPP_BYTES,
+    textCols: 28,
+    textLines: 3,
+    choiceCols: 20,
+    maxChoices: 4,
+    glyphSlots: 84, // max(28x3 text, 20x4 choices)
+    debugAddr: 0x0700, // top page of the 2 KB CPU RAM
+  },
+} as const;
+export type TargetName = keyof typeof TARGETS;
 
 // ---------------------------------------------------------------------------
 // Cartridge container: "PJGB"
@@ -54,6 +139,7 @@ export const CHUNK = {
   SCRIPT_CODE: 8, // raw bytecode bytes for all scripts, concatenated
   SCRIPT_TABLE: 9, // u32[] byte-offsets into SCRIPT_CODE, indexed by script id
   SPRITE_TABLE: 10, // SpriteProto[] indexed by sprite id
+  GLYPHS: 11, // cjk16 glyph tile store (GlyphStore, target-encoded tiles)
 } as const;
 export type ChunkKind = (typeof CHUNK)[keyof typeof CHUNK];
 
@@ -69,13 +155,48 @@ export type ChunkKind = (typeof CHUNK)[keyof typeof CHUNK];
 //   32 u16  flag_count
 //   34 u16  text_count
 //   36 u16  script_count
-//   38 u16  font_base   (BG tile index of ASCII 0x20; glyph = font_base+ch-0x20)
+//   38 u16  font_base   (ascii8: BG tile index of ASCII 0x20; cjk16: 0)
 //   40 u16  box_tile    (BG tile index of the opaque textbox fill tile)
-//   42 u16  reserved
-// = 44 bytes
+//   42 u8   text_mode   (TEXT_MODE.*)
+//   43 u8   reserved
+//   44 u16  glyph_slot_base  (cjk16: first BG tile of the dynamic slot region)
+//   46 u16  glyph_slot_count (cjk16: slot region size in 8x8 tiles)
+// = 48 bytes
 // ---------------------------------------------------------------------------
 export const GAME_TITLE_LEN = 24;
-export const GAME_HEADER_SIZE = 44;
+export const GAME_HEADER_SIZE = 48;
+
+export const TEXT_MODE = {
+  ASCII8: 0, // legacy 8x8 ASCII font baked as static BG tiles (GBA only)
+  CJK16: 1, // 16px lines; glyphs streamed into VRAM slots on demand
+} as const;
+
+// ---------------------------------------------------------------------------
+// Text token stream (cjk16 mode). A "halfcell" is an 8px-wide, 16px-tall
+// column = 2 stacked 8x8 tiles (top tile first in every glyph store).
+//   0x00        end of string
+//   0x0A        newline (advance one 16px line)
+//   0x20..0x7E  ASCII literal -> halfwidth glyph id (byte - 0x20), 1 halfcell
+//   0x80|hi, lo fullwidth glyph id ((hi & 0x3F) << 8) | lo, 2 halfcells
+// Line wrapping and pagination happen AT COMPILE TIME (per target): the
+// runtime only ever sees streams that fit one textbox page.
+// ---------------------------------------------------------------------------
+export const TOK_END = 0x00;
+export const TOK_NEWLINE = 0x0a;
+export const TOK_ASCII_MIN = 0x20;
+export const TOK_ASCII_MAX = 0x7e;
+export const TOK_FULL_FLAG = 0x80;
+export const HALF_GLYPH_COUNT = TOK_ASCII_MAX - TOK_ASCII_MIN + 1; // 95
+
+// GlyphStore (CHUNK.GLYPHS, id 0; GB/NES: gen_data.c arrays with these counts):
+//   0 u16 half_count   (always HALF_GLYPH_COUNT for v1)
+//   2 u16 full_count   (game-specific: unique CJK/fullwidth glyphs used)
+//   4 u16 tile_bytes   (bytes per 8x8 tile in the target encoding)
+//   6 u16 reserved
+//   8 ... half glyphs: half_count x 2 tiles (top, bottom)
+//   ... full glyphs: full_count x 4 tiles (left top, left bottom,
+//                                          right top, right bottom)
+export const GLYPH_STORE_HEADER_SIZE = 8;
 
 // ---------------------------------------------------------------------------
 // MapChunk (CHUNK.MAP, id = map index). Self-describing; all *_off are
@@ -85,7 +206,7 @@ export const GAME_HEADER_SIZE = 44;
 //   4  u16 num_actors
 //   6  u16 num_warps
 //   8  u8  bg_palbank       (which 16-color BG palette bank the map tiles use)
-//   9  u8  on_load_script   (0xFF = none)  -- reserved for future
+//   9  u8  on_enter_script  (script id, 0xFF = none; runs when the map loads)
 //   10 u16 reserved
 //   12 u32 tiles_off        -> u16[width*height] BG screen-entry tile indices
 //   16 u32 collision_off    -> u8[width*height] (0 = walkable, 1 = solid)
@@ -200,6 +321,11 @@ export const OP = {
   BATTLE: 0x17, // u16 battleId          (v1 stub: shows "* battle *" text, push 1=win)
   WAIT: 0x18, // u16 frames             SUSPEND for N frames
   PLAY_SFX: 0x19, // u16 sfxId          (v1 stub, no-op)
+  LT: 0x1a, //                          b=pop,a=pop, push (a<b)   signed
+  GT: 0x1b, //                          push (a>b)
+  LE: 0x1c, //                          push (a<=b)
+  GE: 0x1d, //                          push (a>=b)
+  RND: 0x1e, // u8 n                    push uniform 0..n-1 (frame-seeded LCG)
 } as const;
 export type OpName = keyof typeof OP;
 
@@ -232,17 +358,23 @@ export const OP_OPERAND_BYTES: Record<number, number> = {
   [OP.BATTLE]: 2,
   [OP.WAIT]: 2,
   [OP.PLAY_SFX]: 2,
+  [OP.LT]: 0,
+  [OP.GT]: 0,
+  [OP.LE]: 0,
+  [OP.GE]: 0,
+  [OP.RND]: 1,
 };
 
 export const VM_MAX_STACK = 16;
 
 // ---------------------------------------------------------------------------
-// Runtime debug block — written by the runtime into a FIXED EWRAM address so
-// the mGBA test harness can read game state without symbols. Layout must match
-// runtime/debug.c. Addresses are absolute GBA bus addresses.
+// Runtime debug block — written by every runtime into a FIXED RAM address so
+// the emulator harnesses (mGBA for GBA/GB, jsnes for NES) can read game state
+// without symbols. The LAYOUT is identical on all targets; the base address is
+// per-target (TARGETS[t].debugAddr). Layout must match runtime/*/debug.c.
 // ---------------------------------------------------------------------------
 export const EWRAM_BASE = 0x02000000;
-export const DEBUG_ADDR = EWRAM_BASE; // debug block sits at the top of EWRAM
+export const DEBUG_ADDR = EWRAM_BASE; // GBA base (kept for existing GBA paths)
 // Offsets within the debug block:
 export const DBG = {
   MAGIC: 0x00, // u32 'PJDB'
@@ -276,17 +408,33 @@ export const flagAddr = (flagId: number): { addr: number; bit: number } => ({
 export const BUDGET = {
   MAX_ACTORS_PER_MAP: 24,
   MAX_MAPS: 32,
-  MAX_SPRITES: 16, // one OBJ palette bank per sprite; hardware has 16 banks
+  MAX_SPRITES: 16, // one OBJ palette bank per sprite; GBA hardware has 16 banks
   MAX_FLAGS: 128,
   MAX_VARS: 16,
   MAX_TEXTS: 512,
-  MAX_SCRIPTS: 256,
+  MAX_SCRIPTS: 254, // on-enter script ids must fit a u8 with 0xFF = none
   // BG char data lives in charblock 0 (512 4bpp tiles); the map screenblock
   // sits at SBB 8 = the start of charblock 1, so BG tiles must fit in 512.
   MAX_BG_TILES: 512,
   MAX_OBJ_TILES: 1024, // OBJ VRAM 0x06010000..0x06018000 = 1024 4bpp tiles
   MAX_MAP_TILES: 128 * 128,
+  MAX_FULL_GLYPHS: 512, // unique fullwidth (CJK) glyphs bakeable per game
 } as const;
+
+// Per-target VRAM budgets for BG tiles (blank + tileset + box + glyph slots).
+// GB: signed BG addressing gives 256 tiles; NES: one 256-tile pattern table.
+export const BG_TILE_BUDGET: Record<TargetName, number> = {
+  gba: 512,
+  gb: 256,
+  nes: 256,
+};
+// OBJ tile budgets: GB keeps OBJ in 0x8000..0x87FF (128 tiles) so BG can own
+// 0x8800..0x97FF; NES pattern table 1 holds 256 8x8 OBJ tiles.
+export const OBJ_TILE_BUDGET: Record<TargetName, number> = {
+  gba: 1024,
+  gb: 128,
+  nes: 256,
+};
 
 // ---------------------------------------------------------------------------
 // Color: pack an 8-bit RGB triple into GBA BGR555.

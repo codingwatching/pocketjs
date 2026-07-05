@@ -29,6 +29,8 @@ void map_enter(int map_id, int tx, int ty, int dir) {
   g.player.anim_timer = 0;
   g.player.sprite_id = 0;
 
+  g.pending_enter = (mh->on_enter == 0xff) ? -1 : (s16)mh->on_enter;
+
   bg_load_map();
   camera_follow();
   bg_set_scroll();

@@ -6,7 +6,7 @@
 
 import { $ } from "bun";
 import { compile, debugInfo } from "../compiler/index.ts";
-import { buildRom } from "../compiler/rom.ts";
+import { buildGba } from "../compiler/targets/gba.ts";
 import { DBG, DEBUG_ADDR } from "../spec/pjgb.ts";
 
 const ROOT = new URL("../..", import.meta.url).pathname;
@@ -53,9 +53,9 @@ const shot = (n: string): Step => ({ op: "screenshot", path: `${SHOTS}/${n}.ppm`
 
 async function main(): Promise<void> {
   console.log("Building demo ROM...");
-  const built = await compile(ROOT + "aot/demo/game.tsx");
+  const built = await compile(ROOT + "aot/demo/game.tsx", "gba");
   const di = debugInfo(built) as { flags: Record<string, { byteAddr: number; bit: number }>; texts: string[]; maps: Record<string, number> };
-  const rom = await buildRom(built.blob, ROM);
+  const rom = await buildGba(built, ROM);
   await $`mkdir -p ${SHOTS}`.quiet();
   console.log(`ROM: ${rom.size} bytes\n`);
 

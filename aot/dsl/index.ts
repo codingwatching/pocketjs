@@ -117,6 +117,7 @@ export interface MapDecl {
   tileset: string;
   root: PjgbNode; // the <Map> element tree
   size?: [number, number];
+  onEnter?: ScriptRef; // script that runs whenever this map loads
 }
 export interface GameDecl {
   title: string;
@@ -127,6 +128,12 @@ export interface GameDecl {
   battles?: string[];
   flags?: string[];
   vars?: string[];
+  /**
+   * Text renderer: "ascii8" = legacy 8x8 ASCII font (GBA only); "cjk16" =
+   * 16px lines with on-demand Unifont glyph streaming (any target; forced on
+   * gb/nes). Default: ascii8 on gba, cjk16 elsewhere.
+   */
+  textMode?: "ascii8" | "cjk16";
 }
 
 export interface Registry {
@@ -444,6 +451,12 @@ export class MapBuilder<Name extends string = string, Tileset extends TilesetDec
     return new AtPlacement(this, "Warp", { to }, this.append);
   }
 
+  onEnter(scriptRef: ScriptRef): this {
+    this.onEnterRef = scriptRef;
+    return this;
+  }
+  private onEnterRef?: ScriptRef;
+
   done(): MapDecl {
     const firstLayer = this.children.find((c) => c.host === "Layer");
     const rows = firstLayer?.props.rows as string[] | undefined;
@@ -453,6 +466,7 @@ export class MapBuilder<Name extends string = string, Tileset extends TilesetDec
       tileset: this.tilesetDecl.name,
       root,
       size: rows ? [rows[0]?.length ?? 0, rows.length] : undefined,
+      onEnter: this.onEnterRef,
     };
     REGISTRY.maps.push(decl);
     return decl;
@@ -567,6 +581,27 @@ export function setVar(_id: VarId | string, _value: number): unknown {
 }
 export function addVar(_id: VarId | string, _delta: number): unknown {
   return undefined;
+}
+// Compare a var against a compile-time constant; yields a testable value for
+// `if (yield varGt("hp", 0))` / `while (yield varGt("hp", 0))`.
+export function varEq(_id: VarId | string, _value: number): boolean {
+  return false;
+}
+export function varGt(_id: VarId | string, _value: number): boolean {
+  return false;
+}
+export function varLt(_id: VarId | string, _value: number): boolean {
+  return false;
+}
+export function varGe(_id: VarId | string, _value: number): boolean {
+  return false;
+}
+export function varLe(_id: VarId | string, _value: number): boolean {
+  return false;
+}
+/** Uniform random integer 0..n-1 (frame-seeded LCG on the cartridge). */
+export function rnd(_n: number): number {
+  return 0;
 }
 export function playSfx(_id: string): unknown {
   return undefined;

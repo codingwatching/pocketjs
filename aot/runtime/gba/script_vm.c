@@ -221,6 +221,33 @@ void vm_tick(void) {
         (void)id; // stub
         break;
       }
+      case OP_LT: {
+        s16 b = pop(), a = pop();
+        push(a < b ? 1 : 0);
+        break;
+      }
+      case OP_GT: {
+        s16 b = pop(), a = pop();
+        push(a > b ? 1 : 0);
+        break;
+      }
+      case OP_LE: {
+        s16 b = pop(), a = pop();
+        push(a <= b ? 1 : 0);
+        break;
+      }
+      case OP_GE: {
+        s16 b = pop(), a = pop();
+        push(a >= b ? 1 : 0);
+        break;
+      }
+      case OP_RND: {
+        u8 n = rd_u8();
+        if (g.rng == 0) g.rng = (u16)(g.frame | 1);
+        g.rng = (u16)(g.rng * 25173u + 13849u);
+        push(n ? (s16)((g.rng >> 4) % n) : 0);
+        break;
+      }
       default:
         // Unknown opcode: fail safe by ending the script.
         g.vm.active = 0;
