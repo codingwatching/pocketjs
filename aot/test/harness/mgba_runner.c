@@ -1,11 +1,13 @@
 /*
- * mgba_runner.c — headless GBA emulator test runner for PocketJS-AOT.
+ * mgba_runner.c — headless GBA/GB emulator test runner for PocketJS-AOT.
  *
  * Links against libmgba 0.10.5 (Homebrew). Runs a ROM under a scripted
  * "scenario" of input/advance/read/screenshot steps and prints a JSON
- * result to stdout.
+ * result to stdout. The core is auto-detected from the ROM (mCoreFindVF),
+ * so the same binary drives .gba and .gb ROMs; the first 8 key bit indices
+ * are identical on both cores.
  *
- *   Usage: mgba_runner <rom.gba> <scenario.json>
+ *   Usage: mgba_runner <rom.gba|rom.gb> <scenario.json>
  *
  * Scenario shape (see README of the harness):
  *   { "steps": [
@@ -491,10 +493,14 @@ int main(int argc, char** argv) {
 		die("scenario missing \"steps\" array");
 	}
 
-	/* --- Create and initialise the GBA core. --- */
-	struct mCore* core = GBACoreCreate();
+	/* --- Open the ROM and auto-detect its core (GBA or GB). --- */
+	struct VFile* rom = VFileOpen(rom_path, O_RDONLY);
+	if (!rom) {
+		die("cannot open ROM: %s", rom_path);
+	}
+	struct mCore* core = mCoreFindVF(rom);
 	if (!core) {
-		die("GBACoreCreate failed");
+		die("no emulator core recognizes: %s", rom_path);
 	}
 	if (!core->init(core)) {
 		die("core init failed");
@@ -503,18 +509,13 @@ int main(int argc, char** argv) {
 
 	/* --- Allocate and register the video buffer. --- */
 	unsigned width = 0, height = 0;
-	core->desiredVideoDimensions(core, &width, &height); /* GBA: 240x160 */
+	core->desiredVideoDimensions(core, &width, &height); /* GBA 240x160 / GB 160x144 */
 	color_t* video = malloc((size_t)width * height * BYTES_PER_PIXEL);
 	if (!video) {
 		die("cannot allocate video buffer (%ux%u)", width, height);
 	}
 	core->setVideoBuffer(core, video, width); /* stride == width pixels */
 
-	/* --- Load the ROM (core takes ownership of the VFile). --- */
-	struct VFile* rom = VFileOpen(rom_path, O_RDONLY);
-	if (!rom) {
-		die("cannot open ROM: %s", rom_path);
-	}
 	if (!core->loadROM(core, rom)) {
 		die("loadROM failed: %s", rom_path);
 	}

@@ -29,27 +29,52 @@ export function textCells(s: string): number {
 
 /**
  * Wrap `text` to `cols` halfcells per line and split into pages of at most
- * `lines` lines. Explicit "\n" in the source is honored. Lines break at the
- * last position that fits (CJK breaks anywhere; no hyphenation for ASCII —
- * an over-long ASCII word breaks mid-word, which is fine for game dialogue).
+ * `lines` lines. Explicit "\n" in the source is honored. Breaking units:
+ * ASCII words stay whole (greedy word wrap), CJK chars break anywhere, and
+ * an over-long single word hard-breaks mid-word.
  */
 export function wrapPages(text: string, spec: Pick<TargetSpec, "textCols" | "textLines">): string[] {
+  const cols = spec.textCols;
   const lines: string[] = [];
   for (const src of text.split("\n")) {
+    // units: runs of printable ASCII (words), runs of spaces, single other chars
+    const units = src.match(/[\x21-\x7e]+| +|[^\x20-\x7e]/g) ?? [];
     let line = "";
     let cells = 0;
-    for (const ch of src) {
-      const w = charCells(ch);
-      if (cells + w > spec.textCols) {
-        lines.push(line);
-        line = "";
-        cells = 0;
-        if (ch === " ") continue; // do not start a wrapped line with a space
+    const flush = (): void => {
+      lines.push(line.trimEnd());
+      line = "";
+      cells = 0;
+    };
+    for (const u of units) {
+      const w = textCells(u);
+      if (u.startsWith(" ")) {
+        if (cells > 0 && cells + w <= cols) {
+          line += u;
+          cells += w;
+        } // leading/overflowing spaces are dropped at breaks
+        continue;
       }
-      line += ch;
-      cells += w;
+      if (cells + w <= cols) {
+        line += u;
+        cells += w;
+        continue;
+      }
+      if (cells > 0) flush();
+      if (w <= cols) {
+        line = u;
+        cells = w;
+        continue;
+      }
+      // single unit wider than the box: hard-break by chars
+      for (const ch of u) {
+        const cw = charCells(ch);
+        if (cells + cw > cols) flush();
+        line += ch;
+        cells += cw;
+      }
     }
-    lines.push(line);
+    flush();
   }
   const pages: string[] = [];
   for (let i = 0; i < lines.length; i += spec.textLines) {

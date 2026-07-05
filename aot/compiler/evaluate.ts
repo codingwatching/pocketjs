@@ -12,6 +12,8 @@ import { pathToFileURL } from "node:url";
 const DSL_DIR = new URL("../dsl", import.meta.url).pathname; // for jsxImportSource
 const DSL_INDEX = new URL("../dsl/index.ts", import.meta.url).pathname;
 
+let evalCounter = 0;
+
 export interface ScriptSite {
   id: number;
   body: ts.FunctionExpression | ts.ArrowFunction;
@@ -84,13 +86,16 @@ export async function evaluateGame(entryPath: string): Promise<EvalResult> {
 
   // Execute: write to a sibling temp file so relative/abs imports resolve, then
   // import it. Import the DSL via the SAME absolute path to share REGISTRY.
+  // The file name carries a per-process counter: Bun caches modules by path
+  // (query strings do not bust the cache), and one process may compile the
+  // same entry for several targets.
   const dsl = (await import(DSL_INDEX)) as typeof import("../dsl/index.ts");
   dsl.__resetRegistry();
 
-  const tmp = entryPath + `.__pjgb.${process.pid}.mjs`;
+  const tmp = entryPath + `.__pjgb.${process.pid}.${evalCounter++}.mjs`;
   await Bun.write(tmp, js);
   try {
-    await import(pathToFileURL(tmp).href + `?t=${Date.now()}`);
+    await import(pathToFileURL(tmp).href);
   } finally {
     await Bun.file(tmp)
       .exists()

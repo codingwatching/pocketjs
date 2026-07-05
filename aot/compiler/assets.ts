@@ -19,8 +19,9 @@ export function parseRows(rows: readonly string[], w: number, h: number): number
 
 export function collectAssets(ctx: Ctx, registry: Registry): void {
   const game = registry.game!;
-  // v1: every map shares one tileset.
-  const tilesetNames = new Set(registry.maps.map((m) => m.tileset));
+  // v1: every map shares one tileset. (game.maps, not registry.maps — helper
+  // modules are cached across compiles in one process.)
+  const tilesetNames = new Set(game.maps.map((m) => m.tileset));
   if (tilesetNames.size !== 1) {
     throw new Error(`v1 supports one tileset per game (found: ${[...tilesetNames].join(", ")})`);
   }

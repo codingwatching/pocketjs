@@ -155,10 +155,17 @@ const REGISTRY: Registry = {
   scriptCount: 0,
 };
 
-/** Compiler entry point: reset before executing a fresh game module. */
+/**
+ * Compiler entry point: reset before executing a fresh game module.
+ *
+ * Only per-run state (the game decl + the map list) is cleared. Tileset and
+ * sprite declarations often live in helper modules (e.g. demo/assets.ts)
+ * whose top-level side effects run ONCE per process — Bun caches them by
+ * resolved path — so clearing those interners would lose them on the second
+ * compile in one process (e.g. building several targets). Their define*
+ * calls are idempotent (keyed by name), so persisting them is safe.
+ */
 export function __resetRegistry(): void {
-  REGISTRY.tilesets.clear();
-  REGISTRY.sprites.clear();
   REGISTRY.maps = [];
   REGISTRY.game = null;
   REGISTRY.scriptCount = 0;

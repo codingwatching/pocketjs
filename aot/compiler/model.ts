@@ -61,9 +61,11 @@ const dirOf = (v: unknown, dflt = DIR.DOWN): number =>
 
 export function buildModel(ctx: Ctx, registry: Registry, mode: TextMode = "ascii8"): GameModel {
   const game = registry.game!;
-  registry.maps.forEach((m, i) => ctx.mapIndex.set(m.name, i));
+  // Iterate the game's OWN map decls (direct object refs), not the registry
+  // accumulator: helper modules are cached across compiles in one process.
+  game.maps.forEach((m, i) => ctx.mapIndex.set(m.name, i));
 
-  const maps: MapModel[] = registry.maps.map((mapDecl, index) => {
+  const maps: MapModel[] = game.maps.map((mapDecl, index) => {
     const tileset = registry.tilesets.get(mapDecl.tileset)!;
     const children = mapDecl.root.children;
     const layer = children.find((c) => c.host === "Layer");
