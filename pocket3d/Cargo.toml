@@ -1,0 +1,98 @@
+# Pocket3D — a Rust-first 3D runtime for constrained, code-driven games.
+#
+# INDEPENDENT WORKSPACE. This is deliberately its own workspace and must NOT be
+# folded into a repo-root workspace: the PocketJS PSP EBOOT crate (native/) is a
+# standalone lone-bin crate that cargo-psp requires to live outside any
+# workspace. Pocket3D is a separate desktop runtime with no dependency on the
+# PocketJS 2D/PSP core.
+#
+# The wgpu render backend is excluded from `default-members` so `cargo build`
+# and `cargo test` exercise the entire headless-testable gameplay runtime
+# without pulling the heavy graphics dependency tree. Build it explicitly with
+# `cargo build -p pocket3d-render-wgpu` or run OpenStrike windowed with
+# `cargo run -p openstrike --features window`.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/pocket3d-core",
+    "crates/pocket3d-app",
+    "crates/pocket3d-render",
+    "crates/pocket3d-render-wgpu",
+    "crates/pocket3d-assets",
+    "crates/pocket3d-bsp",
+    "crates/pocket3d-physics",
+    "crates/pocket3d-kcc",
+    "crates/pocket3d-anim",
+    "crates/pocket3d-audio",
+    "crates/pocket3d-script",
+    "crates/pocket3d-tools",
+    "examples/openstrike",
+]
+default-members = [
+    "crates/pocket3d-core",
+    "crates/pocket3d-app",
+    "crates/pocket3d-render",
+    "crates/pocket3d-assets",
+    "crates/pocket3d-bsp",
+    "crates/pocket3d-physics",
+    "crates/pocket3d-kcc",
+    "crates/pocket3d-anim",
+    "crates/pocket3d-audio",
+    "crates/pocket3d-script",
+    "crates/pocket3d-tools",
+    "examples/openstrike",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/pocketjs/pocket"
+rust-version = "1.80"
+
+[workspace.dependencies]
+# Internal crates
+pocket3d-core = { path = "crates/pocket3d-core" }
+pocket3d-app = { path = "crates/pocket3d-app" }
+pocket3d-render = { path = "crates/pocket3d-render" }
+pocket3d-render-wgpu = { path = "crates/pocket3d-render-wgpu" }
+pocket3d-assets = { path = "crates/pocket3d-assets" }
+pocket3d-bsp = { path = "crates/pocket3d-bsp" }
+pocket3d-physics = { path = "crates/pocket3d-physics" }
+pocket3d-kcc = { path = "crates/pocket3d-kcc" }
+pocket3d-anim = { path = "crates/pocket3d-anim" }
+pocket3d-audio = { path = "crates/pocket3d-audio" }
+pocket3d-script = { path = "crates/pocket3d-script" }
+
+# Shared third-party
+glam = { version = "0.29", features = ["bytemuck"] }
+bytemuck = { version = "1", features = ["derive"] }
+slotmap = "1"
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+image = { version = "0.25", default-features = false, features = ["png"] }
+log = "0.4"
+env_logger = "0.11"
+clap = { version = "4", features = ["derive"] }
+gltf = { version = "1.4", default-features = false, features = ["import", "utils", "names"] }
+
+# Graphics / windowing (only the wgpu backend + windowed OpenStrike use these)
+wgpu = "22"
+winit = "0.30"
+pollster = "0.3"
+
+# Scripting (QuickJS)
+rquickjs = { version = "0.6", features = ["macro"] }
+
+# Audio (optional backend)
+rodio = { version = "0.19", default-features = false }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

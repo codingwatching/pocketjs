@@ -1,0 +1,25 @@
+[package]
+name = "pocket3d-tools"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The p3d CLI: BSP inspection/build, asset packing, and placeholder asset generation."
+
+[[bin]]
+name = "p3d"
+path = "src/main.rs"
+
+[features]
+default = ["pipeline"]
+# The compiled-asset pipeline (pak build, glTF/bot generation) pulls the asset
+# crate. BSP inspection works without it.
+pipeline = ["dep:pocket3d-assets"]
+
+[dependencies]
+pocket3d-core.workspace = true
+pocket3d-bsp.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+bytemuck.workspace = true
+
+pocket3d-assets = { workspace = true, optional = true }

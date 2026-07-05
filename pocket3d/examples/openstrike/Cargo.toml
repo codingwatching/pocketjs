@@ -1,0 +1,44 @@
+[package]
+name = "openstrike"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "openstrike"
+path = "src/main.rs"
+
+[features]
+default = []
+# Windowed play via the wgpu backend + winit. Excluded from the default,
+# headless-verifiable build, and it also pulls the asset pipeline (bot/weapon
+# models) which the headless simulation does not need.
+window = [
+    "dep:pocket3d-render-wgpu",
+    "dep:pocket3d-assets",
+    "dep:winit",
+    "dep:pollster",
+]
+
+[dependencies]
+pocket3d-core.workspace = true
+pocket3d-app.workspace = true
+pocket3d-render.workspace = true
+pocket3d-bsp.workspace = true
+pocket3d-physics.workspace = true
+pocket3d-kcc.workspace = true
+pocket3d-anim.workspace = true
+pocket3d-audio.workspace = true
+pocket3d-script.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+glam.workspace = true
+log.workspace = true
+env_logger.workspace = true
+toml.workspace = true
+serde.workspace = true
+
+pocket3d-assets = { workspace = true, optional = true }
+pocket3d-render-wgpu = { workspace = true, optional = true }
+winit = { workspace = true, optional = true }
+pollster = { workspace = true, optional = true }

@@ -1,0 +1,28 @@
+[package]
+name = "pocket3d-assets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Asset pipeline: .p3dpak archives, glTF/GLB import, and procedural (CC0) placeholder content."
+
+[dependencies]
+pocket3d-core.workspace = true
+pocket3d-bsp.workspace = true
+pocket3d-anim.workspace = true
+pocket3d-render.workspace = true
+glam.workspace = true
+bytemuck.workspace = true
+gltf.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Optional: only needed to decode compressed textures the gltf crate itself
+# does not hand back as raw pixels. Our own procedural assets carry no textures.
+image = { workspace = true, optional = true }
+
+[features]
+default = []
+# Enable second-stage texture decode via the `image` crate.
+image-decode = ["dep:image"]

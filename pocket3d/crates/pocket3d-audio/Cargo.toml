@@ -1,0 +1,15 @@
+[package]
+name = "pocket3d-audio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Minimal, dependency-light audio abstraction for the Pocket3D runtime (DESIGN.md §22)."
+
+[dependencies]
+pocket3d-core.workspace = true
+# `glam` is pulled directly (not just via the core re-export) so the public
+# `AudioBackend` signatures read as `glam::Vec3`, matching DESIGN.md §22 verbatim.
+# It is the same pinned 0.29 build the whole workspace shares.
+glam.workspace = true
+# Build-time-only proc macro used for the `WavError` type. No runtime weight.
+thiserror.workspace = true

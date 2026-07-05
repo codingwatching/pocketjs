@@ -1,0 +1,12 @@
+[package]
+name = "pocket3d-script"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+pocket3d-core.workspace = true
+anyhow.workspace = true
+serde = { workspace = true }
+serde_json = { workspace = true }
+rquickjs = { workspace = true }

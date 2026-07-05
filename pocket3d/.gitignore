@@ -1,0 +1,14 @@
+/target
+Cargo.lock
+# Proprietary map/texture content is dev-only and must never be committed
+# (see DESIGN.md §11 Dust2 policy). Generated caches/paks are also ignored.
+*.bsp
+*.wad
+*.p3dpak
+*.p3dworld
+*.p3dtex
+*.p3dmesh
+*.p3dskin
+*.p3danim
+# ...except intentionally-committed project-owned test/generated assets:
+!examples/openstrike/assets/**/*.glb

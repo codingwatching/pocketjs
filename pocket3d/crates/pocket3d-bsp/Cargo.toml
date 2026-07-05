@@ -1,0 +1,12 @@
+[package]
+name = "pocket3d-bsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "GoldSrc BSP v30 + WAD3 ingestion: world mesh, lightmap atlas, collision, entities."
+
+[dependencies]
+pocket3d-core.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
