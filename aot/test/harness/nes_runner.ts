@@ -8,7 +8,7 @@
 // (RAM 0x0000-0x07FF holds the PJ debug block at 0x0700). Output JSON on
 // stdout: {"reads": {...}, "ok": true}.
 
-import jsnes from "jsnes";
+import { NES, Controller } from "jsnes";
 
 const [romPath, scenarioPath] = process.argv.slice(2);
 if (!romPath || !scenarioPath) {
@@ -23,18 +23,18 @@ type Step =
   | { op: "screenshot"; path: string };
 
 const BTN: Record<string, number> = {
-  A: jsnes.Controller.BUTTON_A,
-  B: jsnes.Controller.BUTTON_B,
-  SELECT: jsnes.Controller.BUTTON_SELECT,
-  START: jsnes.Controller.BUTTON_START,
-  UP: jsnes.Controller.BUTTON_UP,
-  DOWN: jsnes.Controller.BUTTON_DOWN,
-  LEFT: jsnes.Controller.BUTTON_LEFT,
-  RIGHT: jsnes.Controller.BUTTON_RIGHT,
+  A: Controller.BUTTON_A,
+  B: Controller.BUTTON_B,
+  SELECT: Controller.BUTTON_SELECT,
+  START: Controller.BUTTON_START,
+  UP: Controller.BUTTON_UP,
+  DOWN: Controller.BUTTON_DOWN,
+  LEFT: Controller.BUTTON_LEFT,
+  RIGHT: Controller.BUTTON_RIGHT,
 };
 
 let frameBuffer: number[] | null = null;
-const nes = new jsnes.NES({
+const nes = new NES({
   onFrame: (fb: number[]) => {
     frameBuffer = fb;
   },

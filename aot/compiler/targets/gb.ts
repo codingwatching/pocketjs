@@ -38,7 +38,7 @@ const GB_SCRIPT_BUF = 2048;
 const lum = (c: Rgb): number => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
 
 /** Map an RGB to a DMG shade 0 (lightest) .. 3 (darkest). */
-function shadeOf(c: Rgb): number {
+export function shadeOf(c: Rgb): number {
   const l = lum(c);
   if (l >= 192) return 0;
   if (l >= 128) return 1;
