@@ -11,6 +11,8 @@ Full design + contracts: [DESIGN.md](./DESIGN.md).
 
 ## Screenshots
 
+https://github.com/user-attachments/assets/dbbf656f-a3b2-411d-ab52-fece6a10f68a
+
 These PocketJS UIs run smoothly at 60 FPS on a Sony PSP within an 8 MB memory
 budget, including animated transitions and input feedback.
 
