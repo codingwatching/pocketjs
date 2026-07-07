@@ -1,7 +1,8 @@
-// saga/test/e2e.ts — build 《渐进人生》 and play it headlessly in mGBA,
-// asserting the debug-block contract scene by scene: menu navigation, control
-// walks, mash counters, choice branches (incl. the hesitate loop), white-fade
-// scene chaining, credits, and the coda -> title loop.
+// saga/test/e2e.ts — build REALITY DISTORTION and play it headlessly in mGBA,
+// asserting the debug-block contract: title menu, world roaming + gates
+// (workbench), the Breakout night, the sugared-water conviction battle, the
+// Bandley -> Flint Center chain with the Mac's documented line, and the
+// credits -> title loop.
 //
 //   bun test/e2e.ts
 
@@ -9,12 +10,12 @@ import { $ } from "bun";
 import { compileFilm } from "../compiler/index.ts";
 import { emitGenData } from "../compiler/emit.ts";
 import { buildRom } from "../compiler/rom.ts";
-import { DEBUG_ADDR, DBG, DBG_MAGIC, WAITING } from "../spec/saga.ts";
+import { DEBUG_ADDR, DBG, DBG_MAGIC, WAITING, SCENE_WORLD, SCENE_CINE } from "../spec/saga.ts";
 
 const HERE = new URL(".", import.meta.url).pathname;
 const ROOT = HERE + "../";
 const RUNNER = ROOT + "../aot/test/harness/mgba_runner";
-const ROM = ROOT + "dist/progressive-life.gba";
+const ROM = ROOT + "dist/reality-distortion.gba";
 const SHOTS = ROOT + "dist/shots";
 
 type Step =
@@ -25,6 +26,7 @@ type Step =
 
 const A = (n = 8): Step => ({ op: "press", buttons: ["A"], frames: 1, release: n });
 const DOWN: Step = { op: "press", buttons: ["DOWN"], frames: 1, release: 6 };
+const hold = (b: string, frames: number): Step => ({ op: "press", buttons: [b], frames, release: 4 });
 const adv = (frames: number): Step => ({ op: "advance", frames });
 const rd = (name: string, off: number, size: 1 | 2 | 4 = 1): Step => ({ op: "read", name, addr: DEBUG_ADDR + off, size });
 const shot = (n: string): Step => ({ op: "screenshot", path: `${SHOTS}/${n}.ppm` });
@@ -47,16 +49,16 @@ function check(name: string, got: unknown, want: unknown): void {
   console.log(`  ${ok ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m"} ${name}: got ${got}${ok ? "" : `, want ${want}`}`);
   ok ? passed++ : failed++;
 }
-function checkNear(name: string, got: number, want: number, tol: number): void {
-  const ok = Math.abs(got - want) <= tol;
-  console.log(`  ${ok ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m"} ${name}: got ${got}${ok ? "" : `, want ${want}±${tol}`}`);
-  ok ? passed++ : failed++;
+function checkTrue(name: string, got: boolean, detail = ""): void {
+  console.log(`  ${got ? "\x1b[32mPASS\x1b[0m" : "\x1b[31mFAIL\x1b[0m"} ${name}${detail ? `: ${detail}` : ""}`);
+  got ? passed++ : failed++;
 }
 
-// menu helpers: boot -> title card -> (从头播放 | chapter n)
-const bootToMenu: Step[] = [adv(230)];
-const pickChapter = (page2: boolean, index: number): Step[] => {
-  const s: Step[] = [...bootToMenu, DOWN, A(), adv(10)];
+// title menu: boot -> Play (A) or a chapter pick
+const boot: Step[] = [adv(260)];
+const play: Step[] = [...boot, A(), adv(40)];
+const chapter = (page2: boolean, index: number): Step[] => {
+  const s: Step[] = [...boot, DOWN, A(), adv(10)];
   const downs = page2 ? 4 : index;
   for (let i = 0; i < downs; i++) s.push(DOWN);
   s.push(A(), adv(10));
@@ -64,13 +66,14 @@ const pickChapter = (page2: boolean, index: number): Step[] => {
     for (let i = 0; i < index; i++) s.push(DOWN);
     s.push(A(), adv(10));
   }
+  s.push(adv(60));
   return s;
 };
 
 async function main(): Promise<void> {
-  console.log("Building 渐进人生...");
-  const film = await compileFilm(ROOT + "film/progressive-life.ts");
-  const rom = await buildRom(emitGenData(film), ROM, "PROGLIFE");
+  console.log("Building REALITY DISTORTION...");
+  const film = await compileFilm(ROOT + "game/reality-distortion.ts");
+  const rom = await buildRom(emitGenData(film), ROM, "REALDISTORT");
   await $`mkdir -p ${SHOTS}`.quiet();
   console.log(`ROM: ${rom.size} bytes, ${film.scenes.length} scenes, ${film.debug.texts.length} texts\n`);
 
@@ -86,172 +89,295 @@ async function main(): Promise<void> {
     return i;
   };
 
-  console.log("Scenario 1 — boot, title, 从头播放, chapter 1 beat");
+  console.log("Scenario 1 — boot, title menu, workbench world + gate");
   {
     const r = await run([
-      adv(60),
+      adv(80),
       rd("magic", DBG.MAGIC, 4),
       rd("booted", DBG.BOOTED),
       rd("scene0", DBG.SCENE),
-      adv(170),
-      rd("waiting_menu", DBG.WAITING),
-      shot("e2e_title"),
-      A(), // 从头播放
-      adv(80),
+      adv(180),
+      rd("menu_wait", DBG.WAITING),
+      shot("rd_title"),
+      A(), // Play
+      adv(120),
       rd("scene1", DBG.SCENE),
-      adv(160), // dad dialog typing
-      A(), // dismiss dad dialog
-      adv(40),
-      rd("walk_wait", DBG.WAITING),
-      { op: "press", buttons: ["RIGHT"], frames: 140, release: 4 },
-      rd("kidx", DBG.SPR0_X, 2),
-      adv(20),
-      A(), // (按下电源。)
-      adv(60),
-      A(), // 画画 caption
-      adv(30),
+      rd("kind1", DBG.KIND),
+      rd("waiting_world", DBG.WAITING),
+      rd("cx0", DBG.PLAYER_CX),
+      rd("cy0", DBG.PLAYER_CY),
+      shot("rd_garage62"),
+      // try to leave without the bench: down-left to the door
+      hold("LEFT", 80),
+      hold("DOWN", 60),
+      adv(30), // gate dialog appears (DAD: not yet)
+      rd("gate_dialog", DBG.WAITING),
       A(),
-      adv(200), // mosaic + fade + scene advance
+      adv(20),
+      // now do it right: to the dad, then the bench
+      hold("UP", 20),
+      hold("RIGHT", 20),
+      hold("UP", 40), // ends around (3..4, 8) area facing up
+      adv(10),
+      // walk to a bench-facing cell: left along row 8
+      hold("LEFT", 60),
+      hold("UP", 20),
+      A(), // bench caption
+      adv(60),
+      rd("bench_wait", DBG.WAITING),
+      A(), // dismiss caption -> dad dialogs
+      adv(60),
+      A(),
+      adv(60),
+      A(),
+      adv(20),
+      rd("back_world", DBG.WAITING),
+      shot("rd_bench"),
+      // leave through the door (bottom-left)
+      hold("DOWN", 80),
+      hold("LEFT", 80),
+      hold("DOWN", 40),
+      adv(80),
       rd("scene2", DBG.SCENE),
     ]);
-    check("debug magic", r.magic >>> 0, DBG_MAGIC);
+    check("debug magic 'SAGA'", r.magic >>> 0, DBG_MAGIC);
     check("booted", r.booted, 1);
     check("boots into title", r.scene0, sc.title);
-    check("title menu is a choice", r.waiting_menu, WAITING.CHOICE);
-    check("从头播放 -> paint486", r.scene1, sc.paint486);
-    check("control walk active", r.walk_wait, WAITING.CONTROL);
-    checkNear("kid walked to the 486", r.kidx, 168, 4);
-    check("chapter 1 auto-advances to aquarium", r.scene2, sc.aquarium);
+    check("title menu is a choice", r.menu_wait, WAITING.CHOICE);
+    check("Play -> workbench", r.scene1, sc.garage62);
+    check("workbench is a WORLD scene", r.kind1, SCENE_WORLD);
+    check("roaming", r.waiting_world, WAITING.WORLD);
+    check("kid starts at cx=10", r.cx0, 10);
+    check("kid starts at cy=9", r.cy0, 9);
+    check("door is gated (dad speaks)", r.gate_dialog, WAITING.DIALOG);
+    check("bench caption waits for A", r.bench_wait, WAITING.A);
+    check("bench cue returns to roam", r.back_world, WAITING.WORLD);
+    check("door now exits to the call", r.scene2, sc.hewlett);
   }
 
-  console.log("Scenario 2 — chapter select -> 一个URL: control + HN mash");
+  console.log("Scenario 2 — chapter: Breakout night at Atari");
   {
     const r = await run([
-      ...pickChapter(false, 2),
-      adv(80),
+      ...chapter(false, 3),
       rd("scene", DBG.SCENE),
+      adv(120),
+      A(), // boss dialog
       adv(60),
-      A(), // book caption
+      A(), // woz dialog
       adv(60),
-      { op: "press", buttons: ["RIGHT"], frames: 250, release: 4 },
-      rd("evanx", DBG.SPR0_X, 2),
-      adv(60),
-      A(), // 小实验 caption
-      adv(80),
-      rd("mash_wait", DBG.WAITING),
-      rd("hn_before", varAddr("hn"), 2),
-      A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6),
-      rd("hn_after", varAddr("hn"), 2),
-      rd("after_mash_wait", DBG.WAITING),
-      shot("e2e_hn"),
+      A(), // instructions caption
+      adv(30),
+      rd("mini_wait", DBG.WAITING),
+      rd("bricks0", DBG.BRICKS),
+      shot("rd_breakout"),
+      A(), // launch
+      adv(600),
+      rd("bricks_mid", DBG.BRICKS),
+      adv(3200), // budget expires
+      rd("after", DBG.WAITING),
+      rd("cleared", varAddr("bricks"), 2),
     ]);
-    check("chapter menu -> nyc", r.scene, sc.nyc);
-    checkNear("evan walked to the dorm", r.evanx, 330, 4);
-    check("mash waiting", r.mash_wait, WAITING.MASH);
-    check("hn starts at 88", r.hn_before, 88);
-    check("12 presses reach 100", r.hn_after, 100);
-    check("mash completes", r.after_mash_wait === WAITING.MASH ? 1 : 0, 0);
+    check("chapter menu -> atari", r.scene, sc.atari);
+    check("breakout running", r.mini_wait, WAITING.MINIGAME);
+    check("4 rows x 12 bricks", r.bricks0, 48);
+    checkTrue("bricks fell", r.bricks_mid < 48, `bricks_mid=${r.bricks_mid}`);
+    checkTrue("night ended", r.after !== WAITING.MINIGAME, `waiting=${r.after}`);
+    checkTrue("cleared recorded", r.cleared >= 1, `cleared=${r.cleared}`);
   }
 
-  console.log("Scenario 3 — 那封信: hesitate loop, then the jump, white into 星星");
+  console.log("Scenario 3 — chapter: Sugared Water conviction battle");
   {
     const r = await run([
-      ...pickChapter(true, 0),
-      adv(100),
+      ...chapter(true, 2),
       rd("scene", DBG.SCENE),
-      adv(120),
-      A(), // patreon caption
-      adv(120),
-      A(), // 信箱 dialog
-      adv(50),
-      A(), // 妻子 1
-      adv(70),
-      A(), // 妻子 2
+      adv(160),
+      A(), // "penthouse" caption
+      adv(90),
+      A(), // Sculley opener
       adv(40),
-      rd("choice_wait", DBG.WAITING),
-      DOWN,
-      A(), // 再想想
+      rd("battle_wait", DBG.WAITING),
+      rd("conv0", varAddr("conv"), 2),
+      shot("rd_sculley"),
+      // Paint the future x3 (2 -> 4 -> 6), then The question
+      DOWN, A(), adv(80), A(), adv(30),
+      DOWN, A(), adv(80), A(), adv(60), A(), adv(30),
+      rd("conv_mid", varAddr("conv"), 2),
+      DOWN, DOWN, A(), adv(80), A(), adv(60), A(), adv(60), A(), adv(30),
+      rd("conv_end", varAddr("conv"), 2),
       adv(60),
-      A(), // (雪停了)
-      adv(70),
-      A(), // caption
-      adv(30),
-      rd("loop_wait", DBG.WAITING), // choice again
-      A(), // 跳
-      adv(30),
-      rd("jumped", varAddr("jumped"), 2),
-      rd("choice_val", DBG.LAST_CHOICE),
-      adv(260), // 他跳了 + white fade
+      A(), // "..."
+      adv(40),
+      A(), // dangerous
+      adv(240), // chip + white fade out
       rd("scene_after", DBG.SCENE),
-      shot("e2e_stars"),
     ]);
-    check("chapter menu page 2 -> letter", r.scene, sc.letter);
-    check("the choice appears", r.choice_wait, WAITING.CHOICE);
-    check("再想想 loops back to the choice", r.loop_wait, WAITING.CHOICE);
-    check("跳 sets the flag", r.jumped, 1);
-    check("last choice recorded", r.choice_val, 0);
-    check("white fade chains into 星星", r.scene_after, sc.stars);
+    check("chapter menu -> sculley", r.scene, sc.sculley);
+    check("battle is a choice loop", r.battle_wait, WAITING.CHOICE);
+    check("conviction starts at 2", r.conv0, 2);
+    checkTrue("future pitches build conviction", r.conv_mid >= 4, `conv=${r.conv_mid}`);
+    check("the question lands at 8", r.conv_end, 8);
+    check("white fade chains into bandley", r.scene_after, sc.bandley);
   }
 
-  console.log("Scenario 4 — OnePiece -> 闪电 -> 启航 chain");
+  console.log("Scenario 4 — Bandley 3 world -> Flint Center: the Mac speaks");
   {
     const r = await run([
-      ...pickChapter(true, 2),
-      adv(80),
+      ...chapter(true, 3),
       rd("scene", DBG.SCENE),
-      adv(140),
-      A(), // RFC caption
+      rd("kind", DBG.KIND),
+      adv(30),
+      // to the mac desk: up to row 7, right until the desk stops us
+      hold("UP", 40),
+      hold("RIGHT", 80),
+      adv(10),
+      A(), // prototype caption
+      adv(70),
+      A(), // dismiss caption -> dialog starts typing
       adv(60),
-      A(), // 风暴 dialog
+      A(), // dismiss "Apple II is the past"
+      adv(20),
+      shot("rd_bandley"),
+      // to the door: left along row 7, up to row 5, right to the door column, up
+      hold("LEFT", 100),
+      hold("UP", 8), // exactly one step up, onto row 5 (row 4 has a plant)
+      hold("RIGHT", 60),
+      hold("UP", 20),
       adv(80),
-      A(), // 他 dialog
-      adv(160), // flag hoist
-      rd("flag_text", DBG.CUR_TEXT, 2),
-      A(), // one piece caption
-      adv(80),
-      rd("scene_vite", DBG.SCENE),
+      rd("scene_keynote", DBG.SCENE),
+      rd("kind_keynote", DBG.KIND),
       adv(200),
-      A(), // vite caption
-      adv(80),
-      A(), // npm create vite card -> 0.3s
-      adv(300),
-      A(), // 插上闪电
+      A(), // "January 24" caption
       adv(60),
-      A(), // 联合国
+      A(), // bow tie caption
+      adv(60),
+      A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6),
+      A(6), A(6), A(6), A(6), A(6), A(6), A(6), // applause mash (15 + spares)
+      adv(60),
+      A(), // canvas bag caption
       adv(120),
-      rd("scene_fleet", DBG.SCENE),
+      A(), // chariots caption
+      adv(60),
+      A(), // hello I am macintosh
+      adv(60),
+      A(), // out of that bag
+      adv(60),
+      rd("mac_line", DBG.CUR_TEXT, 2),
+      shot("rd_keynote"),
+      A(), // never trust
+      adv(80),
+      A(), A(6),
+      adv(60),
+      A(),
+      adv(60),
+      A(), // steve jobs!
+      adv(120),
+      A(), // thunder caption
+      adv(60),
+      A(), // tears caption
+      adv(300), // zoom + white fade
+      rd("scene_credits", DBG.SCENE),
     ]);
-    check("chapter menu -> onepiece", r.scene, sc.onepiece);
-    check("One Piece caption shows", r.flag_text, tid("Vue 3 起航,代号:\nOne Piece。") + 1);
-    check("white flash chains into 闪电", r.scene_vite, sc.vite);
-    check("闪电 chains into 启航", r.scene_fleet, sc.fleet);
+    check("chapter menu -> bandley", r.scene, sc.bandley);
+    check("bandley is a WORLD scene", r.kind, SCENE_WORLD);
+    check("door exits into the keynote", r.scene_keynote, sc.keynote);
+    check("keynote is cinematic", r.kind_keynote, SCENE_CINE);
+    check(
+      "the Mac's documented line is on deck",
+      r.mac_line,
+      tid("Never trust a computer\nthat you can't lift!") + 1,
+    );
+    check("white-out chains into credits", r.scene_credits, sc.credits);
   }
 
-  console.log("Scenario 5 — 山丘与片尾 -> credits -> loop to title");
+  console.log("Scenario 5 — credits loop back to the title");
   {
     const r = await run([
-      ...pickChapter(true, 4),
-      adv(120),
-      rd("scene", DBG.SCENE),
-      adv(80),
-      A(), // 渐进式 caption
-      adv(500), // credit cards
-      rd("cred_text", DBG.CUR_TEXT, 2),
-      adv(220),
-      A(), // 下一集
-      adv(60),
-      A(), // final card
-      adv(220),
-      rd("scene_back", DBG.SCENE),
-      rd("menu_wait_frames", DBG.FRAME, 2),
+      ...chapter(true, 3),
+      // skip through bandley quickly: mac desk then door (same route)
+      hold("UP", 40),
+      hold("RIGHT", 80),
+      adv(10),
+      A(), adv(70), A(), adv(60), A(), adv(20),
+      hold("LEFT", 100),
+      hold("UP", 8), // exactly one step up, onto row 5 (row 4 has a plant)
+      hold("RIGHT", 60),
+      hold("UP", 20),
+      adv(280),
+      A(), adv(60), A(), adv(60),
+      A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6), A(6),
+      A(6), A(6), A(6), A(6), A(6), A(6), A(6),
+      adv(60), A(), adv(120), A(), adv(60),
+      A(), adv(60), A(), adv(60), A(), adv(80), A(), A(6), adv(60), A(), adv(60), A(),
+      adv(120), A(), adv(60), A(), adv(300),
+      rd("scene_credits", DBG.SCENE),
+      adv(1100), // credit cards tick by
+      rd("back_title", DBG.SCENE),
+      rd("menu_again", DBG.WAITING),
+      shot("rd_credits_loop"),
     ]);
-    check("chapter menu -> coda", r.scene, sc.coda);
-    check(
-      "credits ticker running",
-      typeof r.cred_text === "number" && r.cred_text > 0 ? 1 : 0,
-      1,
+    check("reached credits", r.scene_credits, sc.credits);
+    check("credits loop to the title", r.back_title, sc.title);
+    checkTrue(
+      "title menu is live again",
+      r.menu_again === WAITING.CHOICE || r.menu_again === WAITING.BUSY,
+      `waiting=${r.menu_again}`,
     );
-    check("coda loops back to title", r.scene_back, sc.title);
+  }
+
+  console.log("Scenario 6 — Fifty Boards: woz branch-talk, supplier meter battle, delivery");
+  {
+    const r = await run([
+      ...chapter(true, 0),
+      rd("scene", DBG.SCENE),
+      adv(60), A(), adv(60), A(), adv(60), A(), adv(30), // intro captions
+      rd("roam", DBG.WAITING),
+      // woz stands at (3,7): up to the walkway, left until he blocks us
+      hold("UP", 24),
+      hold("LEFT", 80),
+      A(), // talk (his cue starts with an if — the blob-absolute jump test)
+      adv(70),
+      rd("woz_dialog", DBG.WAITING),
+      A(), // dismiss line 1
+      adv(60),
+      A(), // dismiss line 2
+      adv(20),
+      rd("woz_done", DBG.WAITING),
+      // phone on the wall at (7,3..5): right to (7,7), up to (7,6), face up
+      hold("RIGHT", 24),
+      hold("UP", 8),
+      hold("UP", 6),
+      A(), // examine -> parts man caption
+      adv(70),
+      A(), // dismiss -> encounter opens
+      adv(40),
+      rd("battle", DBG.WAITING),
+      shot("rd_supplier"),
+      A(), // Mention the order
+      adv(70), A(), adv(60), A(), adv(30),
+      rd("trust1", varAddr("trust"), 2),
+      DOWN, A(), // Promise net thirty
+      adv(70), A(), adv(30),
+      DOWN, A(), // and again -> trust >= 8
+      adv(70), A(), adv(40),
+      A(), // supplier: net thirty (closing dialog)
+      adv(60), A(), adv(60), // parts-on-credit caption
+      rd("credit", varAddr("credit"), 2),
+      // deliver: to the door at (8..10, 5) — exactly three steps right
+      hold("RIGHT", 20),
+      hold("UP", 20),
+      adv(140), // DAY 29 card
+      A(), // apple I caption
+      adv(120),
+      rd("scene_after", DBG.SCENE),
+    ]);
+    check("chapter menu -> garage76", r.scene, sc.garage76);
+    check("intro ends in roam", r.roam, WAITING.WORLD);
+    check("woz talk opens (if-branch sub-cue)", r.woz_dialog, WAITING.DIALOG);
+    check("woz talk returns to roam", r.woz_done, WAITING.WORLD);
+    check("supplier battle is a choice loop", r.battle, WAITING.CHOICE);
+    checkTrue("the order builds trust", r.trust1 >= 5, `trust=${r.trust1}`);
+    check("net-thirty closes the deal", r.credit, 1);
+    check("delivery chains into the faire", r.scene_after, sc.faire);
   }
 
   console.log(`\n${failed === 0 ? "\x1b[32m" : "\x1b[31m"}${passed} passed, ${failed} failed\x1b[0m`);

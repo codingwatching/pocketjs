@@ -1,14 +1,16 @@
-// saga/pixellab/generate.ts — generate every film asset through PixelLab and
-// cache it under film/art/ (committed, so builds never re-bill).
+// saga/pixellab/generate.ts — generate every game asset through PixelLab and
+// cache it under game/art/ (committed, so builds never re-bill).
 //   bun pixellab/generate.ts [--force] [--only name[,name]]
 //
-// Prompts are deliberately franchise-neutral: scenes and emblems are described
-// generically (a green gem shaped like a letter, a lightning gem, a sailing
-// ship) — this is an original fan tribute, not asset cloning.
+// Then `bun pixellab/walkers.ts` turns the *_s/_n/_e stills into walker sheets
+// (hero gets real 4-frame walk cycles via /animate-with-text).
+//
+// Prompts are deliberately franchise-neutral: machines are "vintage
+// computers", no logos, no trade dress. This is an original fan tribute.
 
 import { pixflux, balance, type PixfluxOpts } from "./client.ts";
 
-const OUT = new URL("../film/art/", import.meta.url).pathname;
+const OUT = new URL("../game/art/", import.meta.url).pathname;
 
 interface Spec extends Omit<PixfluxOpts, "width" | "height"> {
   name: string;
@@ -17,330 +19,319 @@ interface Spec extends Omit<PixfluxOpts, "width" | "height"> {
 }
 
 const PIXEL_STYLE = "clean 16-bit pixel art, limited palette, crisp pixels";
+const MAP_STYLE =
+  "seen directly from above like a Game Boy RPG town map, clean 16x16 tile alignment, top-down 2D RPG interior map";
+const SPRITE_STYLE = "tiny pixel art RPG overworld sprite, full body head to toe, Game Boy Advance RPG overworld style";
+
+const HERO = "young man in his early twenties, shoulder-length dark brown hair, short beard, white collared shirt, blue jeans, brown sandals";
+const KID = "twelve year old boy, short dark hair, orange striped t-shirt, blue shorts, sneakers";
+const DAD = "man in his fifties, short crew cut hair, plaid work shirt, gray trousers";
+const WOZ = "stocky young man, dark shaggy hair, full beard, square glasses, dark green shirt, jeans";
+const RESEARCHER = "man in his thirties, brown mustache, light blue button-up shirt, dark slacks";
+const TEAMMATE = "young woman, dark bobbed 80s hair, red sweater, dark skirt";
 
 export const SPECS: Spec[] = [
-  // --- backgrounds (main layers) ---------------------------------------------
+  // --- world maps (320x240 = 20x15 cells) --------------------------------------
   {
-    name: "bg_room90s",
+    name: "map_garage68",
+    w: 320,
+    h: 240,
+    description:
+      `top-down 2D RPG interior map of a 1960s American suburban garage, ${MAP_STYLE}, brown wooden plank walls forming the room border, smooth gray concrete floor, a long wooden workbench with hand tools and a vise along the top wall, a pegboard, an old sedan car parked on the right half, cardboard boxes and an oil can in a corner, a wall telephone near the top left door`,
+    negative: "people, person, human, text, side view, perspective, isometric",
+    view: "high top-down",
+    detail: "highly detailed",
+    shading: "basic shading",
+    seed: 62010,
+  },
+  {
+    name: "map_garage76",
+    w: 320,
+    h: 240,
+    description:
+      `top-down 2D RPG interior map of a 1970s American garage turned into a tiny electronics workshop, ${MAP_STYLE}, brown wooden plank walls forming the room border, gray concrete floor, two long assembly tables covered with bare green circuit boards and soldering irons, a burn-in rack of boards along one wall, stacked cardboard shipping boxes, a wall telephone near the top left door, warm work lamps`,
+    negative: "people, person, human, car, text, side view, perspective, isometric",
+    view: "high top-down",
+    detail: "highly detailed",
+    shading: "basic shading",
+    seed: 62011,
+  },
+  {
+    name: "map_parc",
+    w: 320,
+    h: 240,
+    description:
+      `top-down 2D RPG interior map of a 1970s corporate research laboratory, ${MAP_STYLE}, clean beige walls, light gray carpet floor, several white desks in an open plan, on one central desk a tall white computer with a vertical portrait monitor and a small box mouse on a pad, bookshelves along the top wall, a beanbag corner, potted plants`,
+    negative: "people, person, human, text, side view, perspective, isometric",
+    view: "high top-down",
+    detail: "highly detailed",
+    shading: "basic shading",
+    seed: 62012,
+  },
+  {
+    name: "map_bandley",
+    w: 320,
+    h: 240,
+    description:
+      `top-down 2D RPG interior map of an early 1980s open-plan software office, ${MAP_STYLE}, white walls, blue-gray carpet, desks with small beige computers and keyboards, a whiteboard on the top wall, a couch and coffee table corner with a rubber plant, pizza boxes on one desk, a tall flag pole in one corner`,
+    negative: "people, person, human, text, side view, perspective, isometric",
+    view: "high top-down",
+    detail: "highly detailed",
+    shading: "basic shading",
+    seed: 62013,
+  },
+
+  // --- cinematic backgrounds (240x160, side view) --------------------------------
+  {
+    name: "bg_title",
     w: 240,
     h: 160,
     description:
-      `1990s Chinese apartment interior at dusk, side view: wooden desk with a beige retro computer and boxy CRT monitor on the right, bookshelf and posters on the wall, window with distant water-town rooftops on the left, warm lamp light, ${PIXEL_STYLE}`,
-    negative: "people, text, letters",
+      `quiet California suburban street at dusk, side view: a modest ranch house with its garage door half open and glowing warm from inside, silhouetted fruit trees, purple-orange sky, first stars, ${PIXEL_STYLE}`,
+    negative: "people, text, letters, logo",
     view: "side",
-    shading: "medium shading",
-    detail: "medium detail",
-    seed: 42001,
+    shading: "detailed shading",
+    detail: "highly detailed",
+    seed: 62020,
   },
   {
-    name: "bg_classroom",
+    name: "bg_dorm",
     w: 240,
     h: 160,
     description:
-      `early-2000s classroom interior, side view: rows of desks in silhouette at the bottom, a large bright projector screen glowing pale blue on the front wall, chalkboard edge, dark room lit by the screen, ${PIXEL_STYLE}`,
+      `1971 college dorm room at night, side view: a narrow bed, a wooden desk crowded with electronic parts, a soldering iron, loose wires and a small blue metal box, one desk lamp, a rotary phone on the wall, posters, ${PIXEL_STYLE}`,
     negative: "people, text, letters",
     view: "side",
     shading: "medium shading",
-    detail: "medium detail",
-    seed: 42002,
+    detail: "highly detailed",
+    seed: 62021,
   },
   {
-    name: "bg_nyc",
-    w: 384,
-    h: 160,
-    description:
-      `rainy city night panorama, side view: on the left a lit bus stop with a bench, in the middle dark brownstone buildings with fire escapes, on the right a dorm room window glowing warm with a desk lamp and a small desk visible inside, wet street reflections, ${PIXEL_STYLE}`,
-    negative: "people, text, letters",
-    view: "side",
-    shading: "medium shading",
-    detail: "medium detail",
-    seed: 42003,
-  },
-  {
-    name: "bg_office",
+    name: "bg_reed",
     w: 240,
     h: 160,
     description:
-      `modern tech office at night, side view: a long desk with two glowing monitors, one desk lamp on, big windows behind showing a city skyline with tiny lights, empty chairs, blue-dark ambience with one warm pool of light, ${PIXEL_STYLE}`,
-    negative: "people, text, letters",
+      `sunlit college calligraphy classroom, side view: tall windows with dust motes, wooden drafting desks with ink pots and wide paper sheets showing flowing black pen strokes, a blackboard with elegant swash strokes drawn in chalk, warm morning light, ${PIXEL_STYLE}`,
+    negative: "people, readable words, letters, text",
     view: "side",
     shading: "medium shading",
-    detail: "medium detail",
-    seed: 42004,
+    detail: "highly detailed",
+    seed: 62022,
   },
   {
-    name: "bg_kitchen",
+    name: "bg_atari",
     w: 240,
     h: 160,
     description:
-      `small cozy apartment kitchen in the evening, side view: a wooden table with two chairs in the center, kettle on the stove, fridge with sticky notes, warm yellow light from a ceiling lamp, window with dark blue night outside, ${PIXEL_STYLE}`,
-    negative: "people, text, letters",
+      `1970s video game company workshop at night, side view: a row of dark arcade cabinets along the back wall, a workbench with an oscilloscope and circuit boards, one bright desk lamp pool of light, dark blue shadows, ${PIXEL_STYLE}`,
+    negative: "people, text, letters, screens with images",
     view: "side",
     shading: "medium shading",
-    detail: "medium detail",
-    seed: 42005,
+    detail: "highly detailed",
+    seed: 62023,
   },
   {
-    name: "bg_stage",
+    name: "bg_faire",
     w: 240,
     h: 160,
     description:
-      `dark conference stage, side view: a wide glowing presentation screen high on the back wall, a small podium on the right, two spotlight beams, front rows of audience heads as dark silhouettes at the bottom, teal and dark blue palette, ${PIXEL_STYLE}`,
+      `1977 computer trade show hall, side view: a convention booth with a clean beige home computer with integrated keyboard on a draped table, colorful pennant banners overhead, crowd barriers, bright show lighting, ${PIXEL_STYLE}`,
+    negative: "people, text, letters, logo",
+    view: "side",
+    shading: "medium shading",
+    detail: "highly detailed",
+    seed: 62024,
+  },
+  {
+    name: "bg_penthouse",
+    w: 240,
+    h: 160,
+    description:
+      `Manhattan penthouse balcony at dusk, side view: stone balustrade in the foreground, vast city skyline with lit windows below, hazy orange-to-blue gradient sky, two empty chairs and a small table with glasses, ${PIXEL_STYLE}`,
+    negative: "people, text, letters",
+    view: "side",
+    shading: "detailed shading",
+    detail: "highly detailed",
+    seed: 62025,
+  },
+  {
+    name: "bg_stage84",
+    w: 240,
+    h: 160,
+    description:
+      `dark auditorium stage, side view: one strong spotlight cone on a small table at center stage with a canvas bag on it, huge dark projection screen behind, front rows of audience as black silhouettes, deep blue darkness, ${PIXEL_STYLE}`,
     negative: "text, letters, faces",
     view: "side",
-    shading: "medium shading",
-    detail: "medium detail",
-    seed: 42006,
+    shading: "detailed shading",
+    detail: "highly detailed",
+    seed: 62026,
   },
   {
-    name: "bg_deskstorm",
+    name: "bg_orchard",
     w: 240,
     h: 160,
     description:
-      `home office at night during a thunderstorm, side view: a desk with a bright monitor in a dark room, a large window behind it streaked with rain, storm clouds and a flash of lightning outside, papers on the floor, a small toy on the shelf, cold blue palette with one bright screen, ${PIXEL_STYLE}`,
+      `rolling green orchard hills at sunrise, side view: rows of small fruit trees on soft hills, morning mist in the valley, pale gold sky with a rising sun, one dirt path, ${PIXEL_STYLE}`,
     negative: "people, text, letters",
     view: "side",
-    shading: "medium shading",
-    detail: "medium detail",
-    seed: 42007,
+    shading: "detailed shading",
+    detail: "highly detailed",
+    seed: 62027,
   },
+
+  // --- walker stills (32x32; sheets assembled by pixellab/walkers.ts) -----------
+  ...(
+    [
+      ["hero", HERO, 62030],
+      ["kid", KID, 62233],
+      ["dad", DAD, 62036],
+      ["woz", WOZ, 62039],
+      ["res", RESEARCHER, 62042],
+      ["team", TEAMMATE, 62045],
+    ] as const
+  ).flatMap(([who, look, seed]): Spec[] => [
+    {
+      name: `walk_${who}_s`,
+      w: 32,
+      h: 32,
+      description: `${SPRITE_STYLE} of a ${look}, standing still, arms at sides, facing the viewer`,
+      negative: "portrait, bust, cropped, text",
+      view: "low top-down",
+      direction: "south",
+      noBackground: true,
+      outline: "single color black outline",
+      shading: "flat shading",
+      seed,
+    },
+    {
+      name: `walk_${who}_n`,
+      w: 32,
+      h: 32,
+      description: `${SPRITE_STYLE} of a ${look}, standing still, seen from behind`,
+      negative: "portrait, bust, cropped, text, face",
+      view: "low top-down",
+      direction: "north",
+      noBackground: true,
+      outline: "single color black outline",
+      shading: "flat shading",
+      seed: seed + 1,
+    },
+    {
+      name: `walk_${who}_e`,
+      w: 32,
+      h: 32,
+      description: `${SPRITE_STYLE} of a ${look}, standing still, side profile facing right`,
+      negative: "portrait, bust, cropped, text",
+      view: "low top-down",
+      direction: "east",
+      noBackground: true,
+      outline: "single color black outline",
+      shading: "flat shading",
+      seed: seed + 2,
+    },
+  ]),
+
+  // --- encounter portraits (64x64) ------------------------------------------------
   {
-    name: "bg_harbor",
-    w: 384,
-    h: 160,
+    name: "port_sculley",
+    w: 64,
+    h: 64,
     description:
-      `calm sea at dawn panorama, side view: open water with gentle waves in the foreground, a distant harbor on the right horizon with orange cranes and warehouses catching the sunrise, soft pink and gold sky low over the waterline, ${PIXEL_STYLE}`,
-    negative: "people, text, letters, boats",
-    view: "side",
-    shading: "medium shading",
-    detail: "medium detail",
-    seed: 42008,
+      `pixel art bust portrait of a confident American executive in his mid forties, neat side-parted light brown hair, navy suit, striped tie, slight guarded smile, plain dark background, ${PIXEL_STYLE}`,
+    negative: "text, letters, full body",
+    shading: "detailed shading",
+    detail: "highly detailed",
+    seed: 62050,
   },
   {
-    name: "bg_hill",
-    w: 240,
-    h: 160,
+    name: "port_supplier",
+    w: 64,
+    h: 64,
     description:
-      `grassy hill at sunset, side view: the hill crest as a dark green silhouette across the lower third, one small tree on the left, a tiny city skyline far below on the right edge, huge warm gradient sky taking most of the frame, a few first stars, ${PIXEL_STYLE}`,
-    negative: "people, text, letters, sun disc",
-    view: "side",
-    shading: "basic shading",
-    detail: "medium detail",
-    seed: 42009,
+      `pixel art bust portrait of a skeptical older parts salesman, balding with gray temples, thick glasses, short-sleeve white shirt with a pen in the pocket, plain dark background, ${PIXEL_STYLE}`,
+    negative: "text, letters, full body",
+    shading: "detailed shading",
+    detail: "highly detailed",
+    seed: 62051,
   },
-  // --- far / parallax strips (transparent background) ---------------------------
   {
-    name: "far_skyline",
-    w: 240,
-    h: 80,
+    name: "port_hero",
+    w: 64,
+    h: 64,
     description:
-      `distant city skyline silhouette at dusk, flat dark navy building shapes with a few tiny lit windows, skyline occupies the bottom half, transparent background, ${PIXEL_STYLE}`,
-    negative: "text",
-    noBackground: true,
-    shading: "flat shading",
-    detail: "low detail",
-    seed: 42010,
+      `pixel art bust portrait of a ${HERO}, intense dark eyes, faint smile, plain dark background, ${PIXEL_STYLE}`,
+    negative: "text, letters, full body",
+    shading: "detailed shading",
+    detail: "highly detailed",
+    seed: 62052,
   },
+
+  // --- props (OBJ sprites) --------------------------------------------------------
   {
-    name: "far_waves",
-    w: 240,
-    h: 48,
-    description:
-      `stylized dark teal sea wave strip, repeating rolling wave crests with lighter foam tips, seen from the side, transparent background, ${PIXEL_STYLE}`,
-    negative: "text",
-    noBackground: true,
-    shading: "flat shading",
-    detail: "low detail",
-    seed: 42011,
-  },
-  // --- sprites (transparent, side view) ---------------------------------------------
-  {
-    name: "spr_kid",
+    name: "spr_bluebox",
     w: 32,
     h: 32,
-    description:
-      `one small boy in a 1990s red jacket and blue pants, black hair, standing side profile facing right, full body, single character, transparent background, ${PIXEL_STYLE}`,
-    negative: "multiple characters, text",
-    noBackground: true,
-    view: "side",
-    direction: "east",
-    outline: "single color black outline",
-    shading: "basic shading",
-    detail: "low detail",
-    seed: 42020,
-  },
-  {
-    name: "spr_evan",
-    w: 32,
-    h: 32,
-    description:
-      `one young man with short black hair and glasses, dark green hoodie, jeans, standing side profile facing right, full body, single character, transparent background, ${PIXEL_STYLE}`,
-    negative: "multiple characters, text",
-    noBackground: true,
-    view: "side",
-    direction: "east",
-    outline: "single color black outline",
-    shading: "basic shading",
-    detail: "low detail",
-    seed: 42021,
-  },
-  {
-    name: "spr_dad",
-    w: 32,
-    h: 32,
-    description:
-      `one middle-aged man in a plain 1990s shirt and trousers, short black hair, standing side profile facing left, full body, single character, transparent background, ${PIXEL_STYLE}`,
-    negative: "multiple characters, text",
-    noBackground: true,
-    view: "side",
-    direction: "west",
-    outline: "single color black outline",
-    shading: "basic shading",
-    detail: "low detail",
-    seed: 42022,
-  },
-  {
-    name: "spr_wife",
-    w: 32,
-    h: 32,
-    description:
-      `full body tiny sprite of one young woman standing, head to toe visible, shoulder-length black hair, warm beige cardigan and long skirt, side profile facing left, feet at the bottom, single small character, transparent background, ${PIXEL_STYLE}`,
-    negative: "multiple characters, text",
-    noBackground: true,
-    view: "side",
-    direction: "west",
-    outline: "single color black outline",
-    shading: "basic shading",
-    detail: "low detail",
-    seed: 52023,
-  },
-  {
-    name: "spr_child",
-    w: 32,
-    h: 32,
-    description:
-      `one toddler in yellow overalls, tiny, standing side profile facing right, full body, single character, transparent background, ${PIXEL_STYLE}`,
-    negative: "multiple characters, text",
-    noBackground: true,
-    view: "side",
-    direction: "east",
-    outline: "single color black outline",
-    shading: "basic shading",
-    detail: "low detail",
-    seed: 42024,
-  },
-  {
-    name: "spr_fish",
-    w: 32,
-    h: 32,
-    description:
-      `one tropical fish swimming right, orange and white, simple cute shape, transparent background, ${PIXEL_STYLE}`,
-    negative: "multiple fish, text",
-    noBackground: true,
-    view: "side",
-    direction: "east",
-    outline: "single color black outline",
-    shading: "basic shading",
-    detail: "low detail",
-    seed: 42025,
-  },
-  {
-    name: "spr_letter",
-    w: 32,
-    h: 32,
-    description: `one white paper envelope with a red and blue airmail border, slightly tilted, transparent background, ${PIXEL_STYLE}`,
+    description: `one small handheld blue metal electronic box with a white keypad of round buttons, top-down slight angle, transparent background, ${PIXEL_STYLE}`,
     negative: "text, letters",
     noBackground: true,
     outline: "single color black outline",
     shading: "basic shading",
-    detail: "low detail",
-    seed: 42026,
+    seed: 62060,
   },
   {
-    name: "spr_bolt",
+    name: "spr_board",
     w: 32,
     h: 32,
-    description: `one stylized lightning bolt gem, indigo purple outer glow with a golden amber core, transparent background, ${PIXEL_STYLE}`,
-    negative: "text",
+    description: `one bare green computer circuit board with rows of black chips and golden traces, slight angle, transparent background, ${PIXEL_STYLE}`,
+    negative: "text, letters",
     noBackground: true,
-    outline: "single color outline",
-    shading: "basic shading",
-    detail: "medium detail",
-    seed: 42028,
-  },
-  {
-    name: "spr_ship",
-    w: 64,
-    h: 32,
-    description: `one small dark sailing ship with a bright green triangular sail, side profile facing right, floating, transparent background, ${PIXEL_STYLE}`,
-    negative: "text, water",
-    noBackground: true,
-    view: "side",
-    direction: "east",
     outline: "single color black outline",
     shading: "basic shading",
-    detail: "low detail",
-    seed: 42029,
+    seed: 62061,
+  },
+  {
+    name: "spr_alto",
+    w: 32,
+    h: 32,
+    description: `one 1970s white research computer with a tall vertical portrait monitor and a small keyboard, front view, transparent background, ${PIXEL_STYLE}`,
+    negative: "text, letters",
+    noBackground: true,
+    outline: "single color black outline",
+    shading: "basic shading",
+    seed: 62062,
+  },
+  {
+    name: "spr_mac",
+    w: 32,
+    h: 32,
+    description: `one small friendly beige all-in-one computer, compact vertical case with a small built-in screen glowing soft white and a detached keyboard in front, front view, transparent background, ${PIXEL_STYLE}`,
+    negative: "text, letters, logo",
+    noBackground: true,
+    outline: "single color black outline",
+    shading: "basic shading",
+    seed: 62063,
   },
   {
     name: "spr_flag",
     w: 32,
     h: 32,
-    description: `one rectangular dark navy fabric flag waving to the right from a tall vertical wooden flagpole on the left edge, cloth rippling in the wind, small white circle emblem on the cloth, transparent background, ${PIXEL_STYLE}`,
-    negative: "text, skull, arrow, sign",
+    description: `one black pirate flag with a white skull, waving on a short pole, transparent background, ${PIXEL_STYLE}`,
+    negative: "text, letters, arrow, sign",
     noBackground: true,
     outline: "single color black outline",
     shading: "basic shading",
-    detail: "low detail",
-    seed: 52030,
+    seed: 62064,
   },
   {
-    name: "spr_book",
+    name: "spr_phone",
     w: 32,
     h: 32,
-    description: `one thick closed textbook with a grey-green cover, side view, transparent background, ${PIXEL_STYLE}`,
+    description: `one 1960s black rotary desk telephone with a coiled cord, slight angle, transparent background, ${PIXEL_STYLE}`,
     negative: "text, letters",
     noBackground: true,
     outline: "single color black outline",
     shading: "basic shading",
-    detail: "low detail",
-    seed: 42031,
-  },
-  {
-    name: "spr_orb",
-    w: 32,
-    h: 32,
-    description: `one small glowing round orb, soft cyan core with white highlight, transparent background, ${PIXEL_STYLE}`,
-    negative: "text",
-    noBackground: true,
-    outline: "lineless",
-    shading: "basic shading",
-    detail: "low detail",
-    seed: 42032,
-  },
-  {
-    name: "spr_star",
-    w: 32,
-    h: 32,
-    description: `one small four-pointed sparkle star, bright green-white, transparent background, ${PIXEL_STYLE}`,
-    negative: "text",
-    noBackground: true,
-    outline: "lineless",
-    shading: "flat shading",
-    detail: "low detail",
-    seed: 42033,
-  },
-  {
-    name: "spr_drawing",
-    w: 32,
-    h: 32,
-    description: `a child's simple drawing of a house and a sun rendered in bright pixels on a dark blue computer screen rectangle, transparent background, ${PIXEL_STYLE}`,
-    negative: "text, letters",
-    noBackground: true,
-    outline: "lineless",
-    shading: "flat shading",
-    detail: "low detail",
-    seed: 42034,
+    seed: 62065,
   },
 ];
 
