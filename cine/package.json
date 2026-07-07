@@ -15,7 +15,8 @@
     "smoke": "bun test/gen-placeholder-art.ts && bun compiler/cli.ts build test/smoke-film.ts --out dist/smoke.gba --title CINESMOKE",
     "art": "bun pixellab/generate.ts",
     "test": "bun test/e2e.ts",
-    "play": "bash play.sh"
+    "play": "bash play.sh",
+    "bake:logo": "bun film/bake-logo.ts"
   },
   "devDependencies": {
     "typescript": "^5"

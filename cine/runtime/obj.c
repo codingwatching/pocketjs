@@ -64,7 +64,8 @@ void sprites_draw(void) {
     }
     if (s->affine) {
       /* matrix 0, double-size render area, centered on (x,y) */
-      o->attr0 = (u16)(ATTR0_Y(sy - p->h) | ATTR0_AFF_DBL | shape_bits(p->w, p->h) | mos);
+      o->attr0 = (u16)(ATTR0_Y(sy - p->h) | ATTR0_AFF_DBL | shape_bits(p->w, p->h) | mos |
+                       ((s->flags & C_SPR_GHOST) ? ATTR0_BLEND : 0));
       o->attr1 = (u16)(ATTR1_X(sx - p->w) | ATTR1_AFF(0) | (size_bits(p->w, p->h) << 14));
     } else {
       o->attr0 = (u16)(ATTR0_Y(sy) | shape_bits(p->w, p->h) | mos |

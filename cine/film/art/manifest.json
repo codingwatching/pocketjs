@@ -107,12 +107,6 @@
     "w": 32,
     "h": 32
   },
-  "spr_vgem": {
-    "prompt": "one faceted emerald green gemstone shaped like a sharp letter V chevron, dark slate blue rim, glinting, transparent background, clean 16-bit pixel art, limited palette, crisp pixels",
-    "seed": 42027,
-    "w": 32,
-    "h": 32
-  },
   "spr_bolt": {
     "prompt": "one stylized lightning bolt gem, indigo purple outer glow with a golden amber core, transparent background, clean 16-bit pixel art, limited palette, crisp pixels",
     "seed": 42028,

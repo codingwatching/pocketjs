@@ -257,18 +257,6 @@ export const SPECS: Spec[] = [
     seed: 42026,
   },
   {
-    name: "spr_vgem",
-    w: 32,
-    h: 32,
-    description: `one faceted emerald green gemstone shaped like a sharp letter V chevron, dark slate blue rim, glinting, transparent background, ${PIXEL_STYLE}`,
-    negative: "text",
-    noBackground: true,
-    outline: "single color outline",
-    shading: "basic shading",
-    detail: "medium detail",
-    seed: 42027,
-  },
-  {
     name: "spr_bolt",
     w: 32,
     h: 32,

@@ -29,15 +29,15 @@ const title = defineScene({
   far: image("art/far_skyline.png", { scroll: 0.3, y: 80 }),
   backdrop: "#0b1f24",
   actors: {
-    vgem: sprite("art/spr_vgem.png", { w: 32, h: 32, screen: true }),
+    vlogo: sprite("art/spr_vuelogo.png", { w: 64, h: 64, screen: true }),
   },
   play: cue(function* () {
     yield fadeIn(40);
-    yield show("vgem", 104, 30);
-    yield affineOn("vgem");
+    yield show("vlogo", 120, 32);
+    yield affineOn("vlogo");
     yield zoom(0.2, 1);
     yield spinTo(360, 80, "out");
-    yield zoom(1.8, 80, "out");
+    yield zoom(1.0, 80, "out");
     yield caption("card", "渐进人生");
     yield wait(30);
     yield caption("sub", "A PROGRESSIVE LIFE\n同人致敬 · 非官方作品");
@@ -517,7 +517,7 @@ const coda = defineScene({
     wife: sprite("art/spr_wife.png", { w: 32, h: 32, at: [130, 76] }),
     kid1: sprite("art/spr_child.png", { w: 32, h: 32, at: [118, 82] }),
     kid2: sprite("art/spr_child.png", { w: 32, h: 32, at: [148, 82], flip: true }),
-    vgem: sprite("art/spr_vgem.png", { w: 32, h: 32, ghost: true, screen: true }),
+    vlogo: sprite("art/spr_vuelogo.png", { w: 64, h: 64, ghost: true, screen: true }),
   },
   play: cue(function* () {
     yield setVar("nav", 0);
@@ -531,10 +531,10 @@ const coda = defineScene({
     yield caption("sub", "框架是渐进式的。\n人生,原来也是。");
     yield waitA();
     yield captionClear("sub");
-    yield show("vgem", 104, 20);
-    yield affineOn("vgem");
-    yield zoom(0.5, 1);
-    yield zoom(1.0, 120, "inout");
+    yield show("vlogo", 120, 28);
+    yield affineOn("vlogo");
+    yield zoom(0.4, 1);
+    yield zoom(0.9, 120, "inout");
     yield spinTo(180, 240, "inout");
     yield caption("card", "0.9 Animatrix · 2014");
     yield wait(70);
