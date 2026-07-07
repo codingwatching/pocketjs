@@ -198,7 +198,8 @@ export function residualizeCue(body: ts.FunctionExpression | ts.ArrowFunction, c
       case "caption": {
         const style = CAPS[str(a[0])];
         if (style === undefined) return err(n, "caption style must be chip|sub|card");
-        w.u8(OP.CAPTION).u8(style).u16(ctx.texts.intern(str(a[1])));
+        const opts = style === CAP_CHIP ? { cols: 24, maxLines: 1 } : {};
+        w.u8(OP.CAPTION).u8(style).u16(ctx.texts.intern(str(a[1]), opts));
         return;
       }
       case "captionClear": {

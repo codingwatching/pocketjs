@@ -196,12 +196,14 @@ export function buildMap(
   wide: boolean,
   tileBase: number,
   palbank: number,
+  rowOff = 0,
 ): Uint16Array {
   const mapCols = wide ? 64 : 32;
   const out = new Uint16Array(mapCols * 32);
-  for (let r = 0; r < layer.rows && r < 32; r++) {
+  for (let r0 = 0; r0 < layer.rows && r0 + rowOff < 32; r0++) {
+    const r = r0 + rowOff;
     for (let c = 0; c < layer.cols && c < mapCols; c++) {
-      const cell = layer.cells[r * layer.cols + c];
+      const cell = layer.cells[r0 * layer.cols + c];
       if (cell.tile === 0) continue;
       let se = ((tileBase + cell.tile - 1) & 0x3ff) | ((palbank & 0xf) << 12);
       if (cell.hflip) se |= 0x400;

@@ -181,7 +181,7 @@ async function compileScene(decl: SceneDecl, base: string, env: SceneEnv): Promi
     const tl = tileLayer(q);
     const tileBase = FARSKY_BASE + sharedTiles.length;
     sharedTiles.push(...tl.tiles);
-    mapFar = buildMap(tl, false, tileBase, PALBANK_FAR);
+    mapFar = buildMap(tl, false, tileBase, PALBANK_FAR, (decl.far.y ?? 0) >> 3);
     q.pal555.forEach((c, i) => {
       if (i > 0) palBg[PALBANK_FAR * 16 + i] = c;
     });
@@ -190,11 +190,11 @@ async function compileScene(decl: SceneDecl, base: string, env: SceneEnv): Promi
     if (decl.sky.kind === "gradient") {
       gradient = gradientTable(decl.sky.stops);
     } else {
-      const q = await loadLayer(base, decl.sky);
+      const q = await loadPng(resolve(base, decl.sky.png)).then((img) => quantize(img, 15));
       const tl = tileLayer(q);
       const tileBase = FARSKY_BASE + sharedTiles.length;
       sharedTiles.push(...tl.tiles);
-      mapSky = buildMap(tl, false, tileBase, PALBANK_SKY);
+      mapSky = buildMap(tl, false, tileBase, PALBANK_SKY, (decl.sky.y ?? 0) >> 3);
       q.pal555.forEach((c, i) => {
         if (i > 0) palBg[PALBANK_SKY * 16 + i] = c;
       });

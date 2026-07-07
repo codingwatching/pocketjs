@@ -21,6 +21,7 @@ export interface LayerDecl {
   scroll?: number; // parallax factor vs camera (default: far .4, sky .15)
   vx?: number; // autoscroll px/frame (fractions fine)
   wide?: boolean; // main only: image wider than 240 -> 64x32 map
+  y?: number; // vertical placement offset in px (multiple of 8)
 }
 export interface ActorDecl {
   png: string;
