@@ -83,11 +83,26 @@ static void accent_row(u8 r, u8 c0, u8 c1) {
   for (c = c0; c < c1; c++) UI_MAP[r * 32 + c] = SE(C_T_BOX_ACCENT, C_PALBANK_UI);
 }
 
-/* stream one halfcell into a glyph slot and point cell (col,row) at it */
+/* Slot plan: the chip caption (place/date) persists across a whole scene while
+ * subs/dialogs churn, so it gets a private slot range; everything else shares
+ * a ring above it. */
+#define CHIP_SLOTS 24
+static u16 chip_next;
+
+static u8 cur_region; /* 0 = general ring, 1 = chip range */
+
 static void emit_halfcell(u16 hc, u8 col, u8 row) {
-  u16 slot = g.slot_next;
-  u16 tile = (u16)(C_GLYPH_SLOT_BASE + slot * 2);
-  g.slot_next = (u16)((slot + 1) % C_GLYPH_SLOTS);
+  u16 slot;
+  u16 tile;
+  if (cur_region) {
+    slot = chip_next;
+    chip_next = (u16)((slot + 1) % CHIP_SLOTS);
+  } else {
+    slot = g.slot_next;
+    g.slot_next = (u16)(slot + 1);
+    if (g.slot_next >= C_GLYPH_SLOTS) g.slot_next = CHIP_SLOTS;
+  }
+  tile = (u16)(C_GLYPH_SLOT_BASE + slot * 2);
   dma3_copy32(CHARBLOCK(C_CBB_SHARED) + tile * 16, film.glyphs + (u32)hc * 64, 64 / 4);
   UI_MAP[row * 32 + col] = SE(tile, C_PALBANK_UI);
   UI_MAP[(row + 1) * 32 + col] = (u16)SE(tile + 1, C_PALBANK_UI);
@@ -123,6 +138,7 @@ void caption_update(void) {
   const CapGeo *ge;
   u8 row;
   if (!g.caption_busy) return;
+  cur_region = (ty.style == C_CAP_CHIP);
   ge = &GEO[ty.style];
   row = (u8)(ge->text_r0 + ty.line * 2);
   if (ty_pend16) {
@@ -173,6 +189,7 @@ u8 caption_typing(void) {
 /* draw a whole token stream synchronously at (col0, row) */
 static void render_now(const u8 *t, u8 col0, u8 row) {
   u8 col = col0;
+  cur_region = 0;
   for (;;) {
     u8 c = *t++;
     if (c == C_TOK_END) break;
@@ -293,6 +310,8 @@ void caption_boot(void) {
   ty.tok = 0;
   ty_pend16 = 0;
   g.caption_busy = 0;
-  g.slot_next = 0;
+  g.slot_next = CHIP_SLOTS;
+  chip_next = 0;
+  cur_region = 0;
   choice_active_n = 0;
 }
