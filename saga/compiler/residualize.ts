@@ -39,7 +39,14 @@ const SFXS: Record<string, number> = { blip: SFX_BLIP, confirm: SFX_CONFIRM, who
 const CAPS: Record<string, number> = { chip: CAP_CHIP, sub: CAP_SUB, card: CAP_CARD };
 const DIRS: Record<string, number> = { down: DIR_DOWN, up: DIR_UP, left: DIR_LEFT, right: DIR_RIGHT };
 
-export function residualizeCue(body: ts.FunctionExpression | ts.ArrowFunction, ctx: CueCtx): Uint8Array {
+/** `base` = this cue's offset in the scene's concatenated cue blob. All jump
+ * targets are blob-absolute at runtime, so every emitted/patched target must
+ * add it (a sub-cue's `if` would otherwise jump into the play cue). */
+export function residualizeCue(
+  body: ts.FunctionExpression | ts.ArrowFunction,
+  ctx: CueCtx,
+  base = 0,
+): Uint8Array {
   const w = new ByteWriter();
   const endJumps: number[] = [];
   const breakStack: number[][] = [];
@@ -433,11 +440,11 @@ export function residualizeCue(body: ts.FunctionExpression | ts.ArrowFunction, c
         w.u8(OP.JMP);
         const jmpAt = w.length;
         w.u16(0);
-        w.patchU16(jzAt, w.length);
+        w.patchU16(jzAt, base + w.length);
         emitBlock(s.elseStatement);
-        w.patchU16(jmpAt, w.length);
+        w.patchU16(jmpAt, base + w.length);
       } else {
-        w.patchU16(jzAt, w.length);
+        w.patchU16(jzAt, base + w.length);
       }
       return;
     }
@@ -449,9 +456,9 @@ export function residualizeCue(body: ts.FunctionExpression | ts.ArrowFunction, c
       w.u16(0);
       breakStack.push([]);
       emitBlock(s.statement);
-      w.u8(OP.JMP).u16(loopStart);
-      w.patchU16(jzAt, w.length);
-      for (const b of breakStack.pop()!) w.patchU16(b, w.length);
+      w.u8(OP.JMP).u16(base + loopStart);
+      w.patchU16(jzAt, base + w.length);
+      for (const b of breakStack.pop()!) w.patchU16(b, base + w.length);
       return;
     }
     if (ts.isBreakStatement(s)) {
@@ -483,7 +490,7 @@ export function residualizeCue(body: ts.FunctionExpression | ts.ArrowFunction, c
   if (!body.body || !ts.isBlock(body.body)) throw new Error(`[${ctx.cueName}] cue body must be a block`);
   for (const st of body.body.statements) emitStmt(st);
 
-  for (const j of endJumps) w.patchU16(j, w.length);
+  for (const j of endJumps) w.patchU16(j, base + w.length);
   w.u8(OP.END);
   return w.toUint8Array();
 }

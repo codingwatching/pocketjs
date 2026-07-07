@@ -51,7 +51,7 @@
 #define C_MAX_TWEENS 16
 #define C_METER_SEGS 8
 #define C_N_FLAGS 16
-#define C_N_VARS 16
+#define C_N_VARS 24
 #define C_OAM_BALL 120
 #define C_OAM_BRICK 48
 #define C_OAM_COUNTER 16
@@ -182,11 +182,11 @@
 #define DBGO_CAPTION_BUSY 18
 #define DBGO_FILM_DONE 19
 #define DBGO_VARS 20
-#define DBGO_SPR0_X 52
-#define DBGO_SPR0_Y 54
-#define DBGO_PLAYER_CX 56
-#define DBGO_PLAYER_CY 57
-#define DBGO_PLAYER_DIR 58
-#define DBGO_BRICKS 59
-#define DBGO_KIND 60
+#define DBGO_SPR0_X 68
+#define DBGO_SPR0_Y 70
+#define DBGO_PLAYER_CX 72
+#define DBGO_PLAYER_CY 73
+#define DBGO_PLAYER_DIR 74
+#define DBGO_BRICKS 75
+#define DBGO_KIND 76
 #endif

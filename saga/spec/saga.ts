@@ -75,7 +75,7 @@ export const OAM_PADDLE = 121;
 export const MAX_SCENES = 20;
 export const MAX_PROTOS = 12;
 export const MAX_TWEENS = 16;
-export const N_VARS = 16;
+export const N_VARS = 24; // named game vars + per-cue locals share this pool
 export const N_FLAGS = 16;
 export const MAX_CHOICES = 5;
 
@@ -243,14 +243,14 @@ export const DBG = {
   TWEEN_MASK: 0x10, // u16
   CAPTION_BUSY: 0x12, // u8
   FILM_DONE: 0x13, // u8
-  VARS: 0x14, // s16[16]
-  SPR0_X: 0x34, // s16 (sprite slot 0 world x — control assertions)
-  SPR0_Y: 0x36, // s16
-  PLAYER_CX: 0x38, // u8 world-grid cell
-  PLAYER_CY: 0x39, // u8
-  PLAYER_DIR: 0x3a, // u8 DIR_*
-  BRICKS: 0x3b, // u8 breakout bricks remaining
-  KIND: 0x3c, // u8 SCENE_* of current scene
+  VARS: 0x14, // s16[N_VARS]
+  SPR0_X: 0x44, // s16 (sprite slot 0 world x — control assertions)
+  SPR0_Y: 0x46, // s16
+  PLAYER_CX: 0x48, // u8 world-grid cell
+  PLAYER_CY: 0x49, // u8
+  PLAYER_DIR: 0x4a, // u8 DIR_*
+  BRICKS: 0x4b, // u8 breakout bricks remaining
+  KIND: 0x4c, // u8 SCENE_* of current scene
 } as const;
 
 // --- ByteWriter ----------------------------------------------------------------

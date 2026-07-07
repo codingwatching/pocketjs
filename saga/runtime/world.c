@@ -106,14 +106,16 @@ static u8 blocked(s16 cx, s16 cy) {
 }
 
 /* walk-cycle frame while moving: fpd 1 -> waddle (hflip toggle on down/up),
- * fpd 2 -> alternate, fpd 3 -> classic step-stand-step-stand */
+ * fpd 2 -> alternate, fpd 3 -> step-stand-step-stand, fpd 4+ -> full cycle */
 static void anim_step(u8 slot, u8 dir) {
   Spr *s = &g.spr[slot];
   const SagaProto *p = &g.sc->protos[s->proto];
   u8 row = (dir == C_DIR_DOWN) ? C_WALK_ROW_DOWN : (dir == C_DIR_UP) ? C_WALK_ROW_UP : C_WALK_ROW_SIDE;
   u8 ph = (u8)((g.anim_phase >> 3) & 3);
   if (!p->walk_fpd) return;
-  if (p->walk_fpd >= 3) {
+  if (p->walk_fpd >= 4) {
+    s->frame = (u8)(row * p->walk_fpd + ((g.anim_phase >> 2) & 3));
+  } else if (p->walk_fpd == 3) {
     static const u8 pat[4] = {1, 0, 2, 0};
     s->frame = (u8)(row * p->walk_fpd + pat[ph]);
   } else if (p->walk_fpd == 2) {

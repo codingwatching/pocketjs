@@ -116,8 +116,13 @@ const room = defineScene({
         at: "w",
         dir: "down",
         talk: cue(function* () {
-          yield dialog("BUDDY", "Grid walking works.\nBench, then the door.");
-          yield setVar("talked", 1);
+          // the branch matters: sub-cue jump targets must be blob-absolute
+          if (yield varEq("talked", 1)) {
+            yield dialog("BUDDY", "Again? Go on, then.");
+          } else {
+            yield dialog("BUDDY", "Grid walking works.\nBench, then the door.");
+            yield setVar("talked", 1);
+          }
         }),
       },
     },

@@ -436,14 +436,18 @@ async function compileScene(decl: SceneDecl, base: string, env: SceneEnv): Promi
   for (const { name, ref } of cueRefs) {
     const site = env.cues.find((c) => c.id === (ref as { __cue: number }).__cue);
     if (!site) throw new Error(`[${decl.id}] cue site not found for ${name}`);
-    const bytes = residualizeCue(site.body, {
-      texts: env.texts,
-      vars: env.vars,
-      flags: env.flags,
-      sceneIndex: env.sceneIndex,
-      actors,
-      cueName: name,
-    });
+    const bytes = residualizeCue(
+      site.body,
+      {
+        texts: env.texts,
+        vars: env.vars,
+        flags: env.flags,
+        sceneIndex: env.sceneIndex,
+        actors,
+        cueName: name,
+      },
+      cueLen, // jump targets are blob-absolute
+    );
     cueOffs.push(cueLen);
     cueParts.push(bytes);
     cueLen += bytes.length;
