@@ -1,13 +1,16 @@
-// aot/runtime/nds/render_soft.c — software renderer (HOST build).
+// aot/runtime/shared/render_soft.c — the software renderer.
 //
-// The DS device build renders in hardware (render_ds.c). This host-only
-// backend reproduces the same composition in software so the E2E harness
-// drives the exact game logic and can screenshot both screens over FFI.
 // Decodes the GBA-format PJGB assets (4bpp tiles, BGR555 palettes) straight
 // out of the cart blob every frame:
-//   top    (256x192) — camera window over the map + 16x16 sprites
-//   bottom (256x192) — textbox / choice menu, drawn from textbox.c state
-//                      with cjk16 halfcell glyphs pulled from the GLYPHS chunk
+//   top    (PJ_TOP_W x PJ_TOP_H)       — camera window over the map + sprites
+//   bottom (PJ_BOTTOM_W x PJ_BOTTOM_H) — textbox / choice menu, drawn from
+//     textbox.c state with cjk16 halfcell glyphs pulled from the GLYPHS chunk
+//
+// Dimensions and the PJ_TX_* text layout come from the target's runtime.h, so
+// one file serves two roles: the 3DS DEVICE renderer (its ctru shell just
+// blits these buffers) and the HOST harness backend for every pj_frame core
+// (Bun FFI reads the buffers; for hardware-rendering targets like the DS the
+// PJ_TX_* constants keep this layout identical to the device renderer's).
 #include "runtime.h"
 
 static u16 fb_top[PJ_TOP_W * PJ_TOP_H];
@@ -108,12 +111,11 @@ static void draw_world(void) {
 
 // --- bottom screen: textbox / choices ----------------------------------------
 // Text palette lives in BG bank 15 (indices 240+): 1..5 ink shades, 6 box bg.
+// Vertical anchors/pitch (PJ_TX_*) come from the target's runtime.h so a
+// hardware backend (DS render_ds.c) and this renderer share one layout.
 #define TEXT_PALBANK 15
 #define TEXT_BG_IDX 6
 #define TEXT_X0 ((PJ_BOTTOM_W - PJGB_TEXT_COLS * 8) / 2)
-#define TEXT_Y0 32
-#define LINE_PITCH 24
-#define CHOICE_TEXT_DX 16 // cursor halfcell + one cell gap
 
 static u32 half_glyph_off(int id) {
   return PJGB_GLYPH_STORE_HEADER_SIZE + (u32)id * 2 * PJGB_TILE_4BPP_BYTES;
@@ -147,7 +149,7 @@ static void draw_tokens(const u8 *t, int x0, int y0) {
   while (*t) {
     u8 tok = *t++;
     if (tok == TOK_NEWLINE) {
-      y += LINE_PITCH;
+      y += PJ_TX_LINE_PITCH;
       x = x0;
       continue;
     }
@@ -171,13 +173,13 @@ static void draw_bottom(void) {
 
   if (g.choice_active) {
     for (int i = 0; i < g.choice_n; i++) {
-      int y = TEXT_Y0 + i * LINE_PITCH;
+      int y = PJ_TX_CHOICE_Y0 + i * PJ_TX_LINE_PITCH;
       if (i == g.choice_cursor) draw_halfcell(half_glyph_off('>' - TOK_ASCII_MIN), TEXT_X0, y);
-      draw_tokens((const u8 *)text_get(g.choice_ids[i]), TEXT_X0 + CHOICE_TEXT_DX, y);
+      draw_tokens((const u8 *)text_get(g.choice_ids[i]), TEXT_X0 + PJ_TX_CHOICE_DX, y);
     }
     return;
   }
-  draw_tokens((const u8 *)text_get(g.cur_text), TEXT_X0, TEXT_Y0);
+  draw_tokens((const u8 *)text_get(g.cur_text), TEXT_X0, PJ_TX_Y0);
 }
 
 void render_frame(void) {

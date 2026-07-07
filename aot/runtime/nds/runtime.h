@@ -45,11 +45,21 @@ typedef int32_t s32;
 #define PJ_KEY_UP 0x0040
 #define PJ_KEY_DOWN 0x0080
 
-// Both DS screens are 256x192; PJGB_SCREEN_W/H (from pjgb_gen.h) = 256x192.
+// Top: a PJGB_SCREEN_W/H (128x96) world viewport, hardware-scaled 2x to fill
+// the 256x192 panel. Bottom: 1:1 text at full panel resolution.
 #define PJ_TOP_W PJGB_SCREEN_W
 #define PJ_TOP_H PJGB_SCREEN_H
 #define PJ_BOTTOM_W 256
 #define PJ_BOTTOM_H 192
+
+// Bottom-screen text layout (px). Single source of truth for BOTH renderers:
+// render_ds.c stamps tiles at these anchors (all multiples of 8) and the
+// shared software renderer draws pixels at the same ones, so host harness
+// screenshots match real hardware.
+#define PJ_TX_Y0 24         // first dialogue line (tile row 3)
+#define PJ_TX_CHOICE_Y0 16  // first choice row (tile row 2)
+#define PJ_TX_LINE_PITCH 24 // 16px glyphs on a 3-tile-row rhythm
+#define PJ_TX_CHOICE_DX 16  // cursor halfcell + one cell gap
 
 // The cartridge blob, emitted by the compiler as gen_cart.c and linked in.
 extern const unsigned char pjgb_cart[];
@@ -173,7 +183,7 @@ int key_pressed(int mask);
 void cart_load(const void *blob);
 const u8 *cart_chunk(u32 kind, u32 id, u32 *out_size);
 
-// --- render (render_ds.c device / render_soft.c host) -----------------------
+// --- render (render_ds.c device / shared render_soft.c host) ----------------
 void render_init(void); // one-time VRAM/engine setup (device); no-op on host
 void render_frame(void);
 void bg_load_map(void);

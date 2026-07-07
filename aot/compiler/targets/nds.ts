@@ -5,35 +5,33 @@
 // text wrapping/glyph budget following TARGETS["nds"]. Only the packaging
 // differs. Every build produces TWO artifacts from the same gen_cart.c:
 //
-//   <out>.nds         — devkitARM/libnds homebrew ROM (DS flashcart / emulator)
-//   <out>.host.dylib  — the SAME core compiled for the host with the software
-//                       renderer, driven by the E2E harness over Bun FFI
-//                       (test/harness/ds_runner.ts)
+//   <out>.nds         — BlocksDS homebrew ROM (DS flashcart / emulator)
+//   <out>.host.dylib  — the SAME core compiled for the host with the shared
+//                       software renderer, driven by the E2E harness over
+//                       Bun FFI (test/harness/host_runner.ts)
 //
-// Device build: arm9-only against libnds9 + calico9, combined with libnds's
-// default ARM7 via ndstool. Toolchain: $DEVKITPRO or
-// ~/.pocketjs/toolchains/devkitpro. Set PJ_NDS_HOST_ONLY=1 to skip the device
-// build (harness-only, no libnds required).
+// The game core is runtime/shared/ compiled against runtime/nds/runtime.h;
+// render_ds.c (dual-engine hardware renderer) + nds_main.c are device-only.
+//
+// Device build: arm9-only against BlocksDS libnds + BlocksDS's default ARM7,
+// combined with ndstool. BlocksDS (NOT devkitPro/calico) is deliberate:
+// legacy flashcart loaders never hand off calico's ARM7-DLDI thread, so
+// calico homebrew hangs at their "Loading…" splash. Toolchain:
+// $WONDERFUL_TOOLCHAIN or ~/.pocketjs/toolchains/wonderful.
+// Set PJ_NDS_HOST_ONLY=1 to skip the device build (harness-only).
 
 import { $ } from "bun";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { emitCartC } from "../pack.ts";
 import { lowerGba } from "./gba.ts";
+import { buildHostDylib, hostOnlyFallback, logicSources } from "./host.ts";
 import type { CompileOutput } from "../index.ts";
 import type { TargetBuildResult } from "./index.ts";
 
 const ROOT = new URL("../../..", import.meta.url).pathname; // repo root
 const RT = ROOT + "aot/runtime/nds";
 
-// Platform-free game logic + the state modules, shared with every runtime.
-const CORE_MODULES = ["core", "cart", "map", "player", "actor", "camera", "script_vm", "textbox", "debug"] as const;
-
-// BlocksDS (Wonderful Toolchain) install root. BlocksDS is a NON-calico libnds
-// distribution whose homebrew boots on OLD DS flashcart loaders — calico moved
-// the DLDI driver onto a background ARM7 thread that old R4 kernels don't hand
-// off to, so calico .nds parse (banner shows) then hang at "Loading…". BlocksDS
-// avoids that, so this is the device backend for real old-flashcart hardware.
 function wonderful(): string | null {
   const cands = [process.env.WONDERFUL_TOOLCHAIN, homedir() + "/.pocketjs/toolchains/wonderful", "/opt/wonderful"];
   for (const c of cands) {
@@ -42,28 +40,18 @@ function wonderful(): string | null {
   return null;
 }
 
-export function hostDylibPath(outPath: string): string {
-  return outPath.replace(/\.nds$/, "") + ".host.dylib";
-}
-
-async function buildHostDylib(outPath: string): Promise<string> {
-  const dylib = hostDylibPath(outPath);
-  const sources = [...CORE_MODULES.map((m) => `${RT}/${m}.c`), `${RT}/render_soft.c`, `${RT}/gen_cart.c`];
-  // DEVELOPER_DIR: use the CommandLineTools clang when the Xcode.app license
-  // hasn't been accepted (the CLT ships its own license-free toolchain).
-  const env = { ...process.env };
-  if (!env.DEVELOPER_DIR && existsSync("/Library/Developer/CommandLineTools/usr/bin/clang")) {
-    env.DEVELOPER_DIR = "/Library/Developer/CommandLineTools";
-  }
-  await $`clang -O2 -Wall -fno-strict-aliasing -dynamiclib -I${RT} ${sources} -o ${dylib}`.env(env).quiet();
-  return dylib;
+// The prebuilt default ARM7 core shipped by BlocksDS.
+function defaultArm7(blocksds: string): string | null {
+  const arm7 = `${blocksds}/sys/default_arm7/arm7.elf`;
+  return existsSync(arm7) ? arm7 : null;
 }
 
 async function buildDevice(outPath: string, wt: string, title: string): Promise<void> {
   const BLOCKSDS = `${wt}/thirdparty/blocksds/core`;
   const gcc = `${wt}/toolchain/gcc-arm-none-eabi/bin/arm-none-eabi-gcc`;
   const ndstool = `${BLOCKSDS}/tools/ndstool/ndstool`;
-  const arm7 = `${BLOCKSDS}/sys/default_arm7/arm7.elf`; // BlocksDS's non-calico ARM7
+  const arm7 = defaultArm7(BLOCKSDS);
+  if (!arm7) throw new Error("nds: BlocksDS default ARM7 core not found");
   const specs = `${BLOCKSDS}/sys/crts/ds_arm9.specs`;
   const elf = outPath.replace(/\.nds$/, "") + ".arm9.elf";
 
@@ -72,7 +60,7 @@ async function buildDevice(outPath: string, wt: string, title: string): Promise<
   // the relocated toolchain's cc1/ld resolve libzstd by leaf name.
   const ARCH = ["-mthumb", "-mcpu=arm946e-s+nofp"];
   const CFLAGS = [...ARCH, "-O2", "-ffunction-sections", "-fdata-sections", "-fno-strict-aliasing", "-Wall", "-DARM9", "-D__NDS__", "-D__BLOCKSDS__"];
-  const sources = [...CORE_MODULES.map((m) => `${RT}/${m}.c`), `${RT}/render_ds.c`, `${RT}/nds_main.c`, `${RT}/gen_cart.c`];
+  const sources = [...logicSources(), `${RT}/render_ds.c`, `${RT}/nds_main.c`, `${RT}/gen_cart.c`];
 
   const env = {
     ...process.env,
@@ -106,8 +94,7 @@ async function buildDevice(outPath: string, wt: string, title: string): Promise<
   // NB: we deliberately do NOT pre-patch a DLDI driver. The game links its cart
   // data and never touches the SD filesystem, so it needs no DLDI — and a
   // pre-patched section makes the flashcart loader's own DLDI patcher error out
-  // ("load rom errcode=-4") on the r4isdhc DEMON kernel. Leave DLDI to the
-  // loader (which no-ops it since we do no filesystem I/O).
+  // ("load rom errcode=-4") on the r4isdhc DEMON kernel.
 
   // BlocksDS already emits a plain-DS (NTR) header, but its ndstool leaves the
   // header CRC (offset 0x15E, CRC-16/MODBUS over bytes 0x000..0x15D) unset —
@@ -141,19 +128,16 @@ export async function buildNds(out: CompileOutput, outPath: string): Promise<Tar
   const { blob } = lowerGba(out);
   await Bun.write(`${RT}/gen_cart.c`, emitCartC(blob));
 
-  await buildHostDylib(outPath);
+  await buildHostDylib(RT, outPath);
 
   const wt = wonderful();
   if (!wt) {
-    if (!process.env.PJ_NDS_HOST_ONLY) {
-      throw new Error(
-        "nds: BlocksDS not found (set $WONDERFUL_TOOLCHAIN or install to ~/.pocketjs/toolchains/wonderful; " +
-          "PJ_NDS_HOST_ONLY=1 builds only the host harness dylib)",
-      );
-    }
-    const dylib = hostDylibPath(outPath);
-    console.warn(`nds: PJ_NDS_HOST_ONLY — skipped device build, host dylib at ${dylib}`);
-    return { rom: dylib, size: Bun.file(dylib).size };
+    return hostOnlyFallback(
+      outPath,
+      "nds",
+      "PJ_NDS_HOST_ONLY",
+      "BlocksDS not found (set $WONDERFUL_TOOLCHAIN or install to ~/.pocketjs/toolchains/wonderful)",
+    );
   }
 
   await buildDevice(outPath, wt, out.game.title);

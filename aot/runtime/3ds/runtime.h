@@ -4,17 +4,20 @@
 // The 3DS target reuses the GBA-format PJGB blob verbatim (4bpp tiles,
 // BGR555 palettes) and renders it IN SOFTWARE. The runtime is split in two:
 //
-//   core (this header + every .c except ctru_main.c) — platform-free game
-//     logic + renderer. No libctru, no hardware registers. Input comes in
-//     through pj_frame(keys); video goes out through two BGR555 buffers:
+//   core (runtime/shared/*.c compiled against this header) — platform-free
+//     game logic + the shared software renderer. No libctru, no hardware
+//     registers. Input comes in through pj_frame(keys); video goes out
+//     through two BGR555 buffers:
 //       top    200x120  world view (the ctru shell upscales 2x -> 400x240)
 //       bottom 320x240  textbox / choice UI (1:1)
 //     The same core compiles as a host dylib for the E2E harness
-//     (test/harness/3ds_runner.ts), so every scenario assertion runs against
-//     the exact code that ships on the console.
+//     (test/harness/host_runner.ts), so every scenario assertion runs
+//     against the exact code that ships on the console.
 //
 //   shell (ctru_main.c, device build only) — libctru main loop: hidKeysHeld
-//     -> pj_frame, core buffers -> rotated 3DS framebuffers.
+//     -> pj_frame, core buffers -> rotated 3DS framebuffers. It talks to the
+//     core only through the pj_* surface (libctru owns the KEY_* names,
+//     hence the core's PJ_KEY_* prefix).
 //
 // Dual-screen plan: the world always owns the whole top screen; dialogue and
 // choices own the bottom screen, so text never covers the map.
@@ -32,20 +35,26 @@ typedef int32_t s32;
 
 // Key bits: same layout as the GBA KEYINPUT (and libctru's hidKeysHeld low
 // byte, which matches bit-for-bit: A,B,SELECT,START,RIGHT,LEFT,UP,DOWN).
-#define KEY_A 0x0001
-#define KEY_B 0x0002
-#define KEY_SELECT 0x0004
-#define KEY_START 0x0008
-#define KEY_RIGHT 0x0010
-#define KEY_LEFT 0x0020
-#define KEY_UP 0x0040
-#define KEY_DOWN 0x0080
+#define PJ_KEY_A 0x0001
+#define PJ_KEY_B 0x0002
+#define PJ_KEY_SELECT 0x0004
+#define PJ_KEY_START 0x0008
+#define PJ_KEY_RIGHT 0x0010
+#define PJ_KEY_LEFT 0x0020
+#define PJ_KEY_UP 0x0040
+#define PJ_KEY_DOWN 0x0080
 
 // Screen geometry (world view is PJGB_SCREEN_W/H from pjgb_gen.h = 200x120).
 #define PJ_TOP_W PJGB_SCREEN_W
 #define PJ_TOP_H PJGB_SCREEN_H
 #define PJ_BOTTOM_W 320
 #define PJ_BOTTOM_H 240
+
+// Bottom-screen text layout (px) for the shared software renderer.
+#define PJ_TX_Y0 32
+#define PJ_TX_CHOICE_Y0 32
+#define PJ_TX_LINE_PITCH 24 // 16px glyphs on a 24px rhythm
+#define PJ_TX_CHOICE_DX 16  // cursor halfcell + one cell gap
 
 // The cartridge blob, emitted by the compiler as gen_cart.c and linked in.
 extern const unsigned char pjgb_cart[];
@@ -178,7 +187,8 @@ int key_pressed(int mask); // held this frame, not last
 void cart_load(const void *blob);
 const u8 *cart_chunk(u32 kind, u32 id, u32 *out_size);
 
-// --- render.c ---------------------------------------------------------------
+// --- shared/render_soft.c ----------------------------------------------------
+void render_init(void);   // no-op in the software backend
 void render_frame(void);  // world -> top buffer, textbox/choice -> bottom
 void bg_load_map(void);   // no-op (render reads the map each frame); kept so
 void bg_set_scroll(void); // map.c stays line-identical with the GBA runtime
@@ -202,7 +212,7 @@ void vm_start(int script_id, int actor_slot);
 void vm_tick(void);
 int vm_active(void);
 
-// --- textbox.c — pure state machine; render.c draws it ----------------------
+// --- textbox.c — pure state machine; the renderer draws it ------------------
 void textbox_init(void);
 void textbox_show(int text_id);
 void textbox_hide(void);

@@ -1,8 +1,8 @@
-// aot/runtime/3ds/core.c — the embeddable frame interface + game state.
+// aot/runtime/shared/core.c — the embeddable frame interface + game state.
 //
 // One pj_frame(keys) call = one 60 Hz tick, mirroring the GBA main loop
 // body order exactly (input -> deferred on-enter -> vm -> player -> textbox
-// -> choice -> actors -> camera -> render -> debug). Both the ctru shell and
+// -> choice -> actors -> camera -> render -> debug). Every device shell and
 // the host E2E harness drive the game only through this file.
 #include "runtime.h"
 
@@ -13,6 +13,7 @@ void pj_init(void) {
   cart_load(pjgb_cart);
   g.game = (const GameHeader *)cart_chunk(CHUNK_GAME, 0, 0);
 
+  render_init(); // device: VRAM banks + engine setup + glyph/tile upload
   textbox_init();
   debug_init();
 

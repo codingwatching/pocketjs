@@ -1,7 +1,7 @@
-// aot/runtime/3ds/debug.c — mirror game state into the debug block.
+// aot/runtime/shared/debug.c — mirror game state into the debug block.
 //
 // On the tile targets the block lives at a fixed bus address the emulator
-// can read. The 3DS core keeps it in an exported buffer instead: the host
+// can read. The pj_frame-based cores keep it in an exported buffer instead: the host
 // harness reads it through pj_debug_block(), translating scenario addresses
 // as (addr - PJGB_DEBUG_ADDR). Layout is byte-identical to every other
 // target (spec/pjgb.ts DBG).

@@ -11,9 +11,10 @@
 //     OBJs sharing one 2x matrix.
 //   SUB engine -> BOTTOM screen (256x192, 1:1): BG0 = textbox / choice menu.
 //
-// The bottom screen preloads the ENTIRE cjk16 glyph store into sub BG tile
-// VRAM once (DS has ample VRAM — no per-open streaming like the GBA), then the
-// textbox just stamps glyph tile indices into the sub tilemap each frame.
+// The bottom screen STREAMS cjk16 glyph tiles into a fixed slot region of sub
+// BG VRAM, GBA-style: a screen entry's 10-bit tile index cannot address a
+// whole CJK store, so each page copies just the glyphs it shows. The page is
+// re-streamed only when the textbox/choice state changes.
 #include <nds.h>
 #include "runtime.h"
 
@@ -33,21 +34,23 @@ static u16 *sub_tiles;  // 4bpp glyph/box char data (bottom text)
 #define TEXT_PALBANK 15
 #define TEXT_BG_IDX 6
 #define SUB_BOX_TILE 1
-#define SUB_GLYPH_BASE 2
+#define SUB_SLOT_BASE 2 // first glyph-slot tile; slots occupy 2 tiles each
 #define SE(tile, pal) (((tile) & 0x3ff) | (((pal) & 0xf) << 12))
 
-// Text layout on the bottom screen (tile coords; a cjk16 glyph is 1 tile wide,
-// 2 tiles tall; lines are spaced 3 tile-rows = 24px apart).
-#define TX_COL0 2
-#define TX_ROW0 3
-#define TX_LINE_TILES 3
-#define TX_CHOICE_ROW0 2
-#define TX_CHOICE_CURSOR_COL 2
-#define TX_CHOICE_TEXT_COL 4
+// Text layout in tile coords, derived from the SAME PJ_TX_* pixel anchors the
+// shared software renderer uses (runtime.h keeps them multiples of 8), so
+// host harness screenshots match this hardware layout exactly.
+#define TX_COL0 (((PJ_BOTTOM_W - PJGB_TEXT_COLS * 8) / 2) / 8)
+#define TX_ROW0 (PJ_TX_Y0 / 8)
+#define TX_LINE_TILES (PJ_TX_LINE_PITCH / 8)
+#define TX_CHOICE_ROW0 (PJ_TX_CHOICE_Y0 / 8)
+#define TX_CHOICE_CURSOR_COL TX_COL0
+#define TX_CHOICE_TEXT_COL (TX_COL0 + PJ_TX_CHOICE_DX / 8)
 
 static const SpriteRec *sprites;
 static const u8 *bg_tiles4; // neutral 4bpp BG tiles from the cart
 static u32 bg_tile_count;
+static const u8 *glyphs; // the GLYPHS chunk (cjk16 store)
 
 static void copy16(u16 *dst, const u16 *src, u32 bytes) {
   for (u32 i = 0; i < bytes / 2; i++) dst[i] = src[i];
@@ -103,15 +106,7 @@ void render_init(void) {
     u16 word = fill | (fill << 8);
     for (int i = 0; i < 16; i++) sub_tiles[SUB_BOX_TILE * 16 + i] = word;
   }
-  // Preload the whole glyph store after the box tile (top+bottom tiles as-is).
-  const u8 *glyphs = cart_chunk(CHUNK_GLYPHS, 0, &sz);
-  if (glyphs) {
-    u16 half_count = *(const u16 *)glyphs;
-    u16 full_count = *(const u16 *)(glyphs + 2);
-    u32 ntiles = (u32)half_count * 2 + (u32)full_count * 4;
-    const u16 *src = (const u16 *)(glyphs + PJGB_GLYPH_STORE_HEADER_SIZE);
-    copy16(sub_tiles + SUB_GLYPH_BASE * 16, src, ntiles * PJGB_TILE_4BPP_BYTES);
-  }
+  glyphs = cart_chunk(CHUNK_GLYPHS, 0, 0);
 }
 
 // Center maps smaller than the viewport (matches the software renderer).
@@ -209,15 +204,36 @@ static void draw_sprites(void) {
   }
 }
 
-// --- bottom screen: textbox / choices (preloaded glyph tiles) ---------------
-static u32 half_glyph_tile(int id) { return SUB_GLYPH_BASE + (u32)id * 2; }
-static u32 full_glyph_tile(int id, int half) {
-  u16 half_count = *(const u16 *)cart_chunk(CHUNK_GLYPHS, 0, 0);
-  return SUB_GLYPH_BASE + (u32)half_count * 2 + (u32)id * 4 + (u32)half * 2;
+// --- bottom screen: textbox / choices (streamed glyph slots) -----------------
+// A screen entry's tile field is 10 bits (<= 1023), but a game may bake up to
+// BUDGET_MAX_FULL_GLYPHS fullwidth glyphs (thousands of tiles) — far more than
+// a tile index can address. So, exactly like the GBA runtime, glyph pixel data
+// is STREAMED: each halfcell drawn on the current page copies its 2 tiles from
+// the cart's GLYPHS chunk into the next free VRAM slot (PJGB_TEXT_GLYPH_SLOTS
+// slots after the box tile; the compiler wraps pages so a page always fits).
+// The page is re-streamed only when the textbox/choice state changes.
+
+// Byte offsets into the GLYPHS chunk (same formulas as the shared renderer).
+static u32 half_glyph_off(int id) {
+  return PJGB_GLYPH_STORE_HEADER_SIZE + (u32)id * 2 * PJGB_TILE_4BPP_BYTES;
+}
+static u32 full_glyph_off(int id, int half) {
+  u16 half_count = *(const u16 *)glyphs;
+  return PJGB_GLYPH_STORE_HEADER_SIZE +
+         ((u32)half_count * 2 + (u32)id * 4 + (u32)half * 2) * PJGB_TILE_4BPP_BYTES;
 }
 
-static void put_halfcell(u32 tile, int row, int col) {
+static u16 slot_next;
+
+// Stream one halfcell (2 stacked tiles) into the next free slot and stamp it
+// at tile cell (row, col). Drops on overflow (the compiler sizes pages so this
+// cannot happen — same contract as the GBA runtime).
+static void put_halfcell(u32 glyph_off, int row, int col) {
   if (col < 0 || col >= 32 || row < 0 || row >= 23) return;
+  if (slot_next >= PJGB_TEXT_GLYPH_SLOTS) return;
+  u32 tile = SUB_SLOT_BASE + (u32)slot_next * 2;
+  copy16(sub_tiles + tile * 16, (const u16 *)(glyphs + glyph_off), 2 * PJGB_TILE_4BPP_BYTES);
+  slot_next++;
   sub_map[row * 32 + col] = SE(tile, TEXT_PALBANK);
   sub_map[(row + 1) * 32 + col] = SE(tile + 1, TEXT_PALBANK);
 }
@@ -233,26 +249,41 @@ static void render_tokens(const u8 *t, int row0, int col0) {
     }
     if (tok & TOK_FULL_FLAG) {
       int id = ((tok & 0x3f) << 8) | *t++;
-      put_halfcell(full_glyph_tile(id, 0), row, col);
-      put_halfcell(full_glyph_tile(id, 1), row, col + 1);
+      put_halfcell(full_glyph_off(id, 0), row, col);
+      put_halfcell(full_glyph_off(id, 1), row, col + 1);
       col += 2;
     } else {
-      put_halfcell(half_glyph_tile(tok - TOK_ASCII_MIN), row, col);
+      put_halfcell(half_glyph_off(tok - TOK_ASCII_MIN), row, col);
       col += 1;
     }
   }
 }
 
+// Re-stream/stamp only when the textbox state changes (VRAM writes are not
+// free, and the state is stable for many frames at a time).
 static void draw_bottom(void) {
+  static u8 p_text = 0xff, p_choice, p_cursor, p_n;
+  static u16 p_cur, p_id0;
+  if (g.text_active == p_text && g.choice_active == p_choice && g.choice_cursor == p_cursor &&
+      g.choice_n == p_n && g.cur_text == p_cur && g.choice_ids[0] == p_id0)
+    return;
+  p_text = g.text_active;
+  p_choice = g.choice_active;
+  p_cursor = g.choice_cursor;
+  p_n = g.choice_n;
+  p_cur = g.cur_text;
+  p_id0 = g.choice_ids[0];
+
   int active = g.text_active || g.choice_active;
   u16 fill = active ? SE(SUB_BOX_TILE, TEXT_PALBANK) : SE(0, 0);
   for (int i = 0; i < 32 * 24; i++) sub_map[i] = fill;
+  slot_next = 0;
   if (!active) return;
 
   if (g.choice_active) {
     for (int i = 0; i < g.choice_n; i++) {
       int row = TX_CHOICE_ROW0 + i * TX_LINE_TILES;
-      if (i == g.choice_cursor) put_halfcell(half_glyph_tile('>' - TOK_ASCII_MIN), row, TX_CHOICE_CURSOR_COL);
+      if (i == g.choice_cursor) put_halfcell(half_glyph_off('>' - TOK_ASCII_MIN), row, TX_CHOICE_CURSOR_COL);
       render_tokens((const u8 *)text_get(g.choice_ids[i]), row, TX_CHOICE_TEXT_COL);
     }
     return;

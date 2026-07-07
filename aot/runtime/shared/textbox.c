@@ -1,4 +1,4 @@
-// aot/runtime/3ds/textbox.c — textbox + choice STATE only.
+// aot/runtime/shared/textbox.c — textbox + choice STATE only.
 //
 // Unlike the tile targets (which must stream glyphs into VRAM when a box
 // opens), the 3DS renderer redraws the bottom screen from this state every
@@ -29,7 +29,7 @@ void textbox_hide(void) { g.text_active = 0; }
 int textbox_active(void) { return g.text_active; }
 
 void textbox_tick(void) {
-  if (g.text_active && !g.choice_active && key_pressed(KEY_A)) textbox_hide();
+  if (g.text_active && !g.choice_active && key_pressed(PJ_KEY_A)) textbox_hide();
 }
 
 void choice_show(int n, const u16 *text_ids) {
@@ -46,12 +46,12 @@ int choice_result(void) { return g.choice_result; }
 
 void choice_tick(void) {
   if (!g.choice_active) return;
-  if (key_pressed(KEY_UP) && g.choice_cursor > 0) {
+  if (key_pressed(PJ_KEY_UP) && g.choice_cursor > 0) {
     g.choice_cursor--;
-  } else if (key_pressed(KEY_DOWN) && g.choice_cursor < g.choice_n - 1) {
+  } else if (key_pressed(PJ_KEY_DOWN) && g.choice_cursor < g.choice_n - 1) {
     g.choice_cursor++;
   }
-  if (key_pressed(KEY_A)) {
+  if (key_pressed(PJ_KEY_A)) {
     g.choice_result = g.choice_cursor;
     g.choice_active = 0;
     textbox_hide();

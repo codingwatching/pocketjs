@@ -29,7 +29,7 @@
     "gen": "bun spec/gen-c.ts",
     "handcart": "bun test/handcart.ts",
     "test": "bun run assets && bun test/e2e.ts",
-    "test:multi": "bun run assets && bun test/e2e-multi.ts gba gb nes 3ds nds",
+    "test:multi": "bun run assets && PJ_3DS_HOST_ONLY=1 PJ_NDS_HOST_ONLY=1 bun test/e2e-multi.ts gba gb nes 3ds nds",
     "test:3ds": "bun run assets && bun test/e2e-multi.ts 3ds && bun run assets:shendiao && bun test/e2e-shendiao.ts 3ds",
     "test:nds": "bun run assets && bun test/e2e-multi.ts nds && bun run assets:shendiao && bun test/e2e-shendiao.ts nds",
     "test:shendiao": "bun run assets:shendiao && bun test/e2e-shendiao.ts",

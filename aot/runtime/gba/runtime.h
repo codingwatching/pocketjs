@@ -18,6 +18,18 @@
 #include "gba.h"
 #include "pjgb_gen.h"
 
+// The platform-free modules in runtime/shared/ use PJ_KEY_* so targets whose
+// SDK owns the KEY_* names (libctru/libnds) can share them; on the GBA they
+// alias the hardware bits from gba.h.
+#define PJ_KEY_A KEY_A
+#define PJ_KEY_B KEY_B
+#define PJ_KEY_SELECT KEY_SELECT
+#define PJ_KEY_START KEY_START
+#define PJ_KEY_RIGHT KEY_RIGHT
+#define PJ_KEY_LEFT KEY_LEFT
+#define PJ_KEY_UP KEY_UP
+#define PJ_KEY_DOWN KEY_DOWN
+
 // The cartridge blob, emitted by the compiler as gen_cart.c and linked in.
 extern const unsigned char pjgb_cart[];
 

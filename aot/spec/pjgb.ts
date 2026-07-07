@@ -1,6 +1,6 @@
 // aot/spec/pjgb.ts — THE single source of truth for the PJGB game data model,
 // the script bytecode ISA, the text/glyph encoding, and the runtime debug
-// block — shared by ALL cartridge targets (GBA, Game Boy, NES).
+// block — shared by ALL cartridge targets (GBA, Game Boy, NES, 3DS, DS).
 //
 // Both sides derive from this file:
 //   - the compiler (aot/compiler/*) ENCODES these layouts,
@@ -58,6 +58,8 @@ export interface TargetSpec {
   glyphSlots: number;
   /** Absolute bus address of the debug block. */
   debugAddr: number;
+  /** ROM file extension (with the dot) — CLI/e2e derive it from here. */
+  ext: string;
 }
 
 export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> = {
@@ -74,6 +76,7 @@ export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> =
     maxChoices: 4,
     glyphSlots: 84, // 28 cols x 3 lines
     debugAddr: 0x02000000, // EWRAM base
+    ext: ".gba",
   },
   gb: {
     name: "gb",
@@ -88,6 +91,7 @@ export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> =
     maxChoices: 4,
     glyphSlots: 72, // max(18x2 text, 18x4 choices)
     debugAddr: 0xde00, // top of DMG WRAM, below the GBDK stack
+    ext: ".gb",
   },
   nes: {
     name: "nes",
@@ -102,6 +106,7 @@ export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> =
     maxChoices: 4,
     glyphSlots: 84, // max(28x3 text, 20x4 choices)
     debugAddr: 0x0700, // top page of the 2 KB CPU RAM
+    ext: ".nes",
   },
   // 3DS: dual screen. The top screen (400x240) shows the world at 2x scale
   // (one 200x120 world viewport); the bottom screen (320x240) owns the
@@ -123,6 +128,7 @@ export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> =
     maxChoices: 4,
     glyphSlots: 144, // 36 cols x 4 lines
     debugAddr: 0x14000000, // virtual marker; the host harness reads block-relative
+    ext: ".3dsx",
   },
   // DS (NTR): true dual screen, two independent 2D engines. The MAIN engine
   // drives the top screen with the world: a 128x96 viewport hardware-scaled
@@ -131,10 +137,11 @@ export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> =
   // engine drives the bottom screen (256x192) with the textbox/choice UI, so
   // dialogue never covers the map. The DS 2D hardware is essentially "GBA x2"
   // and uses the same 4bpp tiles + BGR555 palettes, so the DS runtime ships
-  // the GBA PJGB blob verbatim and renders it in HARDWARE. Ample VRAM lets
-  // the whole cjk16 glyph store preload into the sub engine (no per-open
-  // streaming), so glyphSlots is just the page budget. debugAddr is DS main
-  // RAM (0x02000000), matching the GBA debug-block convention.
+  // the GBA PJGB blob verbatim and renders it in HARDWARE. Like the GBA, the
+  // sub engine STREAMS glyph tiles into a glyphSlots-sized VRAM slot region
+  // per page (a 10-bit screen-entry tile index cannot address a whole CJK
+  // store). debugAddr is DS main RAM (0x02000000), matching the GBA
+  // debug-block convention.
   nds: {
     name: "nds",
     screenW: 128, // world viewport; shown at 2x = 256x192
@@ -148,6 +155,7 @@ export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> =
     maxChoices: 4,
     glyphSlots: 112, // 28 cols x 4 lines
     debugAddr: 0x02000000, // DS main RAM base (== GBA EWRAM convention)
+    ext: ".nds",
   },
 } as const;
 export type TargetName = keyof typeof TARGETS;
@@ -474,7 +482,7 @@ export const BG_TILE_BUDGET: Record<TargetName, number> = {
   gb: 256,
   nes: 256,
   "3ds": 1024, // software renderer: no VRAM, just a sanity cap
-  nds: 1024, // DS main-engine BG VRAM holds far more; sanity cap
+  nds: 1023, // 10-bit screen entries minus the blank tile 0 the renderer reserves
 };
 // OBJ tile budgets: GB keeps OBJ in 0x8000..0x87FF (128 tiles) so BG can own
 // 0x8800..0x97FF; NES pattern table 1 holds 256 8x8 OBJ tiles.

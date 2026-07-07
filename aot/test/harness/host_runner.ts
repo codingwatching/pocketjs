@@ -1,25 +1,26 @@
 #!/usr/bin/env bun
-// aot/test/harness/3ds_runner.ts — headless 3DS runner speaking the same
-// scenario JSON protocol as mgba_runner / nes_runner:
+// aot/test/harness/host_runner.ts — headless runner for the pj_frame-core
+// targets (3ds, nds), speaking the same scenario JSON protocol as
+// mgba_runner / nes_runner:
 //
-//   bun 3ds_runner.ts <game.3dsx> <scenario.json>
+//   bun host_runner.ts <game.3dsx|game.nds> <scenario.json>
 //
-// There is no scriptable 3DS emulator, so this drives the runtime's HOST
-// build instead: targets/3ds.ts compiles the identical core (game logic, VM,
-// software renderer, debug block) into <game>.host.dylib next to the .3dsx,
-// and this runner ticks it over Bun FFI. Only ctru_main.c (the ~100-line
-// libctru blit/input shell) is outside the loop.
+// Neither console has a scriptable emulator wired in, so this drives the
+// runtime's HOST build: the target backend compiles the identical core (game
+// logic, VM, software renderer, debug block) into <game>.host.dylib next to
+// the device binary, and this runner ticks it over Bun FFI. Only the device
+// shell (ctru_main.c / render_ds.c + nds_main.c) is outside the loop.
 //
-// Debug reads translate scenario bus addresses as (addr - debugAddr) into
-// the core's exported block. Screenshots compose both screens into one PPM:
-// top 400x240 (world at 2x) over bottom 320x240 (centered).
+// Debug reads translate scenario bus addresses as (addr - debugAddr) into the
+// core's exported block. Screenshots stack both screens into one PPM, with
+// the top world viewport upscaled 2x exactly as the console presents it.
 
 import { dlopen, FFIType, toArrayBuffer } from "bun:ffi";
-import { TARGETS, DEBUG_BLOCK_SIZE } from "../../spec/pjgb.ts";
+import { TARGETS, DEBUG_BLOCK_SIZE, type TargetName } from "../../spec/pjgb.ts";
 
 const [romPath, scenarioPath] = process.argv.slice(2);
 if (!romPath || !scenarioPath) {
-  console.log(JSON.stringify({ ok: false, error: "usage: 3ds_runner <game.3dsx> <scenario.json>" }));
+  console.log(JSON.stringify({ ok: false, error: "usage: host_runner <game.3dsx|game.nds> <scenario.json>" }));
   process.exit(1);
 }
 
@@ -29,7 +30,7 @@ type Step =
   | { op: "read"; name: string; addr: number; size: 1 | 2 | 4 }
   | { op: "screenshot"; path: string };
 
-// Core key mask (GBA KEYINPUT bit layout).
+// Core key mask (GBA KEYINPUT bit layout, shared by every pj_frame core).
 const BTN: Record<string, number> = {
   A: 0x01,
   B: 0x02,
@@ -41,15 +42,26 @@ const BTN: Record<string, number> = {
   DOWN: 0x80,
 };
 
-const spec = TARGETS["3ds"];
+// Per-target presentation: bottom-screen size is a hardware constant (the
+// top viewport comes from TARGETS); everything else is identical.
+const BOTTOM: Partial<Record<TargetName, { w: number; h: number }>> = {
+  "3ds": { w: 320, h: 240 },
+  nds: { w: 256, h: 192 },
+};
+
+const target = (Object.keys(TARGETS) as TargetName[]).find((t) => romPath.endsWith(TARGETS[t].ext) && BOTTOM[t]);
+if (!target) {
+  console.log(JSON.stringify({ ok: false, error: `not a pj_frame-core rom (want .3dsx/.nds): ${romPath}` }));
+  process.exit(1);
+}
+const spec = TARGETS[target];
 const TOP_W = spec.screenW;
 const TOP_H = spec.screenH;
-const BOT_W = 320;
-const BOT_H = 240;
+const { w: BOT_W, h: BOT_H } = BOTTOM[target]!;
 
-const dylibPath = romPath.replace(/\.3dsx$/, "") + ".host.dylib";
+const dylibPath = romPath.slice(0, -spec.ext.length) + ".host.dylib";
 if (!(await Bun.file(dylibPath).exists())) {
-  console.log(JSON.stringify({ ok: false, error: `host dylib not found: ${dylibPath} (build with --target 3ds)` }));
+  console.log(JSON.stringify({ ok: false, error: `host dylib not found: ${dylibPath} (build with --target ${target})` }));
   process.exit(1);
 }
 
@@ -87,8 +99,9 @@ function rgb(v: number): [number, number, number] {
 }
 
 async function screenshot(path: string): Promise<void> {
-  const W = TOP_W * 2; // 400
-  const H = TOP_H * 2 + BOT_H; // 240 + 240
+  const top2W = TOP_W * 2; // world viewport presented at 2x
+  const W = Math.max(top2W, BOT_W);
+  const H = TOP_H * 2 + BOT_H;
   const head = `P6\n${W} ${H}\n255\n`;
   const out = new Uint8Array(head.length + W * H * 3);
   for (let i = 0; i < head.length; i++) out[i] = head.charCodeAt(i);
@@ -98,15 +111,16 @@ async function screenshot(path: string): Promise<void> {
     out[o + 1] = c[1];
     out[o + 2] = c[2];
   };
+  const topX = (W - top2W) / 2;
   for (let y = 0; y < TOP_H; y++)
     for (let x = 0; x < TOP_W; x++) {
       const c = rgb(topFb[y * TOP_W + x]);
-      put(x * 2, y * 2, c);
-      put(x * 2 + 1, y * 2, c);
-      put(x * 2, y * 2 + 1, c);
-      put(x * 2 + 1, y * 2 + 1, c);
+      put(topX + x * 2, y * 2, c);
+      put(topX + x * 2 + 1, y * 2, c);
+      put(topX + x * 2, y * 2 + 1, c);
+      put(topX + x * 2 + 1, y * 2 + 1, c);
     }
-  const botX = (W - BOT_W) / 2; // 40
+  const botX = (W - BOT_W) / 2;
   for (let y = 0; y < BOT_H; y++)
     for (let x = 0; x < BOT_W; x++) put(botX + x, TOP_H * 2 + y, rgb(bottomFb[y * BOT_W + x]));
   await Bun.write(path, out);
