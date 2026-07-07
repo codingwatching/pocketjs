@@ -1,0 +1,23 @@
+{
+  "name": "@pocketjs/cine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GBA cinematic-montage DSL: author interactive life-montage films in TypeScript, ship Mode-0 parallax, blending, raster FX and CJK typewriter captions as a real .gba ROM. Independent sibling of @pocketjs/aot.",
+  "exports": {
+    ".": "./dsl/index.ts",
+    "./compiler": "./compiler/index.ts",
+    "./spec": "./spec/cine.ts"
+  },
+  "scripts": {
+    "gen": "bun spec/gen-c.ts",
+    "build": "bun compiler/cli.ts build film/progressive-life.ts --out dist/progressive-life.gba --title PROGLIFE",
+    "smoke": "bun test/gen-placeholder-art.ts && bun compiler/cli.ts build test/smoke-film.ts --out dist/smoke.gba --title CINESMOKE",
+    "art": "bun pixellab/generate.ts",
+    "test": "bun test/e2e.ts",
+    "play": "bash play.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
