@@ -39,7 +39,7 @@ export const TILE_2BPP_BYTES = 16; // 8x8 @ 2bpp (GB interleaved / NES planar)
 // the binary contract (they shape text banks and glyph slot ids).
 // ---------------------------------------------------------------------------
 export interface TargetSpec {
-  name: "gba" | "gb" | "nes";
+  name: "gba" | "gb" | "nes" | "3ds" | "nds";
   screenW: number;
   screenH: number;
   /** Max map size in tiles (w, h). NES is bounded by a single nametable. */
@@ -60,7 +60,7 @@ export interface TargetSpec {
   debugAddr: number;
 }
 
-export const TARGETS: Record<"gba" | "gb" | "nes", TargetSpec> = {
+export const TARGETS: Record<"gba" | "gb" | "nes" | "3ds" | "nds", TargetSpec> = {
   gba: {
     name: "gba",
     screenW: 240,
@@ -102,6 +102,52 @@ export const TARGETS: Record<"gba" | "gb" | "nes", TargetSpec> = {
     maxChoices: 4,
     glyphSlots: 84, // max(28x3 text, 20x4 choices)
     debugAddr: 0x0700, // top page of the 2 KB CPU RAM
+  },
+  // 3DS: dual screen. The top screen (400x240) shows the world at 2x scale
+  // (one 200x120 world viewport); the bottom screen (320x240) owns the
+  // textbox/choice UI, so dialogue never covers the map. The runtime renders
+  // in software from the SAME PJGB blob as GBA (4bpp tiles + BGR555), so
+  // screenW/H here are WORLD-view pixels, not physical pixels, and glyph
+  // "slots" are a reserved-index formality (glyphs draw straight from the
+  // store — no VRAM streaming).
+  "3ds": {
+    name: "3ds",
+    screenW: 200,
+    screenH: 120,
+    maxMapW: 32,
+    maxMapH: 32,
+    tileBytes: TILE_4BPP_BYTES,
+    textCols: 36, // bottom screen: 40 halfcells minus a 2-cell margin each side
+    textLines: 4,
+    choiceCols: 34,
+    maxChoices: 4,
+    glyphSlots: 144, // 36 cols x 4 lines
+    debugAddr: 0x14000000, // virtual marker; the host harness reads block-relative
+  },
+  // DS (NTR): true dual screen, two independent 2D engines. The MAIN engine
+  // drives the top screen with the world: a 128x96 viewport hardware-scaled
+  // 2x (extended-affine BG + affine sprites) to fill the 256x192 panel — GBA
+  // maps are smaller than the DS screen, so 1:1 would letterbox. The SUB
+  // engine drives the bottom screen (256x192) with the textbox/choice UI, so
+  // dialogue never covers the map. The DS 2D hardware is essentially "GBA x2"
+  // and uses the same 4bpp tiles + BGR555 palettes, so the DS runtime ships
+  // the GBA PJGB blob verbatim and renders it in HARDWARE. Ample VRAM lets
+  // the whole cjk16 glyph store preload into the sub engine (no per-open
+  // streaming), so glyphSlots is just the page budget. debugAddr is DS main
+  // RAM (0x02000000), matching the GBA debug-block convention.
+  nds: {
+    name: "nds",
+    screenW: 128, // world viewport; shown at 2x = 256x192
+    screenH: 96,
+    maxMapW: 32,
+    maxMapH: 32,
+    tileBytes: TILE_4BPP_BYTES,
+    textCols: 28, // 256px / 8 = 32 halfcells, minus a 2-cell margin each side
+    textLines: 4,
+    choiceCols: 26,
+    maxChoices: 4,
+    glyphSlots: 112, // 28 cols x 4 lines
+    debugAddr: 0x02000000, // DS main RAM base (== GBA EWRAM convention)
   },
 } as const;
 export type TargetName = keyof typeof TARGETS;
@@ -427,6 +473,8 @@ export const BG_TILE_BUDGET: Record<TargetName, number> = {
   gba: 512,
   gb: 256,
   nes: 256,
+  "3ds": 1024, // software renderer: no VRAM, just a sanity cap
+  nds: 1024, // DS main-engine BG VRAM holds far more; sanity cap
 };
 // OBJ tile budgets: GB keeps OBJ in 0x8000..0x87FF (128 tiles) so BG can own
 // 0x8800..0x97FF; NES pattern table 1 holds 256 8x8 OBJ tiles.
@@ -434,6 +482,8 @@ export const OBJ_TILE_BUDGET: Record<TargetName, number> = {
   gba: 1024,
   gb: 128,
   nes: 256,
+  "3ds": 1024,
+  nds: 1024,
 };
 
 // ---------------------------------------------------------------------------

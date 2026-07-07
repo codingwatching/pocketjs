@@ -7,7 +7,7 @@ import { compile, debugInfo, irJson } from "./index.ts";
 import type { TargetName } from "../spec/pjgb.ts";
 
 function usage(): never {
-  console.error("usage: pocket-aot build <entry.tsx> [--target gba|gb|nes] [--out <file>] [--no-rom]");
+  console.error("usage: pocket-aot build <entry.tsx> [--target gba|gb|nes|3ds|nds] [--out <file>] [--no-rom]");
   process.exit(2);
 }
 
@@ -21,17 +21,17 @@ for (let i = 0; i < rest.length; i++) {
   if (rest[i] === "--out") out = rest[++i];
   else if (rest[i] === "--target") {
     const t = rest[++i];
-    if (t !== "gba" && t !== "gb" && t !== "nes") usage();
+    if (t !== "gba" && t !== "gb" && t !== "nes" && t !== "3ds" && t !== "nds") usage();
     target = t;
   } else if (rest[i] === "--no-rom") doRom = false;
   else usage();
 }
-const EXT: Record<TargetName, string> = { gba: ".gba", gb: ".gb", nes: ".nes" };
+const EXT: Record<TargetName, string> = { gba: ".gba", gb: ".gb", nes: ".nes", "3ds": ".3dsx", nds: ".nds" };
 if (!out) out = `aot/dist/game${EXT[target]}`;
 
 const entry = resolve(entryArg);
 const outAbs = resolve(out);
-const base = outAbs.replace(/\.(gba|gb|nes)$/, "");
+const base = outAbs.replace(/\.(gba|gb|nes|3dsx|nds)$/, "");
 
 const t0 = performance.now();
 const built = await compile(entry, target);

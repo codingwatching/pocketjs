@@ -16,8 +16,10 @@ import { DBG, TARGETS, type TargetName } from "../spec/pjgb.ts";
 const ROOT = new URL("../..", import.meta.url).pathname;
 const RUNNER = ROOT + "aot/test/harness/mgba_runner";
 const NES_RUNNER = ROOT + "aot/test/harness/nes_runner.ts";
+const TDS_RUNNER = ROOT + "aot/test/harness/3ds_runner.ts";
+const NDS_RUNNER = ROOT + "aot/test/harness/ds_runner.ts";
 const SHOTS = ROOT + "aot/dist/shots";
-const EXT: Record<TargetName, string> = { gba: ".gba", gb: ".gb", nes: ".nes" };
+const EXT: Record<TargetName, string> = { gba: ".gba", gb: ".gb", nes: ".nes", "3ds": ".3dsx", nds: ".nds" };
 
 type Step =
   | { op: "advance"; frames: number }
@@ -51,7 +53,11 @@ async function run(t: TargetCtx, steps: Step[]): Promise<Record<string, number>>
   const out =
     t.target === "nes"
       ? await $`bun ${NES_RUNNER} ${t.rom} ${scenario}`.text()
-      : await $`${RUNNER} ${t.rom} ${scenario}`.text();
+      : t.target === "3ds"
+        ? await $`bun ${TDS_RUNNER} ${t.rom} ${scenario}`.text()
+        : t.target === "nds"
+          ? await $`bun ${NDS_RUNNER} ${t.rom} ${scenario}`.text()
+          : await $`${RUNNER} ${t.rom} ${scenario}`.text();
   const line = out.trim().split("\n").reverse().find((l) => l.trim().startsWith("{"));
   if (!line) throw new Error("runner produced no JSON:\n" + out);
   const parsed = JSON.parse(line);
