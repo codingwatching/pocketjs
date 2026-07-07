@@ -4,10 +4,10 @@
 // coordinate and an outward normal. Face turns rotate the affected layer's
 // positions and normals, so scramble/restore are legal cube-state operations.
 
-import { For, createMemo, createSignal, type Accessor } from "solid-js";
+import { For, Show, createMemo, createSignal, type Accessor } from "solid-js";
 import { Text, View, type NodeMirror } from "@pocketjs/framework/components";
 import { animate } from "@pocketjs/framework/animation";
-import { onButtonPress } from "@pocketjs/framework/lifecycle";
+import { onButtonPress, onFrame } from "@pocketjs/framework/lifecycle";
 import { BTN } from "@pocketjs/framework/input";
 
 type Axis = "x" | "y" | "z";
@@ -33,6 +33,17 @@ interface Sticker {
   normal: Vec3;
 }
 
+interface FaceSticker {
+  sticker: Sticker;
+  slot: number;
+}
+
+interface Turning {
+  face: Face;
+  started: boolean;
+  frame: number;
+}
+
 const FACES: Face[] = ["F", "R", "U", "B", "L", "D"];
 
 const FACE_META: Record<Face, FaceMeta> = {
@@ -54,24 +65,24 @@ const FACE_CLASSES: Record<Face, string> = {
 };
 
 const STICKER_POS = [
-  "absolute left-[3] top-[3] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[34] top-[3] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[65] top-[3] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[3] top-[34] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[34] top-[34] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[65] top-[34] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[3] top-[65] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[34] top-[65] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
-  "absolute left-[65] top-[65] w-[28] h-[28] rounded-[4px] bg-[#111827] p-[2]",
+  "absolute left-[2] top-[2] w-[30] h-[30]",
+  "absolute left-[33] top-[2] w-[30] h-[30]",
+  "absolute left-[64] top-[2] w-[30] h-[30]",
+  "absolute left-[2] top-[33] w-[30] h-[30]",
+  "absolute left-[33] top-[33] w-[30] h-[30]",
+  "absolute left-[64] top-[33] w-[30] h-[30]",
+  "absolute left-[2] top-[64] w-[30] h-[30]",
+  "absolute left-[33] top-[64] w-[30] h-[30]",
+  "absolute left-[64] top-[64] w-[30] h-[30]",
 ];
 
 const COLOR_CLASSES: Record<Face, string> = {
-  U: "w-full h-full rounded-[3px] bg-[#f8fafc] border-[#e2e8f0]",
-  R: "w-full h-full rounded-[3px] bg-gradient-to-b from-red-400 to-red-600 border-red-700",
-  F: "w-full h-full rounded-[3px] bg-gradient-to-b from-emerald-400 to-emerald-600 border-emerald-700",
-  D: "w-full h-full rounded-[3px] bg-gradient-to-b from-yellow-300 to-yellow-500 border-yellow-700",
-  L: "w-full h-full rounded-[3px] bg-gradient-to-b from-orange-400 to-orange-600 border-orange-700",
-  B: "w-full h-full rounded-[3px] bg-gradient-to-b from-blue-400 to-blue-600 border-blue-700",
+  U: "w-full h-full bg-[#f8fafc]",
+  R: "w-full h-full bg-[#dc2626]",
+  F: "w-full h-full bg-[#16a34a]",
+  D: "w-full h-full bg-[#facc15]",
+  L: "w-full h-full bg-[#f97316]",
+  B: "w-full h-full bg-[#2563eb]",
 };
 
 const FACE_BADGE_ACTIVE =
@@ -83,6 +94,8 @@ const FACE_TEXT_IDLE = "text-xs font-bold text-[#94a3b8]";
 
 const DEFAULT_RX = -28;
 const DEFAULT_RY = -34;
+const TURN_FRAMES = 18;
+const TURN_MS = 300;
 const SCRAMBLE: Face[] = ["R", "U", "F", "L", "D", "B", "R", "F", "U", "L", "B", "D", "R", "U"];
 
 function vec(x: -1 | 0 | 1, y: -1 | 0 | 1, z: -1 | 0 | 1): Vec3 {
@@ -195,23 +208,24 @@ function slotFor(face: Face, p: Vec3): number {
   return row * 3 + col;
 }
 
-function faceGrid(state: readonly Sticker[], face: Face): Sticker[] {
+function faceStickers(state: readonly Sticker[], face: Face): FaceSticker[] {
   const normal = normalFor(face);
-  const grid = new Array<Sticker>(9);
+  const items: FaceSticker[] = [];
   for (const sticker of state) {
-    if (sameVec(sticker.normal, normal)) grid[slotFor(face, sticker.pos)] = sticker;
+    if (sameVec(sticker.normal, normal)) {
+      items.push({ sticker, slot: slotFor(face, sticker.pos) });
+    }
   }
-  return grid;
+  return items;
 }
 
 function FacePlane(props: { face: Face; stickers: Accessor<Sticker[]> }) {
   return (
     <View class={FACE_CLASSES[props.face]}>
-      <View class="absolute inset-0 rounded-[8px] bg-[#020617] border-[#020617] shadow-md" />
-      <For each={faceGrid(props.stickers(), props.face)}>
-        {(sticker, i) => (
-          <View class={STICKER_POS[i()]}>
-            <View class={COLOR_CLASSES[sticker.color]} />
+      <For each={faceStickers(props.stickers(), props.face)}>
+        {(item) => (
+          <View class={STICKER_POS[item.slot]}>
+            <View class={COLOR_CLASSES[item.sticker.color]} />
           </View>
         )}
       </For>
@@ -219,13 +233,54 @@ function FacePlane(props: { face: Face; stickers: Accessor<Sticker[]> }) {
   );
 }
 
+function StickerShell(props: { stickers: Accessor<Sticker[]>; ref?: (node: NodeMirror) => void }) {
+  return (
+    <View ref={props.ref} class="absolute left-0 top-0 w-[96] h-[96]">
+      <FacePlane face="B" stickers={props.stickers} />
+      <FacePlane face="L" stickers={props.stickers} />
+      <FacePlane face="D" stickers={props.stickers} />
+      <FacePlane face="F" stickers={props.stickers} />
+      <FacePlane face="R" stickers={props.stickers} />
+      <FacePlane face="U" stickers={props.stickers} />
+    </View>
+  );
+}
+
+function turnDir(face: Face): -1 | 1 {
+  return (-FACE_META[face].sign) as -1 | 1;
+}
+
+function turnProp(face: Face): "rotate" | "rotateX" | "rotateY" {
+  const axis = FACE_META[face].axis;
+  return axis === "x" ? "rotateX" : axis === "y" ? "rotateY" : "rotate";
+}
+
+function turnDegrees(face: Face): number {
+  const dir = turnDir(face);
+  return FACE_META[face].axis === "x" ? -dir * 90 : dir * 90;
+}
+
 export default function Rubiks() {
   const [stickers, setStickers] = createSignal<Sticker[]>(createSolved());
   const [selected, setSelected] = createSignal<Face>("F");
   const [status, setStatus] = createSignal("SOLVED");
   const [moves, setMoves] = createSignal(0);
+  const [turning, setTurning] = createSignal<Turning | null>(null);
   const selectedMeta = createMemo(() => FACE_META[selected()]);
+  const staticStickers = createMemo(() => {
+    const t = turning();
+    if (!t) return stickers();
+    const meta = FACE_META[t.face];
+    return stickers().filter((s) => axisValue(s.pos, meta.axis) !== meta.sign);
+  });
+  const turningStickers = createMemo(() => {
+    const t = turning();
+    if (!t) return [];
+    const meta = FACE_META[t.face];
+    return stickers().filter((s) => axisValue(s.pos, meta.axis) === meta.sign);
+  });
   let cubeNode: NodeMirror | undefined;
+  let layerNode: NodeMirror | undefined;
   let rx = DEFAULT_RX;
   let ry = DEFAULT_RY;
 
@@ -237,6 +292,7 @@ export default function Rubiks() {
     animate(cubeNode, "rotateY", ry, { dur: 260, easing: "out" });
   };
   const cycleFace = (delta: number) => {
+    if (turning()) return;
     const index = FACES.indexOf(selected());
     const next = FACES[(index + delta + FACES.length) % FACES.length];
     setSelected(next);
@@ -244,17 +300,20 @@ export default function Rubiks() {
   };
   const turnSelected = () => {
     const face = selected();
-    setStickers((state) => turn(state, face));
-    setMoves((n) => n + 1);
-    setStatus(`TURN ${face}`);
+    if (turning()) return;
+    setTurning({ face, started: false, frame: 0 });
+    setStatus(`TURNING ${face}`);
   };
   const scramble = () => {
+    if (turning()) return;
     setStickers(SCRAMBLE.reduce((state, face) => turn(state, face), createSolved()));
     setMoves(SCRAMBLE.length);
     setStatus("MIXED");
     setView(-22, 42);
   };
   const restore = () => {
+    setTurning(null);
+    layerNode = undefined;
     setStickers(createSolved());
     setMoves(0);
     setStatus("SOLVED");
@@ -270,6 +329,25 @@ export default function Rubiks() {
   onButtonPress(BTN.CIRCLE, turnSelected);
   onButtonPress(BTN.SQUARE, scramble);
   onButtonPress(BTN.CROSS, restore);
+  onFrame(() => {
+    const t = turning();
+    if (!t) return;
+    if (!t.started) {
+      if (!layerNode) return;
+      animate(layerNode, turnProp(t.face), turnDegrees(t.face), { dur: TURN_MS, easing: "in-out" });
+      setTurning({ ...t, started: true, frame: 0 });
+      return;
+    }
+    if (t.frame >= TURN_FRAMES) {
+      setStickers((state) => turn(state, t.face));
+      setMoves((n) => n + 1);
+      setStatus(`TURN ${t.face}`);
+      layerNode = undefined;
+      setTurning(null);
+      return;
+    }
+    setTurning({ ...t, frame: t.frame + 1 });
+  });
 
   return (
     <View class="w-full h-full overflow-hidden bg-gradient-to-b from-[#0b1020] to-[#151015]">
@@ -302,12 +380,15 @@ export default function Rubiks() {
             class="absolute left-[40] top-[40] w-[96] h-[96]"
             style={{ rotateX: DEFAULT_RX, rotateY: DEFAULT_RY, translateZ: -20 }}
           >
-            <FacePlane face="B" stickers={stickers} />
-            <FacePlane face="L" stickers={stickers} />
-            <FacePlane face="D" stickers={stickers} />
-            <FacePlane face="F" stickers={stickers} />
-            <FacePlane face="R" stickers={stickers} />
-            <FacePlane face="U" stickers={stickers} />
+            <StickerShell stickers={staticStickers} />
+            <Show when={turning()}>
+              <StickerShell
+                ref={(node) => {
+                  layerNode = node;
+                }}
+                stickers={turningStickers}
+              />
+            </Show>
           </View>
         </View>
       </View>
