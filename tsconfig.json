@@ -22,6 +22,10 @@
       "@pocketjs/aot/jsx-runtime": ["./aot/dsl/jsx-runtime.ts"],
       "@pocketjs/aot/jsx-dev-runtime": ["./aot/dsl/jsx-dev-runtime.ts"],
       "@pocketjs/aot/spec": ["./aot/spec/pjgb.ts"],
+      "@pocketjs/playset": ["./playset/index.ts"],
+      "@pocketjs/playset/loop": ["./playset/loop.ts"],
+      "@pocketjs/playset/math": ["./playset/math/index.ts"],
+      "@pocketjs/playset/scene3d": ["./playset/scene3d/index.ts"],
       "@pocketjs/framework": ["./src/index.ts"],
       "@pocketjs/framework/animation": ["./src/animation.ts"],
       "@pocketjs/framework/config": ["./src/config.ts"],
@@ -42,5 +46,5 @@
       "@pocketjs/framework/vue-vapor/renderer": ["./src/renderer-vue-vapor.ts"]
     }
   },
-  "include": ["src", "compiler", "demos", "test", "spec", "host-web", "aot"]
+  "include": ["src", "compiler", "demos", "test", "spec", "host-web", "aot", "playset"]
 }
