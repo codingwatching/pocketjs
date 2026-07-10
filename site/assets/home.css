@@ -230,7 +230,13 @@ a.lp-btn--primary:hover {
   color: var(--ink);
 }
 .lp-brand svg { width: 26px; height: 26px; }
-.lp-nav__links { display: flex; align-items: center; gap: 0.25rem; }
+.lp-nav__links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  min-width: 0;
+}
 .lp-nav__link {
   color: var(--ink-2);
   text-decoration: none;
@@ -241,8 +247,10 @@ a.lp-btn--primary:hover {
   transition: color 0.2s ease, background 0.2s ease;
 }
 .lp-nav__link:hover { color: var(--ink); background: rgba(20, 29, 49, 0.9); }
-.lp-nav__gh { display: inline-flex; align-items: center; gap: 0.45rem; }
+.lp-nav__gh { display: inline-flex; align-items: center; }
 .lp-nav__gh svg { width: 18px; height: 18px; }
+.lp-nav__discord { display: inline-flex; align-items: center; color: #cfd3ff; }
+.lp-nav__discord svg { width: 18px; height: 18px; }
 .lp-nav__x { display: inline-flex; align-items: center; }
 .lp-nav__x svg { width: 16px; height: 16px; }
 /* 3D entry: an accent-tinted link so it stands out among the nav items, but
@@ -263,7 +271,8 @@ a.lp-btn--primary:hover {
 }
 @media (max-width: 480px) {
   .lp-nav__ghlabel { display: none; }
-  .lp-nav__link { padding: 0.5rem 0.5rem; font-size: 13px; }
+  .lp-nav__optional { display: none; }
+  .lp-nav__link { padding: 0.5rem 0.32rem; font-size: 12px; }
 }
 
 /* ---- Hero ----------------------------------------------------------------- */
@@ -575,10 +584,10 @@ a.lp-btn--primary:hover {
     radial-gradient(40% 52% at 100% 6%, rgba(96, 165, 250, 0.05), transparent 70%),
     radial-gradient(38% 48% at 0% 12%, rgba(157, 229, 199, 0.035), transparent 72%);
 }
-.lp-targets__grid {
+.lp .lp-targets__grid {
   list-style: none;
   padding: 0;
-  margin: clamp(2.5rem, 5vw, 3.75rem) auto 0;
+  margin: clamp(3.6rem, 7vw, 5rem) auto 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
   gap: 1.1rem;
