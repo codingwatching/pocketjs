@@ -219,6 +219,15 @@ pub fn render(ui: &Ui, words: &[u32], fb: &mut [u8]) {
                 tex_tri(ui, fb, clip, &words[i + 1..i + 12]);
                 i += 12;
             }
+            draw_op::SCENE_QUAD => {
+                // Host-composited 3D backdrop — the software raster has no
+                // scene3d core; the box stays whatever was painted below
+                // (graceful absence, deterministic for goldens).
+                if i + 4 > words.len() {
+                    return;
+                }
+                i += 4;
+            }
             // The op set is closed per DrawList version; anything else means
             // corrupt data — stop instead of misinterpreting the stream.
             _ => return,

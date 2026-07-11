@@ -576,6 +576,15 @@ impl UiRenderer {
                     self.verts.extend_from_slice(&v);
                     i += 7;
                 }
+                spec::draw_op::SCENE_QUAD => {
+                    // Host-composited 3D backdrop. The plain UiRenderer has
+                    // no scene3d core — skip; a 3D-capable host composites
+                    // scenes under the ui layer from the same DrawList.
+                    if i + 4 > words.len() {
+                        break;
+                    }
+                    i += 4;
+                }
                 // The op set is closed per DrawList version; anything else
                 // means corrupt data — stop instead of misinterpreting.
                 _ => break,
