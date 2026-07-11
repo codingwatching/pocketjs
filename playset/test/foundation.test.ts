@@ -2,6 +2,7 @@
 // WorldBasis, Vector3Utils, RandomGenerator, ScalarUtils, Clock.
 
 import { describe, expect, test } from "bun:test";
+import { virtualNow } from "@pocketjs/framework/clock";
 import { Vector3 } from "../math/vector3.ts";
 import {
   DEFAULT_WORLD_BASIS,
@@ -158,8 +159,11 @@ describe("ScalarUtils / Clock", () => {
     expect(clock.now()).toBe(1000);
     clock.advanceMs(500);
     expect(clock.nowSeconds()).toBe(1.5);
-    // non-manual mode reads the virtual clock (0 before any frame), not wall time
+    // non-manual mode reads the virtual clock, not wall time. Other test
+    // files in the same process may have advanced the shared frame counter,
+    // so assert against virtualNow() rather than a literal 0.
     const virtual = new Clock();
-    expect(virtual.now()).toBe(0);
+    expect(virtual.now()).toBe(virtualNow() * 1000);
+    expect(Math.abs(virtual.now() - Date.now())).toBeGreaterThan(1e9);
   });
 });
