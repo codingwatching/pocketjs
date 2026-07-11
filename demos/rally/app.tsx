@@ -37,8 +37,10 @@ export default function Rally() {
       ? "RACE COMPLETE"
       : `GATES ${hud().checkpointsPassed} · × GAS · ▢ BRAKE`;
 
+  // No bgColor on the viewport: on native hosts the 3D scene composites
+  // UNDER the ui layer, so the viewport (and its ancestors) stay unpainted.
   return (
-    <Viewport3D scene={game.scene} class="w-full h-full" style={{ bgColor: "#0b1420" }}>
+    <Viewport3D scene={game.scene} class="w-full h-full">
       <View class="w-full h-full flex-col justify-between px-3 py-2">
         {/* Top bar: lap + status left, standings right */}
         <View class="flex-row items-start justify-between">

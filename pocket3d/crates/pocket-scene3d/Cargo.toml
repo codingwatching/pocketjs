@@ -1,0 +1,16 @@
+[package]
+name = "pocket-scene3d"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The scene3d surface on the desktop base: retained 3D store, s3 HostOps for the guest, wgpu renderer (playset/scene3d/ops.ts contract)"
+
+[dependencies]
+pocket3d = { workspace = true }
+pocket-mod = { workspace = true }
+glam = { workspace = true, features = ["std"] }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
