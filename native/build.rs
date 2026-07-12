@@ -15,6 +15,9 @@ use std::{env, fs};
 
 fn main() {
     let app = env::var("POCKETJS_APP").unwrap_or_default();
+    let target = env::var("POCKETJS_TARGET").unwrap_or_else(|_| "psp".into());
+    let host_abi = env::var("POCKETJS_HOST_ABI").unwrap_or_else(|_| "1".into());
+    let contract_hash = env::var("POCKETJS_CONTRACT_HASH").unwrap_or_default();
     let dist = Path::new("../dist");
     let out_dir = env::var("OUT_DIR").unwrap();
 
@@ -59,6 +62,9 @@ fn main() {
     let bench_dump_frames = env::var("POCKETJS_BENCH_DUMP_FRAMES").unwrap_or_default();
 
     println!("cargo:rustc-env=POCKETJS_APP={app}");
+    println!("cargo:rustc-env=POCKETJS_TARGET={target}");
+    println!("cargo:rustc-env=POCKETJS_HOST_ABI={host_abi}");
+    println!("cargo:rustc-env=POCKETJS_CONTRACT_HASH={contract_hash}");
     println!("cargo:rustc-env=POCKETJS_CAPTURE_INPUT={capture_input}");
     println!("cargo:rustc-env=POCKETJS_TRACE={trace}");
     println!("cargo:rustc-env=POCKETJS_CAP_START={cap_start}");
@@ -66,6 +72,9 @@ fn main() {
     println!("cargo:rustc-env=POCKETJS_ARENA_BYTES={arena_bytes}");
     println!("cargo:rustc-env=POCKETJS_BENCH_DUMP_FRAMES={bench_dump_frames}");
     println!("cargo:rerun-if-env-changed=POCKETJS_APP");
+    println!("cargo:rerun-if-env-changed=POCKETJS_TARGET");
+    println!("cargo:rerun-if-env-changed=POCKETJS_HOST_ABI");
+    println!("cargo:rerun-if-env-changed=POCKETJS_CONTRACT_HASH");
     println!("cargo:rerun-if-env-changed=POCKETJS_CAPTURE_INPUT");
     println!("cargo:rerun-if-env-changed=POCKETJS_TRACE");
     println!("cargo:rerun-if-env-changed=POCKETJS_CAP_START");

@@ -22,7 +22,14 @@ if (Bun.resolveSync("solid-js", import.meta.dir).endsWith("server.js")) {
   );
 }
 
-import { detectHost, installHost, parseHexColor, type Host, type HostOps } from "../src/host.ts";
+import {
+  assertNativeHostContract,
+  detectHost,
+  installHost,
+  parseHexColor,
+  type Host,
+  type HostOps,
+} from "../src/host.ts";
 import {
   createComponent,
   createElement,
@@ -123,6 +130,7 @@ function makeMockHost(strict = true): MockHost {
   return {
     ops,
     kind: "injected",
+    target: "test",
     strict,
     calls,
     alive,
@@ -465,20 +473,21 @@ describe("setProperty dispatch table [R]", () => {
     expect(resolveStyle("p-2 bg-red")).toBe(7);
   });
 
-  test("unknown class throws on a strict host, counts on PSP", () => {
+  test("unknown class throws on a strict host, counts on native hosts", () => {
     const el = createElement("view");
     expect(() => setProp(el, "class", "not-compiled", undefined)).toThrow(
       /unknown class/,
     );
 
-    const psp = makeMockHost(false);
-    psp.kind = "psp";
-    installHost(psp);
+    const native = makeMockHost(false);
+    native.kind = "native";
+    native.target = "psp";
+    installHost(native);
     const before = missCounters.unknownClass;
     const el2 = createElement("view");
     setProp(el2, "class", "not-compiled", undefined); // silent
     expect(missCounters.unknownClass).toBe(before + 1);
-    expect(psp.of("setStyle")).toEqual([]);
+    expect(native.of("setStyle")).toEqual([]);
   });
 
   test("null class clears back to the default style", () => {
@@ -719,11 +728,48 @@ describe("focus + onPress (input.ts)", () => {
 });
 
 describe("host detection (host.ts)", () => {
-  test("PSP native namespace passed explicitly stays kind psp / non-strict", () => {
-    // The demo entries pass globalThis.ui to render(); only the native
-    // namespace carries __textures (ffi.rs), so it must NOT become an
+  test("resolved build contract rejects the wrong native target, ABI, or hash", () => {
+    const ops = makeMockHost().ops;
+    ops.__host = "vita";
+    ops.__hostAbi = 1;
+    ops.__contractHash = "sha256:correct";
+
+    expect(() =>
+      assertNativeHostContract(ops, {
+        target: "vita",
+        hostAbi: 1,
+        contractHash: "sha256:correct",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertNativeHostContract(ops, {
+        target: "psp",
+        hostAbi: 1,
+        contractHash: "sha256:correct",
+      }),
+    ).toThrow(/target mismatch/);
+    expect(() =>
+      assertNativeHostContract(ops, {
+        target: "vita",
+        hostAbi: 2,
+        contractHash: "sha256:correct",
+      }),
+    ).toThrow(/ABI mismatch/);
+    expect(() =>
+      assertNativeHostContract(ops, {
+        target: "vita",
+        hostAbi: 1,
+        contractHash: "sha256:wrong",
+      }),
+    ).toThrow(/contract mismatch/);
+  });
+
+  test("native namespace passed explicitly stays native / non-strict", () => {
+    // Demo entries pass globalThis.ui to render(); object identity must keep
+    // the namespace native instead of turning it into an
     // injected/strict host (crash-on-miss on hardware + double asset feed).
     const psp = makeMockHost();
+    psp.ops.__host = "psp";
     (psp.ops as HostOps & { __textures?: Record<string, number> }).__textures = {
       "logo.png": 0,
     };
@@ -731,7 +777,8 @@ describe("host detection (host.ts)", () => {
     g.ui = psp.ops;
     try {
       const detected = detectHost(psp.ops);
-      expect(detected.kind).toBe("psp");
+      expect(detected.kind).toBe("native");
+      expect(detected.target).toBe("psp");
       expect(detected.strict).toBe(false);
       // render() then takes the PSP branch: native handles bound, NO
       // loadStyles/loadFontAtlas re-feed through the FFI.
@@ -761,7 +808,7 @@ describe("host detection (host.ts)", () => {
     }
   });
 
-  test("injected ops WITHOUT __textures stay strict (web/wasm/test hosts)", () => {
+  test("injected ops stay strict (web/wasm/test hosts)", () => {
     const injected = makeMockHost();
     const detected = detectHost(injected.ops);
     expect(detected.kind).toBe("injected");
