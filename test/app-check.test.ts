@@ -64,6 +64,13 @@ describe("per-app TypeScript checks", () => {
     expect(result.artifacts.tsconfig).toContain(`"extends": ${JSON.stringify(ROOT_TSCONFIG)}`);
   });
 
+  test("resolves the public manifest and platform subpaths from the app config", () => {
+    const result = checkFixture("framework-import", ROOT_TSCONFIG);
+
+    expect(errors(result)).toBe("");
+    expect(result.ok).toBe(true);
+  });
+
   test("reports reachable TypeScript errors", () => {
     const result = checkFixture("error");
 
