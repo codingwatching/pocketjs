@@ -135,6 +135,10 @@ host ABI, or plan hash. `packages.*` entries are packaging overrides rather
 than a compatibility allowlist, so compatibility is derived from declared
 capabilities and the selected host profile.
 
+Custom build hosts can consume the stable build-time types and validators from
+`@pocketjs/framework/manifest`; application runtime imports remain on the
+framework's UI, lifecycle, input, and animation subpaths.
+
 ## DevTools + time travel
 
 Pocket DevTools ([DEVTOOLS.md](DEVTOOLS.md)) is built into every bundle: a

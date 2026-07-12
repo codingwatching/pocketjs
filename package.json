@@ -52,6 +52,7 @@
     "./lifecycle": "./src/lifecycle.ts",
     "./hot": "./src/hot.ts",
     "./input": "./src/input-api.ts",
+    "./manifest": "./src/manifest/index.ts",
     "./prelude": "./src/prelude.ts",
     "./renderer": "./src/renderer.ts",
     "./solid": "./src/index.ts",
