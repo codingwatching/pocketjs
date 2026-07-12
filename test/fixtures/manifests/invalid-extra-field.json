@@ -1,0 +1,34 @@
+{
+  "$schema": "https://pocket-stack.dev/schema/pocket-2.json",
+  "pocket": 2,
+  "id": "dev.pocket-stack.invalid",
+  "name": "pocket-invalid",
+  "title": "Pocket Invalid",
+  "version": "0.1.0",
+  "engine": {
+    "abi": 1,
+    "capabilities": {
+      "requires": [
+        { "id": "ui.drawlist", "version": 1 }
+      ]
+    }
+  },
+  "app": {
+    "entry": "app/main.tsx",
+    "framework": "solid",
+    "simulationHz": 60,
+    "viewport": {
+      "logical": [480, 272],
+      "presentation": "native"
+    },
+    "target": "psp"
+  },
+  "packages": {
+    "psp": {
+      "title": "Pocket Invalid",
+      "icon0": "art/ICON0.png",
+      "pic1": "art/PIC1.png",
+      "memoryBudgetMb": 20
+    }
+  }
+}

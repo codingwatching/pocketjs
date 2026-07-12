@@ -1,0 +1,37 @@
+{
+  "$schema": "https://pocket-stack.dev/schema/pocket-2.json",
+  "pocket": 2,
+  "id": "dev.pocket-stack.touch-first",
+  "name": "pocket-touch-first",
+  "title": "Pocket Touch First",
+  "version": "0.1.0",
+  "engine": {
+    "abi": 1,
+    "capabilities": {
+      "requires": [
+        { "id": "ui.drawlist", "version": 1 },
+        { "id": "input.touch", "version": 1, "parameters": { "contacts": 2 } }
+      ],
+      "enhances": [
+        { "id": "input.buttons", "version": 1 }
+      ]
+    }
+  },
+  "app": {
+    "entry": "app/main.tsx",
+    "framework": "solid",
+    "simulationHz": 60,
+    "viewport": {
+      "logical": [480, 272],
+      "presentation": "integer-fit"
+    }
+  },
+  "packages": {
+    "psp": {
+      "title": "Pocket Touch First",
+      "icon0": "art/ICON0.png",
+      "pic1": "art/PIC1.png",
+      "memoryBudgetMb": 20
+    }
+  }
+}
