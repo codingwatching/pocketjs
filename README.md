@@ -37,6 +37,7 @@ budget, including animated transitions and input feedback.
 ```sh
 bun install
 bun pocket check --target psp         # schema + capabilities + target-specific TS
+bun pocket compile --target psp       # check + emit JS/pak from the resolved plan
 bun pocket build --target psp -- --release
 
 # Low-level compiler commands used by framework demos/tests:
@@ -117,6 +118,7 @@ required router package.
 ```sh
 bun run test                          # spec contract + tailwind parser tests
 bun pocket check --target psp         # validate pocket.json + resolved target contract
+bun pocket compile --target psp       # typecheck and compile, for custom native hosts
 bun pocket build --target psp         # typecheck, compile, and package the target
 bun scripts/build.ts <app> [--framework=solid|vue-vapor] [--extra-chars=…]
 bun run psp / bun run dev / bun run wasm      # EBOOT / web host / wasm core

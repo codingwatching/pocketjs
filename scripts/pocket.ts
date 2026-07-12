@@ -1,6 +1,7 @@
 // Manifest-driven PocketJS orchestration.
 //
 //   bun pocket check --target psp
+//   bun pocket compile --target psp
 //   bun pocket build --target psp -- --release
 
 import { existsSync, mkdirSync } from "node:fs";
@@ -17,7 +18,7 @@ const command = argv.shift();
 function usage(message?: string): never {
   if (message) console.error(`PocketJS: ${message}`);
   console.error(
-    "usage: bun pocket <check|build> --target <target> [--manifest pocket.json] [--outdir dist] [-- backend args]",
+    "usage: bun pocket <check|compile|build> --target <target> [--manifest pocket.json] [--project-root .] [--outdir dist] [-- backend args]",
   );
   process.exit(1);
 }
@@ -33,11 +34,13 @@ function takeOption(name: string): string | undefined {
   return value;
 }
 
-if (command !== "check" && command !== "build") usage(`unknown command ${command ?? "<missing>"}`);
+if (command !== "check" && command !== "compile" && command !== "build") {
+  usage(`unknown command ${command ?? "<missing>"}`);
+}
 const target = takeOption("target");
 if (!target) usage("--target is required");
 const manifestPath = resolve(takeOption("manifest") ?? "pocket.json");
-const projectRoot = dirname(manifestPath);
+const projectRoot = resolve(takeOption("project-root") ?? dirname(manifestPath));
 const outdir = resolve(projectRoot, takeOption("outdir") ?? "dist");
 const separator = argv.indexOf("--");
 const backendArgs = separator >= 0 ? argv.splice(separator + 1) : argv.splice(0);
@@ -117,6 +120,8 @@ await run(
   ],
   "PocketJS compiler",
 );
+
+if (command === "compile") process.exit(0);
 
 interface TargetBackendContext {
   readonly plan: ResolvedBuildPlan;
