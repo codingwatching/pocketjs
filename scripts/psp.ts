@@ -1,6 +1,6 @@
 // scripts/psp.ts <app> [cargo args…] — build the app JS+pak (scripts/
 // build.ts), then the EBOOT:
-//   POCKETJS_APP=<app> rustup run nightly-2026-05-28 cargo psp
+//   POCKETJS_APP_OUTPUT=<app> POCKETJS_EMBED_APP=1 cargo psp
 // inside native/, with the exact env block from dreamcart runtime/build.ts
 // (LLVM PATH, TARGET_CFLAGS, AR_mipsel_sony_psp=llvm-ar,
 //  RUST_PSP_TARGET=native/targets/mipsel-sony-psp.json, RUST_PSP_ABORT_ONLY=1,
@@ -224,7 +224,8 @@ const env = {
   RUST_PSP_ABORT_ONLY: "1",
   // Keep PSP dev builds fast (opt-level 0 is unusably slow on hardware).
   CARGO_PROFILE_DEV_OPT_LEVEL: process.env.CARGO_PROFILE_DEV_OPT_LEVEL ?? "3",
-  POCKETJS_APP: outputApp,
+  POCKETJS_APP_OUTPUT: outputApp,
+  POCKETJS_EMBED_APP: "1",
   POCKETJS_TARGET: buildPlan?.target.id ?? "psp",
   POCKETJS_HOST_ABI: String(buildPlan?.target.hostAbi ?? 1),
   POCKETJS_CONTRACT_HASH: buildPlan?.contractHash ?? "",

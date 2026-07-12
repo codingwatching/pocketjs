@@ -1,10 +1,11 @@
 //! Embeds the built app bundle + asset pack into the EBOOT at build time.
 //! Pattern copied from the dreamcart runtime (runtime/build.rs, the
-//! PSPJS_GAME pattern), renamed to POCKETJS_APP.
+//! PSPJS_GAME pattern), with app selection separated from embed ownership.
 //!
-//! Set `POCKETJS_APP` to an app name whose build outputs exist in ../dist/
-//! (written by scripts/build.ts as `<app>.js` + `<app>.pak`):
-//!   POCKETJS_APP=hero bun scripts/psp.ts
+//! The stock backend sets `POCKETJS_APP_OUTPUT` and `POCKETJS_EMBED_APP=1`.
+//! Custom native hosts consume the same output name but leave embedding to
+//! their own primary crate, so this runtime remains a reusable dependency.
+//! `POCKETJS_APP=<name>` remains a legacy shorthand that implies embedding.
 //!
 //! Both embeds have EMPTY fallbacks so include_str!/include_bytes! in main.rs
 //! always resolve — an EBOOT built with no app boots to the JS-error screen
@@ -14,7 +15,20 @@ use std::path::Path;
 use std::{env, fs};
 
 fn main() {
-    let app = env::var("POCKETJS_APP").unwrap_or_default();
+    let legacy_app = env::var("POCKETJS_APP").unwrap_or_default();
+    let app = env::var("POCKETJS_APP_OUTPUT").unwrap_or_else(|_| legacy_app.clone());
+    let embed_app = match env::var("POCKETJS_EMBED_APP") {
+        Ok(value) => match value.as_str() {
+            "0" => false,
+            "1" => true,
+            _ => panic!("POCKETJS_EMBED_APP must be 0 or 1, got {value:?}"),
+        },
+        Err(_) => !legacy_app.is_empty(),
+    };
+    assert!(
+        !embed_app || !app.is_empty(),
+        "POCKETJS_EMBED_APP=1 requires POCKETJS_APP_OUTPUT"
+    );
     let target = env::var("POCKETJS_TARGET").unwrap_or_else(|_| "psp".into());
     let host_abi = env::var("POCKETJS_HOST_ABI").unwrap_or_else(|_| "1".into());
     let contract_hash = env::var("POCKETJS_CONTRACT_HASH").unwrap_or_default();
@@ -23,7 +37,7 @@ fn main() {
 
     // App JS bundle -> $OUT_DIR/game.js, NUL-terminated for JS_Eval (which
     // requires input[len] == '\0'; main.rs evals with len - 1).
-    let mut code = if app.is_empty() {
+    let mut code = if !embed_app {
         String::new()
     } else {
         fs::read_to_string(dist.join(format!("{app}.js"))).unwrap_or_else(|e| {
@@ -35,7 +49,7 @@ fn main() {
 
     // Asset pack (styles.bin + font atlases + images; .pak container) ->
     // $OUT_DIR/app.pak. Empty when absent; main.rs skips an empty pack.
-    let pak = if app.is_empty() {
+    let pak = if !embed_app {
         Vec::new()
     } else {
         fs::read(dist.join(format!("{app}.pak"))).unwrap_or_default()
@@ -72,6 +86,8 @@ fn main() {
     println!("cargo:rustc-env=POCKETJS_ARENA_BYTES={arena_bytes}");
     println!("cargo:rustc-env=POCKETJS_BENCH_DUMP_FRAMES={bench_dump_frames}");
     println!("cargo:rerun-if-env-changed=POCKETJS_APP");
+    println!("cargo:rerun-if-env-changed=POCKETJS_APP_OUTPUT");
+    println!("cargo:rerun-if-env-changed=POCKETJS_EMBED_APP");
     println!("cargo:rerun-if-env-changed=POCKETJS_TARGET");
     println!("cargo:rerun-if-env-changed=POCKETJS_HOST_ABI");
     println!("cargo:rerun-if-env-changed=POCKETJS_CONTRACT_HASH");
