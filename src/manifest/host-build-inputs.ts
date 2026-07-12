@@ -10,13 +10,11 @@ export interface HostBuildInputs {
   readonly appOutput: string;
   readonly target: string;
   readonly hostAbi: number;
-  readonly planHash: string;
   readonly viewport: {
     readonly logical: Viewport;
     readonly physical: Viewport;
     readonly presentation: PresentationMode;
   };
-  readonly features: Readonly<Record<string, boolean>>;
 }
 
 export interface ExtractHostBuildInputsOptions {
@@ -85,13 +83,11 @@ export function extractHostBuildInputs(
     appOutput: plan.app.output,
     target: plan.target.id,
     hostAbi: plan.target.hostAbi,
-    planHash: plan.planHash,
     viewport: {
       logical: plan.viewport.logical,
       physical: plan.viewport.physical,
       presentation: plan.viewport.presentation,
     },
-    features: plan.features,
   };
 }
 

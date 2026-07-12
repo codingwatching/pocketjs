@@ -22,17 +22,10 @@ describe("custom host build boundary", () => {
       appOutput: "main",
       target: "psp",
       hostAbi: 1,
-      planHash: plan.planHash,
       viewport: {
         logical: [480, 272],
         physical: [480, 272],
         presentation: "integer-fit",
-      },
-      features: {
-        "input.analog.left": true,
-        "input.buttons": true,
-        "text.glyphs.baked": true,
-        "ui.drawlist": true,
       },
     });
   });
