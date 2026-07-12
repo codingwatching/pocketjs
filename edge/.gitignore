@@ -1,0 +1,6 @@
+dist/
+runtime/gen_data.c
+test/art/
+*.__edge.*.mjs
+runtime/gen_music.s
+game/music/*.raw

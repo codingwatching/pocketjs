@@ -1,0 +1,290 @@
+{
+  "bg_apartment": {
+    "prompt": "small cramped one-room megacity apartment at night, side view interior, bunk bed, tiny kitchen corner, laundry on a line, one big window filling the back wall with dense neon city towers and holographic ads outside, warm lamp inside, detailed pixel art game background",
+    "seed": 71001,
+    "w": 240,
+    "h": 160
+  },
+  "bg_rooftop": {
+    "prompt": "rooftop of a megacity skyscraper at night seen from the roof surface, low concrete ledge in the foreground, vast glittering neon city sprawling far below, huge full moon dominating the sky, thin clouds, cold blue night with pink neon glow on the horizon, detailed pixel art game background, wide shot",
+    "seed": 71002,
+    "w": 240,
+    "h": 160
+  },
+  "bg_moon": {
+    "prompt": "gray lunar surface with fine dust and small craters, black star-filled sky, the blue Earth hanging large and luminous above the horizon, a small domed lunar base far in the distance, quiet and vast, detailed pixel art game background",
+    "seed": 71003,
+    "w": 240,
+    "h": 160
+  },
+  "bg_clinic": {
+    "prompt": "back-alley cybernetics clinic interior at night, side view, reclined operating chair under a ring of surgical lights, racks of chrome body parts and cables on the walls, monitors with green readouts, grimy floor, moody teal and magenta lighting, detailed pixel art game background",
+    "seed": 71004,
+    "w": 240,
+    "h": 160
+  },
+  "stage_alley": {
+    "prompt": "side view 2D action platformer stage, flat ground along the bottom, detailed pixel art game background, neon-soaked cyberpunk megacity at night, narrow back alley between towering buildings, wet asphalt reflecting pink and cyan neon signs, dumpsters, tangled cables overhead, steam vents, fire escapes, distant towers glowing between the buildings",
+    "seed": 71010,
+    "w": 384,
+    "h": 160
+  },
+  "stage_warehouse": {
+    "prompt": "side view 2D action platformer stage, flat ground along the bottom, detailed pixel art game background, neon-soaked cyberpunk megacity at night, corporate cargo warehouse interior at night, stacked shipping containers and crates, yellow gantry crane overhead, hazard stripes on the concrete floor, cold blue industrial lights, chain-link fencing, loading dock doors",
+    "seed": 71011,
+    "w": 384,
+    "h": 160
+  },
+  "stage_street": {
+    "prompt": "side view 2D action platformer stage, flat ground along the bottom, detailed pixel art game background, neon-soaked cyberpunk megacity at night, wide downtown avenue at night, holographic billboards and neon storefronts, parked futuristic cars, overturned barricades, palm trees under sodium lights, elevated rail line crossing above, smoke in the distance",
+    "seed": 71012,
+    "w": 384,
+    "h": 160
+  },
+  "stage_lab": {
+    "prompt": "side view 2D action platformer stage, flat ground along the bottom, detailed pixel art game background, neon-soaked cyberpunk megacity at night, sterile corporate laboratory corridor, white and gray panels, glass walls into server rooms glowing blue, robotic arms idle at workstations, red warning lights strobing, cable trays along the ceiling, polished floor",
+    "seed": 71013,
+    "w": 384,
+    "h": 160
+  },
+  "stage_pad": {
+    "prompt": "side view 2D action platformer stage, flat ground along the bottom, detailed pixel art game background, neon-soaked cyberpunk megacity at night, flat rooftop landing pad floor running continuously along the entire bottom edge of the image, helipad deck plating with painted markings as the walkable ground, low guard rails behind, antenna masts and vent stacks, distant skyscraper tops and thin clouds far below the railing, cold dawn sky in orange and steel blue",
+    "seed": 71114,
+    "w": 384,
+    "h": 160
+  },
+  "map_train": {
+    "prompt": "top-down 2D RPG map of a futuristic metro train car interior, seen directly from above like a Game Boy RPG town map, clean 16x16 tile alignment, top-down 2D RPG interior map, sleek silver car walls forming the border, rows of paired seats along both sides leaving a walkable center aisle, sliding doors at both ends, luggage racks, small floor lights, teal and gray palette",
+    "seed": 71020,
+    "w": 320,
+    "h": 160
+  },
+  "map_hideout": {
+    "prompt": "top-down 2D RPG map of a dive bar back room turned mercenary hideout, seen directly from above like a Game Boy RPG town map, clean 16x16 tile alignment, top-down 2D RPG interior map, dark brick walls forming the border, a long bar counter with stools along the top wall, a pool table in the middle, a weapons workbench, a torn couch and low table, neon sign glow spilling across the floor, crates in a corner",
+    "seed": 71021,
+    "w": 320,
+    "h": 240
+  },
+  "walk_david_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of lean latino teen, dark brown quiff hair with shaved sides, open yellow paramedic bomber jacket with green emblem, bare chest with gold chain necklaces, gray pants, white sneakers, standing",
+    "seed": 71030,
+    "w": 32,
+    "h": 32
+  },
+  "walk_david_n": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of lean latino teen, dark brown quiff hair with shaved sides, open yellow paramedic bomber jacket with green emblem, bare chest with gold chain necklaces, gray pants, white sneakers, standing",
+    "seed": 71031,
+    "w": 32,
+    "h": 32
+  },
+  "walk_david_e": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of lean latino teen, dark brown quiff hair with shaved sides, open yellow paramedic bomber jacket with green emblem, bare chest with gold chain necklaces, gray pants, white sneakers, standing",
+    "seed": 71032,
+    "w": 32,
+    "h": 32
+  },
+  "walk_lucy_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of pale slender young woman, white asymmetric bob haircut with pastel rainbow tips, cropped white jacket over black high-collar bodysuit with red accents, white shorts, gray stockings, black boots, standing",
+    "seed": 71033,
+    "w": 32,
+    "h": 32
+  },
+  "walk_lucy_n": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of pale slender young woman, white asymmetric bob haircut with pastel rainbow tips, cropped white jacket over black high-collar bodysuit with red accents, white shorts, gray stockings, black boots, standing",
+    "seed": 71034,
+    "w": 32,
+    "h": 32
+  },
+  "walk_lucy_e": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of pale slender young woman, white asymmetric bob haircut with pastel rainbow tips, cropped white jacket over black high-collar bodysuit with red accents, white shorts, gray stockings, black boots, standing",
+    "seed": 71035,
+    "w": 32,
+    "h": 32
+  },
+  "walk_maine_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of huge towering muscular black man with short blond hair, gunmetal chrome cyborg arms, olive tactical vest, standing",
+    "seed": 71036,
+    "w": 32,
+    "h": 32
+  },
+  "walk_maine_n": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of huge towering muscular black man with short blond hair, gunmetal chrome cyborg arms, olive tactical vest, standing",
+    "seed": 71037,
+    "w": 32,
+    "h": 32
+  },
+  "walk_maine_e": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of huge towering muscular black man with short blond hair, gunmetal chrome cyborg arms, olive tactical vest, standing",
+    "seed": 71038,
+    "w": 32,
+    "h": 32
+  },
+  "walk_rebecca_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of very short young woman with stark white skin, long turquoise-green twin tails, oversized black high-collar jacket with green accents, red and blue chunky robot arms, huge green and pink shotgun, standing",
+    "seed": 71039,
+    "w": 32,
+    "h": 32
+  },
+  "walk_rebecca_n": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of very short young woman with stark white skin, long turquoise-green twin tails, oversized black high-collar jacket with green accents, red and blue chunky robot arms, huge green and pink shotgun, standing",
+    "seed": 71040,
+    "w": 32,
+    "h": 32
+  },
+  "walk_rebecca_e": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of very short young woman with stark white skin, long turquoise-green twin tails, oversized black high-collar jacket with green accents, red and blue chunky robot arms, huge green and pink shotgun, standing",
+    "seed": 71041,
+    "w": 32,
+    "h": 32
+  },
+  "walk_falco_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of older man with semi-long dark brown hair parted in the middle, thick curled mustache, brown western waistcoat over white shirt, one silver chrome arm, standing",
+    "seed": 71042,
+    "w": 32,
+    "h": 32
+  },
+  "walk_kiwi_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of very tall slender woman, light blonde bob haircut, glossy red mask plate covering her lower face, long red coat, cyan web tattoos, standing",
+    "seed": 71043,
+    "w": 32,
+    "h": 32
+  },
+  "walk_gloria_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of tired woman in her forties, vivid red hair tied back, orange and white paramedic uniform, standing",
+    "seed": 71044,
+    "w": 32,
+    "h": 32
+  },
+  "walk_dorio_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of very tall muscular woman with short blonde hair, open dark jacket, black shorts, bare chrome metal legs, standing",
+    "seed": 71045,
+    "w": 32,
+    "h": 32
+  },
+  "walk_pilar_s": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of tall lanky man with a black mohawk, golden metal robot hands, goggle rig framing his jaw, sleeveless black vest, standing",
+    "seed": 71046,
+    "w": 32,
+    "h": 32
+  },
+  "act_david_idle": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of lean latino teen, dark brown quiff hair with shaved sides, open yellow paramedic bomber jacket with green emblem, bare chest with gold chain necklaces, gray pants, white sneakers, side view facing right, standing relaxed holding a compact pistol low",
+    "seed": 71050,
+    "w": 32,
+    "h": 32
+  },
+  "act_david_jump": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of lean latino teen, dark brown quiff hair with shaved sides, open yellow paramedic bomber jacket with green emblem, bare chest with gold chain necklaces, gray pants, white sneakers, side view facing right, mid-air jump with knees tucked, dynamic",
+    "seed": 71051,
+    "w": 32,
+    "h": 32
+  },
+  "act_david_shoot": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of lean latino teen, dark brown quiff hair with shaved sides, open yellow paramedic bomber jacket with green emblem, bare chest with gold chain necklaces, gray pants, white sneakers, side view facing right, two-handed pistol aimed straight forward, muzzle flash",
+    "seed": 71052,
+    "w": 32,
+    "h": 32
+  },
+  "act_david_hurt": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of lean latino teen, dark brown quiff hair with shaved sides, open yellow paramedic bomber jacket with green emblem, bare chest with gold chain necklaces, gray pants, white sneakers, side view facing right, flinching backward in pain, arms raised",
+    "seed": 71053,
+    "w": 32,
+    "h": 32
+  },
+  "en_thug_idle": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of street gang punk, tall red mohawk, spiked leather jacket, one chrome cyber arm, knuckle wraps, side view facing right, standing",
+    "seed": 71060,
+    "w": 32,
+    "h": 32
+  },
+  "en_thug_attack": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of street gang punk, tall red mohawk, spiked leather jacket, one chrome cyber arm, knuckle wraps, side view facing right, lunging forward throwing a punch with the chrome arm",
+    "seed": 71061,
+    "w": 32,
+    "h": 32
+  },
+  "en_guard_idle": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of corporate security soldier, dark navy armored uniform, mirrored visor helmet, compact rifle, side view facing right, standing",
+    "seed": 71062,
+    "w": 32,
+    "h": 32
+  },
+  "en_guard_attack": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of corporate security soldier, dark navy armored uniform, mirrored visor helmet, compact rifle, side view facing right, kneeling and firing the rifle, small muzzle flash",
+    "seed": 71063,
+    "w": 32,
+    "h": 32
+  },
+  "en_cop_idle": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of heavily armored tactical trooper, matte black exo armor, riot helmet with red lenses, side view facing right, standing",
+    "seed": 71064,
+    "w": 32,
+    "h": 32
+  },
+  "en_cop_attack": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of heavily armored tactical trooper, matte black exo armor, riot helmet with red lenses, side view facing right, braced and firing a heavy rifle, small muzzle flash",
+    "seed": 71065,
+    "w": 32,
+    "h": 32
+  },
+  "en_drone_idle": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of small hovering security drone, twin ducted rotors, single red sensor eye, gunmetal shell, side view facing right, standing",
+    "seed": 71066,
+    "w": 32,
+    "h": 32
+  },
+  "en_drone_attack": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of small hovering security drone, twin ducted rotors, single red sensor eye, gunmetal shell, side view facing right, tilted forward, red eye flaring, firing a shot downward",
+    "seed": 71067,
+    "w": 32,
+    "h": 32
+  },
+  "en_turret_idle": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of compact automated sentry gun turret on a squat tripod, twin barrels, amber sensor, side view facing right, standing",
+    "seed": 71068,
+    "w": 32,
+    "h": 32
+  },
+  "en_turret_attack": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of compact automated sentry gun turret on a squat tripod, twin barrels, amber sensor, side view facing right, barrels recoiling with a small muzzle flash",
+    "seed": 71069,
+    "w": 32,
+    "h": 32
+  },
+  "boss_smasher_idle": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of towering heavy full-metal chrome cyborg, skull-like silver faceplate, single red eye, enormous shoulders, gunmetal and black armor plating, arm cannon, side view facing right, standing menacingly, full body head to toe",
+    "seed": 71070,
+    "w": 64,
+    "h": 64
+  },
+  "boss_smasher_attack": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of towering heavy full-metal chrome cyborg, skull-like silver faceplate, single red eye, enormous shoulders, gunmetal and black armor plating, arm cannon, side view facing right, arm cannon raised and firing, muzzle flash, full body head to toe",
+    "seed": 71071,
+    "w": 64,
+    "h": 64
+  },
+  "spr_duo_ledge": {
+    "prompt": "tiny pixel art sprite of two people sitting side by side on a concrete rooftop ledge seen from behind, on the left a lean young man with undercut dark hair and yellow-black jacket, on the right a slender woman with silver-white bob hair and white jacket, feet dangling, night",
+    "seed": 71080,
+    "w": 64,
+    "h": 32
+  },
+  "spr_lucy_suit": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of a slender woman in a sleek white and red spacesuit without helmet, silver-white bob hair with pastel tips, walking, side view facing right",
+    "seed": 71081,
+    "w": 32,
+    "h": 32
+  },
+  "spr_gloria_fallen": {
+    "prompt": "tiny pixel art sprite of a woman in an orange and white paramedic uniform lying injured on the ground, side view, full body",
+    "seed": 71082,
+    "w": 32,
+    "h": 32
+  },
+  "spr_cyberskel": {
+    "prompt": "tiny full body pixel art sprite, head to toe visible, Game Boy Advance sprite of a lean young man with undercut dark hair fused into a skeletal chrome exoskeleton frame, glowing cyan joints, side view facing right, standing",
+    "seed": 71083,
+    "w": 32,
+    "h": 32
+  }
+}
