@@ -35,7 +35,7 @@ import {
   type PocketFramework,
 } from "../compiler/jsx-plugin.ts";
 import type { PocketConfig } from "../src/config.ts";
-import { verifyBuildPlanHash, type ResolvedBuildPlan } from "../src/manifest/plan.ts";
+import { verifyPlanHash, type ResolvedBuildPlan } from "../src/manifest/plan.ts";
 import { registerAnimationTheme } from "../compiler/animation.ts";
 import { compileClasses, generateStylesModule } from "../compiler/tailwind.ts";
 import { bakeAtlases } from "../compiler/bake-font.ts";
@@ -91,8 +91,8 @@ for (const a of args) {
 let buildPlan: ResolvedBuildPlan | undefined;
 if (planPath) {
   buildPlan = await Bun.file(planPath).json() as ResolvedBuildPlan;
-  if (!verifyBuildPlanHash(buildPlan)) {
-    throw new Error(`PocketJS build: invalid or stale ResolvedBuildPlan hash in ${planPath}`);
+  if (!verifyPlanHash(buildPlan)) {
+    throw new Error(`PocketJS build: invalid ResolvedBuildPlan checksum in ${planPath}`);
   }
   if (frameworkFlag) {
     throw new Error("PocketJS build: --framework cannot override a ResolvedBuildPlan");
@@ -173,10 +173,12 @@ function outputName(file: string): string {
 }
 
 const appName = buildPlan?.app.output ?? outputName(requestedEntry);
-const outName = `${appName}${frameworkConfig.outputSuffix}`;
+// A resolved plan names the exact artifact. Low-level demo builds retain the
+// framework suffix so multiple framework variants can coexist in dist/.
+const outName = buildPlan ? appName : `${appName}${frameworkConfig.outputSuffix}`;
 console.log(
   `PocketJS build: ${appName} (${entry}, framework=${framework}` +
-    `${buildPlan ? `, target=${buildPlan.target.id}, contract=${buildPlan.contractHash.slice(0, 20)}…` : ""})`,
+    `${buildPlan ? `, target=${buildPlan.target.id}, plan=${buildPlan.planHash.slice(0, 20)}…` : ""})`,
 );
 
 // ---------------------------------------------------------------------------
@@ -220,7 +222,7 @@ async function walk(file: string): Promise<void> {
   visited.add(file);
   if (file.endsWith(".generated.ts")) return; // never scan generated output [R]
   const src = await Bun.file(file).text();
-  const res = await transformFile(file, src, framework, buildPlan?.contractHash ?? ""); // throws with code frame on lint errors
+  const res = await transformFile(file, src, framework); // throws with code frame on lint errors
   for (const s of res.classStrings) {
     if (!seenClass.has(s)) {
       seenClass.add(s);
@@ -381,11 +383,11 @@ const result = await Bun.build({
     "process.env.NODE_ENV": '"production"',
     __POCKET_TARGET__: JSON.stringify(buildPlan?.target.id ?? ""),
     __POCKET_HOST_ABI__: String(buildPlan?.target.hostAbi ?? 0),
-    __POCKET_CONTRACT_HASH__: JSON.stringify(buildPlan?.contractHash ?? ""),
+    __POCKET_FEATURES__: JSON.stringify(buildPlan?.features ?? {}),
   },
   minify: false,
   sourcemap: "none",
-  plugins: [jsxPlugin(framework, { entry, contractHash: buildPlan?.contractHash })],
+  plugins: [jsxPlugin(framework, { entry })],
 });
 if (!result.success) {
   for (const log of result.logs) console.error(log);

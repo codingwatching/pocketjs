@@ -45,14 +45,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "abi",
         "capabilities"
       ],
       "properties": {
-        "abi": {
-          "type": "integer",
-          "minimum": 1
-        },
         "capabilities": {
           "type": "object",
           "additionalProperties": false,
@@ -63,38 +58,8 @@
             "requires": {
               "type": "array",
               "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "id",
-                  "version"
-                ],
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"
-                  },
-                  "version": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "anyOf": [
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "string"
-                        }
-                      ]
-                    }
-                  }
-                }
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"
               },
               "minItems": 1,
               "uniqueItems": true
@@ -102,38 +67,8 @@
             "enhances": {
               "type": "array",
               "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "id",
-                  "version"
-                ],
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"
-                  },
-                  "version": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "anyOf": [
-                        {
-                          "type": "boolean"
-                        },
-                        {
-                          "type": "number"
-                        },
-                        {
-                          "type": "string"
-                        }
-                      ]
-                    }
-                  }
-                }
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$"
               },
               "uniqueItems": true
             }
@@ -147,7 +82,6 @@
       "required": [
         "entry",
         "framework",
-        "simulationHz",
         "viewport"
       ],
       "properties": {
@@ -167,11 +101,6 @@
             "solid",
             "vue-vapor"
           ]
-        },
-        "simulationHz": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 240
         },
         "viewport": {
           "type": "object",
@@ -198,37 +127,6 @@
                 "native",
                 "stretch"
               ]
-            }
-          }
-        }
-      }
-    },
-    "packages": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "psp": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "title": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            },
-            "icon0": {
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.png$"
-            },
-            "pic1": {
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.png$"
-            },
-            "memoryBudgetMb": {
-              "type": "integer",
-              "minimum": 1
             }
           }
         }

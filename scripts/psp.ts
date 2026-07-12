@@ -26,7 +26,11 @@ import {
   type PocketFramework,
 } from "../compiler/jsx-plugin.ts";
 import type { PocketConfig } from "../src/config.ts";
-import { verifyBuildPlanHash, type ResolvedBuildPlan } from "../src/manifest/plan.ts";
+import {
+  extractHostBuildInputs,
+  hostBuildEnvironment,
+} from "../src/manifest/host-build-inputs.ts";
+import { verifyPlanHash, type ResolvedBuildPlan } from "../src/manifest/plan.ts";
 
 const pspUiDir = new URL("..", import.meta.url).pathname; // PocketJS/
 const nativeDir = pspUiDir + "native/";
@@ -144,7 +148,7 @@ function mountedAppName(arg: string): string {
 let buildPlan: ResolvedBuildPlan | undefined;
 if (planPath) {
   buildPlan = await Bun.file(planPath).json() as ResolvedBuildPlan;
-  if (!verifyBuildPlanHash(buildPlan) || buildPlan.target.id !== "psp") {
+  if (!verifyPlanHash(buildPlan) || buildPlan.target.id !== "psp") {
     throw new Error(`PocketJS psp: invalid PSP ResolvedBuildPlan at ${planPath}`);
   }
   if (frameworkFlag || configFlagged) {
@@ -172,8 +176,9 @@ const framework: PocketFramework = buildPlan
   : frameworkFlag
     ? parseFramework(frameworkFlag, "--framework")
     : parseFramework(config.framework, "pocket.config.ts");
-const baseOutput = buildPlan ? buildPlan.app.output : app;
-const outputApp = `${baseOutput}${FRAMEWORKS[framework].outputSuffix}`;
+const outputApp = buildPlan
+  ? buildPlan.app.output
+  : `${app}${FRAMEWORKS[framework].outputSuffix}`;
 
 // ---------------------------------------------------------------------------
 // 1. Build the app bundle + pak -> dist/<app>.js + dist/<app>.pak
@@ -204,6 +209,24 @@ const rustflags = [
   .filter(Boolean)
   .join(" ");
 
+const hostEnvironment = buildPlan
+  ? hostBuildEnvironment(extractHostBuildInputs(buildPlan, { expectedTarget: "psp" }), {
+      outputDirectory: outputDir,
+      embedApp: true,
+    })
+  : {
+      POCKETJS_APP_OUTPUT: outputApp,
+      POCKETJS_EMBED_APP: "1",
+      POCKETJS_OUTPUT_DIR: outputDir,
+      POCKETJS_TARGET: "psp",
+      POCKETJS_HOST_ABI: "1",
+      POCKETJS_LOGICAL_WIDTH: "480",
+      POCKETJS_LOGICAL_HEIGHT: "272",
+      POCKETJS_PHYSICAL_WIDTH: "480",
+      POCKETJS_PHYSICAL_HEIGHT: "272",
+      POCKETJS_PRESENTATION: "native",
+    };
+
 const env = {
   ...process.env,
   PATH: `${llvm}:${home}/.cargo/bin:${process.env.PATH}`,
@@ -224,12 +247,7 @@ const env = {
   RUST_PSP_ABORT_ONLY: "1",
   // Keep PSP dev builds fast (opt-level 0 is unusably slow on hardware).
   CARGO_PROFILE_DEV_OPT_LEVEL: process.env.CARGO_PROFILE_DEV_OPT_LEVEL ?? "3",
-  POCKETJS_APP_OUTPUT: outputApp,
-  POCKETJS_EMBED_APP: "1",
-  POCKETJS_OUTPUT_DIR: outputDir,
-  POCKETJS_TARGET: buildPlan?.target.id ?? "psp",
-  POCKETJS_HOST_ABI: String(buildPlan?.target.hostAbi ?? 1),
-  POCKETJS_CONTRACT_HASH: buildPlan?.contractHash ?? "",
+  ...hostEnvironment,
   // Scripted capture input + per-demo capture window, baked into the EBOOT
   // by native/build.rs (only consumed under --capture; harmless otherwise).
   // Explicit so stale values never linger in the cargo fingerprint.

@@ -728,40 +728,29 @@ describe("focus + onPress (input.ts)", () => {
 });
 
 describe("host detection (host.ts)", () => {
-  test("resolved build contract rejects the wrong native target, ABI, or hash", () => {
+  test("resolved build contract rejects the wrong native target or ABI", () => {
     const ops = makeMockHost().ops;
     ops.__host = "vita";
     ops.__hostAbi = 1;
-    ops.__contractHash = "sha256:correct";
 
     expect(() =>
       assertNativeHostContract(ops, {
         target: "vita",
         hostAbi: 1,
-        contractHash: "sha256:correct",
       }),
     ).not.toThrow();
     expect(() =>
       assertNativeHostContract(ops, {
         target: "psp",
         hostAbi: 1,
-        contractHash: "sha256:correct",
       }),
     ).toThrow(/target mismatch/);
     expect(() =>
       assertNativeHostContract(ops, {
         target: "vita",
         hostAbi: 2,
-        contractHash: "sha256:correct",
       }),
     ).toThrow(/ABI mismatch/);
-    expect(() =>
-      assertNativeHostContract(ops, {
-        target: "vita",
-        hostAbi: 1,
-        contractHash: "sha256:wrong",
-      }),
-    ).toThrow(/contract mismatch/);
   });
 
   test("native namespace passed explicitly stays native / non-strict", () => {

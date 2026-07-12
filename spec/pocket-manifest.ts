@@ -31,22 +31,6 @@ export interface JsonSchemaObject {
 
 export type JsonSchema = boolean | JsonSchemaObject;
 
-export interface CapabilityRequirement {
-  readonly id: string;
-  readonly version: number;
-  readonly parameters?: Readonly<Record<string, JsonPrimitive>>;
-}
-
-export interface PspPackageMetadata {
-  readonly title: string;
-  readonly icon0: string;
-  readonly pic1: string;
-  readonly memoryBudgetMb: number;
-}
-
-export type PspPackageOverride = Partial<PspPackageMetadata>;
-export type PackageMetadata = Readonly<Record<string, JsonPrimitive>>;
-
 export interface PocketManifestV2 {
   readonly $schema: typeof POCKET_MANIFEST_SCHEMA_ID;
   readonly pocket: typeof POCKET_MANIFEST_VERSION;
@@ -55,56 +39,28 @@ export interface PocketManifestV2 {
   readonly title: string;
   readonly version: string;
   readonly engine: {
-    readonly abi: number;
     readonly capabilities: {
-      readonly requires: readonly CapabilityRequirement[];
-      readonly enhances?: readonly CapabilityRequirement[];
+      readonly requires: readonly string[];
+      readonly enhances?: readonly string[];
     };
   };
   readonly app: {
     readonly entry: string;
     readonly output?: string;
     readonly framework: "solid" | "vue-vapor";
-    readonly simulationHz: number;
     readonly viewport: {
       readonly logical: Viewport;
       readonly presentation: PresentationMode;
     };
   };
-  readonly packages?: {
-    readonly psp?: PspPackageOverride;
-  };
 }
 
-const primitiveParameterSchema = {
-  anyOf: [
-    { type: "boolean" },
-    { type: "number" },
-    { type: "string" },
-  ],
+const capabilityIdSchema = {
+  type: "string",
+  pattern: "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$",
 } as const satisfies JsonSchema;
 
-const capabilityRequirementSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["id", "version"],
-  properties: {
-    id: {
-      type: "string",
-      pattern: "^[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+$",
-    },
-    version: { type: "integer", minimum: 1 },
-    parameters: {
-      type: "object",
-      additionalProperties: primitiveParameterSchema,
-    },
-  },
-} as const satisfies JsonSchema;
-
-/**
- * Minimal format-2 app contract. Target packaging and trusted compiler
- * behavior deliberately stay out until their owners consume ResolvedBuildPlan.
- */
+/** Strict format-2 application intent. Platform facts stay in target profiles. */
 export const pocketManifestV2Schema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: POCKET_MANIFEST_SCHEMA_ID,
@@ -134,9 +90,8 @@ export const pocketManifestV2Schema = {
     engine: {
       type: "object",
       additionalProperties: false,
-      required: ["abi", "capabilities"],
+      required: ["capabilities"],
       properties: {
-        abi: { type: "integer", minimum: 1 },
         capabilities: {
           type: "object",
           additionalProperties: false,
@@ -144,13 +99,13 @@ export const pocketManifestV2Schema = {
           properties: {
             requires: {
               type: "array",
-              items: capabilityRequirementSchema,
+              items: capabilityIdSchema,
               minItems: 1,
               uniqueItems: true,
             },
             enhances: {
               type: "array",
-              items: capabilityRequirementSchema,
+              items: capabilityIdSchema,
               uniqueItems: true,
             },
           },
@@ -160,7 +115,7 @@ export const pocketManifestV2Schema = {
     app: {
       type: "object",
       additionalProperties: false,
-      required: ["entry", "framework", "simulationHz", "viewport"],
+      required: ["entry", "framework", "viewport"],
       properties: {
         entry: {
           type: "string",
@@ -174,7 +129,6 @@ export const pocketManifestV2Schema = {
           pattern: "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
         },
         framework: { enum: ["solid", "vue-vapor"] },
-        simulationHz: { type: "integer", minimum: 1, maximum: 240 },
         viewport: {
           type: "object",
           additionalProperties: false,
@@ -187,30 +141,6 @@ export const pocketManifestV2Schema = {
               maxItems: 2,
             },
             presentation: { enum: PRESENTATION_MODES },
-          },
-        },
-      },
-    },
-    packages: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        psp: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            title: { type: "string", minLength: 1, maxLength: 128 },
-            icon0: {
-              type: "string",
-              minLength: 1,
-              pattern: "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.png$",
-            },
-            pic1: {
-              type: "string",
-              minLength: 1,
-              pattern: "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.png$",
-            },
-            memoryBudgetMb: { type: "integer", minimum: 1 },
           },
         },
       },

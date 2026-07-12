@@ -22,12 +22,10 @@ import {
 // legacy/test bundles valid until they opt into a ResolvedBuildPlan.
 declare const __POCKET_TARGET__: string;
 declare const __POCKET_HOST_ABI__: number;
-declare const __POCKET_CONTRACT_HASH__: string;
 
 export interface BuildHostContract {
   readonly target: string;
   readonly hostAbi: number;
-  readonly contractHash: string;
 }
 
 /** The `ui.*` op surface. Handles are generation-tagged positive i32 ids;
@@ -117,8 +115,6 @@ export interface HostOps {
   __host?: string;
   /** Version of the JS/native HostOps ABI implemented by this namespace. */
   __hostAbi?: number;
-  /** Hash of the exact ResolvedBuildPlan embedded into the native package. */
-  __contractHash?: string;
 }
 
 export interface Host {
@@ -136,9 +132,7 @@ let current: Host | null = null;
 export function embeddedBuildHostContract(): BuildHostContract | null {
   const target = typeof __POCKET_TARGET__ === "string" ? __POCKET_TARGET__ : "";
   const hostAbi = typeof __POCKET_HOST_ABI__ === "number" ? __POCKET_HOST_ABI__ : 0;
-  const contractHash =
-    typeof __POCKET_CONTRACT_HASH__ === "string" ? __POCKET_CONTRACT_HASH__ : "";
-  return target && hostAbi > 0 && contractHash ? { target, hostAbi, contractHash } : null;
+  return target && hostAbi > 0 ? { target, hostAbi } : null;
 }
 
 /** Fail before mounting when a bundle was packaged with the wrong native host. */
@@ -155,11 +149,6 @@ export function assertNativeHostContract(
   if (ops.__hostAbi !== expected.hostAbi) {
     throw new Error(
       `PocketJS: native host ABI mismatch (bundle=${expected.hostAbi}, host=${ops.__hostAbi ?? "missing"})`,
-    );
-  }
-  if (ops.__contractHash !== expected.contractHash) {
-    throw new Error(
-      `PocketJS: build contract mismatch (bundle=${expected.contractHash}, host=${ops.__contractHash ?? "missing"})`,
     );
   }
 }

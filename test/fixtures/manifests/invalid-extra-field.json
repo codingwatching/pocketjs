@@ -6,29 +6,19 @@
   "title": "Pocket Invalid",
   "version": "0.1.0",
   "engine": {
-    "abi": 1,
     "capabilities": {
       "requires": [
-        { "id": "ui.drawlist", "version": 1 }
+        "ui.drawlist"
       ]
     }
   },
   "app": {
     "entry": "app/main.tsx",
     "framework": "solid",
-    "simulationHz": 60,
     "viewport": {
       "logical": [480, 272],
       "presentation": "native"
     },
     "target": "psp"
-  },
-  "packages": {
-    "psp": {
-      "title": "Pocket Invalid",
-      "icon0": "art/ICON0.png",
-      "pic1": "art/PIC1.png",
-      "memoryBudgetMb": 20
-    }
   }
 }

@@ -221,15 +221,12 @@ async function hashKey(
   path: string,
   src: string,
   framework: PocketFramework,
-  contractHash: string,
 ): Promise<string> {
   const h = new Bun.CryptoHasher("sha256");
   h.update(
     CACHE_VERSION +
       "\0" +
       framework +
-      "\0" +
-      contractHash +
       "\0" +
       solidPresetPkg.version +
       "\0" +
@@ -310,9 +307,8 @@ export async function transformFile(
   path: string,
   src: string,
   framework: PocketFramework,
-  contractHash = "",
 ): Promise<TransformResult> {
-  const key = await hashKey(path, src, framework, contractHash);
+  const key = await hashKey(path, src, framework);
   const cacheFile = CACHE_DIR + key + ".json";
   const cached = (await Bun.file(cacheFile).json().catch(() => null)) as CacheEntry | null;
   if (cached && typeof cached.code === "string") {
@@ -371,7 +367,7 @@ export async function transformFile(
 
 export function jsxPlugin(
   framework: PocketFramework,
-  opts: { entry?: string; contractHash?: string } = {},
+  opts: { entry?: string } = {},
 ): BunPlugin {
   return {
     name: `pocketjs-${framework}-jsx`,
@@ -408,7 +404,7 @@ export function jsxPlugin(
         if (framework === "vue-vapor" && args.path === opts.entry) {
           src = `import "@pocketjs/framework/prelude";\n${src}`;
         }
-        const { code } = await transformFile(args.path, src, framework, opts.contractHash ?? "");
+        const { code } = await transformFile(args.path, src, framework);
         return { contents: code, loader: "js" };
       });
     },

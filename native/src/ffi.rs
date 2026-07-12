@@ -606,13 +606,6 @@ pub unsafe fn register(
         b"__hostAbi\0".as_ptr() as *const _,
         JS_NewInt32(ctx, host_abi),
     );
-    let contract_hash = env!("POCKETJS_CONTRACT_HASH");
-    JS_SetPropertyStr(
-        ctx,
-        ui_obj,
-        b"__contractHash\0".as_ptr() as *const _,
-        JS_NewStringLen(ctx, contract_hash.as_ptr(), contract_hash.len()),
-    );
 
     // ui.__textures: pak image name -> texture handle (see module docs).
     let tex_obj = JS_NewObject(ctx);

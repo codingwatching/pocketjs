@@ -6,8 +6,8 @@
 
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { checkTargetTypes } from "../compiler/target-check.ts";
-import { POCKET_PLATFORM_CONTRACTS, type PocketTargetId } from "../spec/platforms.ts";
+import { checkAppTypes } from "../compiler/app-check.ts";
+import type { PocketTargetId } from "../spec/platforms.ts";
 import { validateAndResolveBuildPlan } from "../src/manifest/resolve.ts";
 import type { ResolvedBuildPlan } from "../src/manifest/plan.ts";
 
@@ -60,23 +60,8 @@ const plan = resolution.plan;
 const entry = resolve(projectRoot, plan.app.entry);
 if (!existsSync(entry)) usage(`app entry not found: ${entry}`);
 
-const profile = POCKET_PLATFORM_CONTRACTS.targets[target];
-if (!profile) usage(`target profile disappeared during resolution: ${target}`);
-const capabilityKey = (id: string, version: number): string => `${id}@${version}`;
-const typeResult = checkTargetTypes({
+const typeResult = checkAppTypes({
   entry,
-  environment: {
-    target,
-    providedCapabilities: Object.entries(profile.capabilities).map(([id, provided]) =>
-      capabilityKey(id, provided!.version)
-    ),
-    requiredCapabilities: plan.capabilities.requires.map(({ requirement }) =>
-      capabilityKey(requirement.id, requirement.version)
-    ),
-    enhancementCapabilities: plan.capabilities.enhances.map(({ requirement }) =>
-      capabilityKey(requirement.id, requirement.version)
-    ),
-  },
   tsconfigPath: existsSync(resolve(projectRoot, "tsconfig.json"))
     ? resolve(projectRoot, "tsconfig.json")
     : undefined,
@@ -98,9 +83,9 @@ mkdirSync(planDirectory, { recursive: true });
 await Bun.write(planPath, JSON.stringify(plan, null, 2) + "\n");
 
 console.log(`✓ pocket.json v2`);
-console.log(`✓ ${target}@${plan.target.profileVersion} satisfies ${plan.capabilities.requires.length} requirement(s)`);
-console.log(`✓ target-specific TypeScript (${typeResult.checkedFiles.length} app module(s))`);
-console.log(`✓ ResolvedBuildPlan ${plan.contractHash}`);
+console.log(`✓ ${target} satisfies pocket.json capabilities`);
+console.log(`✓ TypeScript (${typeResult.checkedFiles.length} app module(s))`);
+console.log(`✓ ResolvedBuildPlan ${plan.planHash}`);
 
 if (command === "check") process.exit(0);
 
