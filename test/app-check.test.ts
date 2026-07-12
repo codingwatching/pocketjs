@@ -13,6 +13,8 @@ import { checkAppTypes } from "../compiler/app-check.ts";
 
 const FIXTURES = new URL("fixtures/app-check/", import.meta.url).pathname;
 const ROOT_TSCONFIG = new URL("../tsconfig.json", import.meta.url).pathname;
+const JSX_DECLARATIONS = new URL("../src/jsx.d.ts", import.meta.url).pathname;
+const SOLID_CONTROL_FLOW_ENTRY = new URL("../demos/cards/main.tsx", import.meta.url).pathname;
 
 function entry(fixture: string): string {
   const sourceDirectory = resolve(FIXTURES, fixture);
@@ -66,6 +68,17 @@ describe("per-app TypeScript checks", () => {
 
   test("resolves the public manifest and platform subpaths from the app config", () => {
     const result = checkFixture("framework-import", ROOT_TSCONFIG);
+
+    expect(errors(result)).toBe("");
+    expect(result.ok).toBe(true);
+  });
+
+  test("keeps Solid control-flow children contextually typed without lib.dom", () => {
+    const result = checkAppTypes({
+      entry: SOLID_CONTROL_FLOW_ENTRY,
+      tsconfigPath: ROOT_TSCONFIG,
+      declarationFiles: [JSX_DECLARATIONS],
+    });
 
     expect(errors(result)).toBe("");
     expect(result.ok).toBe(true);
