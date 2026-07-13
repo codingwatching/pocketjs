@@ -93,9 +93,9 @@ A capability means:
 
 > This stock host implements and tests this PocketJS framework API.
 
-It does not mean that hardware merely contains a component. Vita has more
-hardware input than the current HostOps frame exposes, so its profile only
-advertises the APIs actually delivered today.
+It does not mean that hardware merely contains a component. Vita advertises
+touch only because the stock host now samples the front panel, maps contacts to
+logical viewport coordinates, and delivers the public `touches()` API.
 
 It also does not model mobile permissions or live device state. Those are
 different questions:
@@ -105,9 +105,10 @@ different questions:
 - **Runtime availability** such as window size, fold state, or an attached
   controller must be queried at runtime.
 
-Touch is intentionally not registered yet. Adding `input.touch` to a manifest
-currently fails as an unknown capability; Vita may advertise it only after a
-public touch API, HostOps delivery, and tests land together.
+`input.touch` means that the API and delivery path exist. It does not mean a
+finger is currently down: `touches()` returns an empty snapshot in that state.
+An application can put touch in `enhances` and keep its button fallback for
+PSP, or put it in `requires` when touch is fundamental to the product.
 
 ## Target profiles
 
@@ -115,19 +116,26 @@ Profiles are small, truthful records:
 
 ```ts
 vita: {
-  hostAbi: 1,
+  hostAbi: 2,
   display: {
     physicalViewport: [960, 544],
     logicalViewports: [[480, 272]],
     presentations: ["integer-fit"],
+    rasterDensity: 2,
   },
-  capabilities: ["input.analog.left", "input.buttons", "text.glyphs.baked"],
+  capabilities: ["input.analog.left", "input.buttons", "input.touch", "text.glyphs.baked"],
 }
 ```
 
 DrawList is intentionally absent. It is PocketJS's internal core-to-backend IR,
 not behavior an application can observe or request. GE, GXM, WGPU, and software
 raster hosts may consume that IR while offering the same public UI semantics.
+
+`rasterDensity` is also not a capability. It is a target-owned rendering fact:
+layout and DrawList coordinates remain logical, while font coverage, SVGs,
+core masks, and target-selected image variants use that many raster samples per
+logical pixel. Dynamic texture producers receive the same resolved value as
+`platform.pixelRatio`; neither compiler nor application needs a Vita branch.
 
 There is no capability-parameter comparison DSL. If PocketJS later exposes a
 meaningfully different API, it can receive a new identifier once that API is
@@ -142,7 +150,7 @@ The resolver performs the same steps for every registered target:
 2. Find the selected target profile.
 3. Reject unknown, duplicate, or unavailable required capabilities.
 4. Resolve declared enhancements to booleans.
-5. Validate the logical viewport and presentation mode.
+5. Validate the target raster density, logical viewport, and presentation mode.
 6. Produce and checksum the build plan.
 
 A PSP-oriented app is not a PSP-only app. The manifest above resolves for Vita
@@ -151,13 +159,15 @@ unchanged because Vita provides the same required APIs and accepts the same
 
 ```text
 PSP:  logical 480×272 → physical 480×272
+      raster density 1
 Vita: logical 480×272 → physical 960×544
+      raster density 2
 ```
 
 No `vita` stanza is needed. Compatibility is determined by requirements and
-viewport rules, not by a target allowlist. Conversely, a Vita app that treats a
-future touch API as an enhancement can retain its button fallback for PSP; if
-it makes touch a requirement, the PSP build must fail.
+viewport rules, not by a target allowlist. A Vita app that treats touch as an
+enhancement retains its button fallback for PSP; if it makes touch a
+requirement, the PSP build fails during resolution.
 
 ## The small build plan
 
@@ -165,10 +175,11 @@ The generated plan is cross-process build IR, not public app configuration:
 
 ```json
 {
-  "app": { "entry": "app/main.tsx", "output": "main", "framework": "solid" },
-  "target": { "id": "vita", "hostAbi": 1 },
+  "app": { "id": "dev.pocket-stack.telemetry", "title": "Pocket Telemetry",
+           "entry": "app/main.tsx", "output": "main", "framework": "solid" },
+  "target": { "id": "vita", "hostAbi": 2 },
   "viewport": { "logical": [480, 272], "physical": [960, 544],
-                "presentation": "integer-fit" },
+                "presentation": "integer-fit", "rasterDensity": 2 },
   "features": { "input.analog.left": true },
   "planHash": "sha256:…"
 }
@@ -180,9 +191,12 @@ gives each stage the same debuggable input.
 
 `planHash` is only a checksum of this generated build IR. It detects an edited
 or partially copied plan and can support build caching. It is not a runtime
-compatibility hash, a signature, an attestation, or a trust chain. App title,
-icons, package metadata, toolchain provenance, and other fields without a real
-consumer do not belong in the plan merely to make its hash look comprehensive.
+compatibility hash, a signature, an attestation, or a trust chain. Application
+identity and title are present because package backends consume them; icons,
+toolchain provenance, and other fields without a real consumer do not belong
+in the plan merely to make its hash look comprehensive. The Vita backend maps
+the portable reverse-DNS app id deterministically to a nine-character title id
+instead of keeping a per-demo target table.
 
 ## Consumers and backend dispatch
 
@@ -228,6 +242,9 @@ reachable imports with the app's ordinary TypeScript configuration. There is
 no generated ambient target module, branded capability token, or special
 reachability authorization model. Optional APIs are ordinary guarded feature
 checks; the manifest provides the build-time compatibility guarantee.
+`platform.pixelRatio` is an ordinary build-defined number for code that must
+produce raster data at runtime; it does not change layout units or API
+availability.
 
 ## Deliberate non-goals
 
@@ -237,7 +254,7 @@ This contract does not currently include:
 - capability versions or a generic parameter constraint DSL;
 - a full-plan runtime hash, signing, or supply-chain attestation;
 - package fields whose backends do not consume them;
-- touch or dynamic-text APIs before their host implementations exist;
+- dynamic-text APIs before their host implementations exist;
 - a claim that fixed PSP/Vita profiles model dynamic mobile device conditions.
 
 Those concerns can gain separate contracts when PocketJS has concrete APIs and

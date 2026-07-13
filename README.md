@@ -125,7 +125,7 @@ bun pocket compile --target psp       # typecheck and compile, for custom native
 bun pocket build --target psp         # typecheck, compile, and package the target
 bun scripts/build.ts <app> [--framework=solid|vue-vapor] [--extra-chars=…]
 bun run psp / bun run vita / bun run dev / bun run wasm
-bun run e2e:vita                     # Vita3K, 960x544 exact-2x golden E2E
+bun run e2e:vita                     # Vita3K, native-density 960x544 golden E2E
 bun psplink                           # interactive real PSP switcher over PSPLINK
 bun run hw hero --trace              # real PSP via PSPLINK + host0 trace
 bunx tsc --noEmit                     # typecheck (babel owns the JSX transform)
@@ -136,6 +136,22 @@ Manifest-driven builds resolve `pocket.json` once into a small
 same serialized plan; `planHash` is only its build-time checksum. At startup,
 the bundle checks the native host's target and HostOps ABI. The app entry and
 its reachable imports use the app's ordinary TypeScript configuration.
+
+The selected target profile also resolves `viewport.rasterDensity`. Layout and
+DrawList coordinates stay in the app's logical viewport; the compiler bakes
+font coverage and SVGs at that density, prefers same-directory `@2x` PNG,
+sprite and raw-PAK siblings when present, and asks the core to bake its own
+masks at the same density. Dynamic texture producers read the identical value
+from `platform.pixelRatio`—they never branch on a target name:
+
+```ts
+import { platform } from "@pocketjs/framework/platform";
+
+const canvas = makeTexture(logicalWidth * platform.pixelRatio);
+```
+
+Missing raster siblings deliberately fall back to the 1x source; malformed
+siblings fail the build if their dimensions do not preserve logical size.
 
 Capabilities are plain framework API identifiers. `requires` must exist on the
 selected host; `enhances` resolves to booleans available from
@@ -162,9 +178,10 @@ current limitations, is documented in
 [Platform contracts](./site/content/docs/platform-contracts.md).
 
 The Vita host is documented in [native-vita/README.md](./native-vita/README.md).
-It fills the native 960x544 screen by scaling PocketJS's 480x272 logical
-viewport exactly 2x. Physical controls and analog input are supported; touch
-input is intentionally deferred.
+It preserves PocketJS's 480x272 logical layout while rasterizing geometry,
+fonts, vectors and core masks at Vita's native 960x544 density. Physical
+controls, analog input, and front-panel multi-touch snapshots are supported;
+PSP builds retain their controller-only fallback.
 
 ## DevTools + time travel
 

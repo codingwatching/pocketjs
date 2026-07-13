@@ -23,6 +23,12 @@ export interface DisplayProfile {
   readonly physicalViewport: Viewport;
   readonly logicalViewports: readonly Viewport[];
   readonly presentations: readonly PresentationMode[];
+  /**
+   * Target raster samples per logical pixel for baked text, vectors, masks,
+   * and target-selected image variants. This is a rendering contract, not an
+   * API capability or a promise that presentation scale has the same value.
+   */
+  readonly rasterDensity: number;
 }
 
 export interface TargetProfile<C extends string = string> {
@@ -47,6 +53,7 @@ export type TargetId<T extends TargetRegistry> = Extract<keyof T, string>;
 export const POCKET_CAPABILITIES = defineCapabilityRegistry([
   "input.analog.left",
   "input.buttons",
+  "input.touch",
   "text.glyphs.baked",
 ] as const);
 
@@ -65,6 +72,7 @@ export const POCKET_TARGETS = defineTargetRegistry<PocketCapabilityId, {
       // integer-fit at scale 1 is the portable spelling of the native PSP
       // surface and can be satisfied unchanged by higher-resolution hosts.
       presentations: ["native", "integer-fit"],
+      rasterDensity: 1,
     },
     capabilities: [
       "input.analog.left",
@@ -73,15 +81,17 @@ export const POCKET_TARGETS = defineTargetRegistry<PocketCapabilityId, {
     ],
   },
   vita: {
-    hostAbi: 1,
+    hostAbi: 2,
     display: {
       physicalViewport: [960, 544],
       logicalViewports: [[480, 272]],
       presentations: ["integer-fit"],
+      rasterDensity: 2,
     },
     capabilities: [
       "input.analog.left",
       "input.buttons",
+      "input.touch",
       "text.glyphs.baked",
     ],
   },

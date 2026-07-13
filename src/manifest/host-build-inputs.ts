@@ -14,6 +14,7 @@ export interface HostBuildInputs {
     readonly logical: Viewport;
     readonly physical: Viewport;
     readonly presentation: PresentationMode;
+    readonly rasterDensity: number;
   };
 }
 
@@ -39,11 +40,20 @@ function isViewport(value: unknown): value is Viewport {
 function hasHostInputShape(input: unknown): input is ResolvedBuildPlan {
   if (!isRecord(input) || !isRecord(input.app) || !isRecord(input.target)) return false;
   if (!isRecord(input.viewport) || !isRecord(input.features)) return false;
+  if (
+    typeof input.app.id !== "string" || input.app.id.length === 0 ||
+    typeof input.app.title !== "string" || input.app.title.length === 0
+  ) return false;
   if (typeof input.app.output !== "string" || input.app.output.length === 0) return false;
   if (typeof input.target.id !== "string" || input.target.id.length === 0) return false;
   if (!Number.isInteger(input.target.hostAbi) || (input.target.hostAbi as number) < 1) return false;
   if (!isViewport(input.viewport.logical) || !isViewport(input.viewport.physical)) return false;
   if (!PRESENTATION_MODES.includes(input.viewport.presentation as PresentationMode)) return false;
+  if (
+    !Number.isInteger(input.viewport.rasterDensity) ||
+    (input.viewport.rasterDensity as number) < 1 ||
+    (input.viewport.rasterDensity as number) > 255
+  ) return false;
   if (typeof input.planHash !== "string" || !/^sha256:[0-9a-f]{64}$/.test(input.planHash)) return false;
   return Object.values(input.features).every((available) => typeof available === "boolean");
 }
@@ -87,6 +97,7 @@ export function extractHostBuildInputs(
       logical: plan.viewport.logical,
       physical: plan.viewport.physical,
       presentation: plan.viewport.presentation,
+      rasterDensity: plan.viewport.rasterDensity,
     },
   };
 }
@@ -107,5 +118,6 @@ export function hostBuildEnvironment(
     POCKETJS_PHYSICAL_WIDTH: String(inputs.viewport.physical[0]),
     POCKETJS_PHYSICAL_HEIGHT: String(inputs.viewport.physical[1]),
     POCKETJS_PRESENTATION: inputs.viewport.presentation,
+    POCKETJS_RASTER_DENSITY: String(inputs.viewport.rasterDensity),
   };
 }

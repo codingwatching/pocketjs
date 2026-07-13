@@ -1,6 +1,6 @@
 // Deterministic PS Vita E2E: build capture VPKs, boot them in an isolated
 // Vita3K VitaFS, wait for the guest completion marker, then compare the
-// guest-produced 960x544 (exact 2x fullscreen) frames against test/goldens.
+// guest-produced, native-density 960x544 frames against Vita goldens.
 
 import { $ } from "bun";
 import {
@@ -14,6 +14,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
+import { vitaTitleId } from "../src/manifest/vita-package.ts";
 import { encodePNG } from "./png.ts";
 import { encodeThresholdInput, GOLDEN_SPECS } from "./golden-specs.ts";
 
@@ -21,15 +22,11 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const OUT = `${ROOT}dist/e2e-vita3k`;
 const VITAFS = `${OUT}/vitafs`;
 const CONFIG = `${OUT}/config/config.yml`;
-const APP_DIR = `${VITAFS}/ux0/app/PCKT00001`;
 const CAPTURE_DIR = `${VITAFS}/ux0/data/pocketjs-captures`;
 const NATIVE_RELEASE = `${ROOT}native-vita/target/armv7-sony-vita-newlibeabihf/release`;
-const GOLDENS = `${ROOT}test/goldens`;
 const VITA_GOLDENS = `${ROOT}test/goldens-vita`;
 const W = 960;
 const H = 544;
-const LOGICAL_W = 480;
-const LOGICAL_H = 272;
 const RAW_BYTES = W * H * 4;
 const TIMEOUT_MS = Number(process.env.E2E_VITA3K_TIMEOUT_MS ?? 45_000);
 const updateVita = process.env.UPDATE_VITA === "1";
@@ -56,8 +53,7 @@ if (!existsSync(sourceConfig)) {
 const sourceConfigText = readFileSync(sourceConfig, "utf8");
 const configuredVitaFs = sourceConfigText.match(/^pref-path:\s*(.+?)\s*$/m)?.[1]?.replace(/^['"]|['"]$/g, "");
 const globalVitaFs = configuredVitaFs || `${dirname(sourceConfig)}/fs`;
-const globalTitleStub = `${globalVitaFs}/ux0/app/PCKT00001`;
-let createdGlobalTitleStub = false;
+const createdGlobalTitleStubs = new Set<string>();
 if (!existsSync(`${homedir()}/vitasdk/bin/arm-vita-eabi-gcc`) && !process.env.VITASDK) {
   console.error("VitaSDK not found (set VITASDK, or install it at ~/vitasdk)");
   process.exit(2);
@@ -65,7 +61,6 @@ if (!existsSync(`${homedir()}/vitasdk/bin/arm-vita-eabi-gcc`) && !process.env.VI
 
 function writeFixture(): void {
   rmSync(OUT, { recursive: true, force: true });
-  mkdirSync(`${APP_DIR}/sce_sys`, { recursive: true });
   mkdirSync(CAPTURE_DIR, { recursive: true });
   mkdirSync(`${VITAFS}/ux0/user/00`, { recursive: true });
   mkdirSync(dirname(CONFIG), { recursive: true });
@@ -101,10 +96,11 @@ function writeFixture(): void {
   writeFileSync(CONFIG, config);
 }
 
-function writeDemoManifest(name: string): string {
+function writeDemoManifest(name: string): { readonly path: string; readonly titleId: string } {
   const demo = name.replace(/-main$/, "");
+  const applicationId = `dev.pocket-stack.e2e.${demo.replace(/-/g, ".")}`;
   const manifest = JSON.parse(readFileSync(`${ROOT}pocket.json`, "utf8")) as Record<string, any>;
-  manifest.id = `dev.pocket-stack.e2e.${demo.replace(/-/g, ".")}`;
+  manifest.id = applicationId;
   manifest.name = `pocketjs-e2e-${demo}`;
   manifest.title = `PocketJS E2E ${demo}`;
   manifest.app.entry = `demos/${demo}/main.tsx`;
@@ -113,18 +109,11 @@ function writeDemoManifest(name: string): string {
   const path = `${OUT}/manifests/${name}.json`;
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(manifest, null, 2) + "\n");
-  return path;
+  return { path, titleId: vitaTitleId(applicationId) };
 }
 
-// Vita3K validates `-r TITLE_ID` against the default/global VitaFS before it
-// parses --config-location. Seed only an empty title directory for that CLI
-// check when needed; the actual app always lives in the isolated VitaFS.
-if (!existsSync(globalTitleStub)) {
-  mkdirSync(globalTitleStub, { recursive: true });
-  createdGlobalTitleStub = true;
-}
 process.on("exit", () => {
-  if (createdGlobalTitleStub) {
+  for (const globalTitleStub of createdGlobalTitleStubs) {
     try {
       rmdirSync(globalTitleStub);
     } catch {
@@ -143,11 +132,11 @@ async function terminate(proc: ReturnType<typeof Bun.spawn>): Promise<void> {
   }
 }
 
-async function runVita3K(): Promise<void> {
+async function runVita3K(titleId: string): Promise<void> {
   const done = `${CAPTURE_DIR}/done`;
   const error = `${CAPTURE_DIR}/error.txt`;
   const proc = Bun.spawn(
-    [vita3k!, "--keep-config", "--load-config", "--config-location", CONFIG, "-r", "PCKT00001"],
+    [vita3k!, "--keep-config", "--load-config", "--config-location", CONFIG, "-r", titleId],
     { cwd: ROOT, stdout: "ignore", stderr: "ignore" },
   );
   const deadline = Date.now() + TIMEOUT_MS;
@@ -166,37 +155,27 @@ async function runVita3K(): Promise<void> {
   }
 }
 
-function logicalFrame(raw: Uint8Array, label: string): Uint8Array {
-  if (raw.byteLength !== RAW_BYTES) {
-    throw new Error(`${label}: expected ${RAW_BYTES} bytes (960x544 RGBA), got ${raw.byteLength}`);
-  }
-  const logical = new Uint8Array(LOGICAL_W * LOGICAL_H * 4);
-  for (let y = 0; y < LOGICAL_H; y++) {
-    for (let x = 0; x < LOGICAL_W; x++) {
-      const src = ((y * 2) * W + x * 2) * 4;
-      const dst = (y * LOGICAL_W + x) * 4;
-      for (let channel = 0; channel < 4; channel++) {
-        const value = raw[src + channel];
-        if (
-          raw[src + 4 + channel] !== value ||
-          raw[src + W * 4 + channel] !== value ||
-          raw[src + W * 4 + 4 + channel] !== value
-        ) {
-          throw new Error(`${label}: framebuffer is not an exact 2x fullscreen expansion at ${x},${y}`);
-        }
-        logical[dst + channel] = value;
-      }
-    }
-  }
-  return logical;
-}
-
 function isNonFlat(rgba: Uint8Array): boolean {
   const pixels = new Uint32Array(rgba.buffer, rgba.byteOffset, rgba.byteLength / 4);
   const seen = new Set<number>();
   for (const pixel of pixels) {
     seen.add(pixel);
     if (seen.size >= 3) return true;
+  }
+  return false;
+}
+
+/** Prove capture did not regress to rendering 480x272 and duplicating each pixel. */
+function hasNativeDetail(rgba: Uint8Array): boolean {
+  for (let y = 0; y < H; y += 2) {
+    for (let x = 0; x < W; x += 2) {
+      const topLeft = (y * W + x) * 4;
+      for (const offset of [topLeft + 4, topLeft + W * 4, topLeft + W * 4 + 4]) {
+        for (let channel = 0; channel < 4; channel++) {
+          if (rgba[topLeft + channel] !== rgba[offset + channel]) return true;
+        }
+      }
+    }
   }
   return false;
 }
@@ -216,7 +195,16 @@ if (specs.length === 0) {
 
 for (const spec of specs) {
   const input = encodeThresholdInput(spec);
-  const manifest = writeDemoManifest(spec.name);
+  const { path: manifest, titleId } = writeDemoManifest(spec.name);
+  const appDir = `${VITAFS}/ux0/app/${titleId}`;
+  const globalTitleStub = `${globalVitaFs}/ux0/app/${titleId}`;
+  mkdirSync(`${appDir}/sce_sys`, { recursive: true });
+  // Vita3K validates -r against its default VitaFS before applying the
+  // isolated config. Seed only the empty directory needed for that check.
+  if (!existsSync(globalTitleStub)) {
+    mkdirSync(globalTitleStub, { recursive: true });
+    createdGlobalTitleStubs.add(globalTitleStub);
+  }
   console.log(`\n## ${spec.name} (${spec.capture.length} golden frame(s))`);
   // Exercise the same manifest -> plan -> compiler -> backend path as real
   // applications, including the target/HostOps ABI startup handshake.
@@ -238,11 +226,11 @@ for (const spec of specs) {
 
   rmSync(CAPTURE_DIR, { recursive: true, force: true });
   mkdirSync(CAPTURE_DIR, { recursive: true });
-  copyFileSync(`${NATIVE_RELEASE}/pocketjs-vita.self`, `${APP_DIR}/eboot.bin`);
-  copyFileSync(`${NATIVE_RELEASE}/pocketjs-vita.sfo`, `${APP_DIR}/sce_sys/param.sfo`);
+  copyFileSync(`${NATIVE_RELEASE}/pocketjs-vita.self`, `${appDir}/eboot.bin`);
+  copyFileSync(`${NATIVE_RELEASE}/pocketjs-vita.sfo`, `${appDir}/sce_sys/param.sfo`);
 
   try {
-    await runVita3K();
+    await runVita3K(titleId);
   } catch (error) {
     console.error(`FAIL ${spec.name}: ${(error as Error).message}`);
     failed += spec.capture.length;
@@ -254,32 +242,31 @@ for (const spec of specs) {
     try {
       const rawPath = `${CAPTURE_DIR}/f${String(frame).padStart(4, "0")}.rgba`;
       if (!existsSync(rawPath)) throw new Error(`${label}: capture file missing`);
-      const logical = logicalFrame(readFileSync(rawPath), label);
-      if (!isNonFlat(logical)) throw new Error(`${label}: degenerate flat frame`);
-      const actual = Buffer.from(encodePNG(logical, LOGICAL_W, LOGICAL_H));
-      const goldenPath = `${GOLDENS}/${label}.png`;
-      if (!existsSync(goldenPath)) throw new Error(`${label}: golden missing`);
-      const commonGolden = readFileSync(goldenPath);
+      const raw = readFileSync(rawPath);
+      if (raw.byteLength !== RAW_BYTES) {
+        throw new Error(`${label}: expected ${RAW_BYTES} bytes (960x544 RGBA), got ${raw.byteLength}`);
+      }
+      if (!isNonFlat(raw)) throw new Error(`${label}: degenerate flat frame`);
+      if (!hasNativeDetail(raw)) {
+        throw new Error(`${label}: framebuffer contains only duplicated 2x2 logical pixels`);
+      }
+      const actual = Buffer.from(encodePNG(raw, W, H));
       const vitaGoldenPath = `${VITA_GOLDENS}/${label}.png`;
       if (updateVita) {
-        if (actual.equals(commonGolden)) {
-          rmSync(vitaGoldenPath, { force: true });
-          console.log(`PASS ${label} (shared golden; removed any Vita override)`);
-        } else {
-          writeFileSync(vitaGoldenPath, actual);
-          console.log(`WROTE ${label} (Vita-specific deterministic layout override)`);
-        }
+        writeFileSync(vitaGoldenPath, actual);
+        console.log(`WROTE ${label} (960x544 native-density Vita golden)`);
         passed++;
         continue;
       }
-      const expected = existsSync(vitaGoldenPath) ? readFileSync(vitaGoldenPath) : commonGolden;
+      if (!existsSync(vitaGoldenPath)) {
+        throw new Error(`${label}: Vita golden missing (run with UPDATE_VITA=1 after visual review)`);
+      }
+      const expected = readFileSync(vitaGoldenPath);
       if (!actual.equals(expected)) {
         writeFileSync(`${OUT}/${label}.actual.png`, actual);
         throw new Error(`${label}: PNG bytes differ (see dist/e2e-vita3k/${label}.actual.png)`);
       }
-      console.log(
-        `PASS ${label} (960x544, exact 2x, GXM textures resident, byte-exact${existsSync(vitaGoldenPath) ? ", Vita override" : ""})`,
-      );
+      console.log(`PASS ${label} (960x544 native density, GXM textures/fonts resident, byte-exact)`);
       passed++;
     } catch (error) {
       console.error(`FAIL ${(error as Error).message}`);

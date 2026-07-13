@@ -14,7 +14,7 @@ import {
   type TargetId,
   type TargetProfile,
 } from "../spec/platforms.ts";
-import { canonicalJson, verifyPlanHash } from "../src/manifest/plan.ts";
+import { verifyPlanHash } from "../src/manifest/plan.ts";
 import {
   resolveBuildPlan,
   validateAndResolveBuildPlan,
@@ -33,21 +33,19 @@ function manifest(input: unknown): PocketManifestV2 {
   return result.value;
 }
 
-const SYNTHETIC_CAPABILITIES = defineCapabilityRegistry([
-  ...POCKET_CAPABILITIES,
-  "input.touch",
-] as const);
+const SYNTHETIC_CAPABILITIES = defineCapabilityRegistry([...POCKET_CAPABILITIES] as const);
 
 type SyntheticCapabilityId = CapabilityId<typeof SYNTHETIC_CAPABILITIES>;
 
 const syntheticTargetDefinitions = {
   psp: POCKET_TARGETS.psp,
   "vita-test": {
-    hostAbi: 1,
+    hostAbi: 2,
     display: {
       physicalViewport: [960, 544],
       logicalViewports: [[480, 272]],
       presentations: ["integer-fit"],
+      rasterDensity: 2,
     },
     capabilities: [
       "input.analog.left",
@@ -124,12 +122,14 @@ describe("platform registry", () => {
     expect(POCKET_TARGETS.vita.capabilities).toEqual([
       "input.analog.left",
       "input.buttons",
+      "input.touch",
       "text.glyphs.baked",
     ]);
     expect(POCKET_TARGETS.vita.display).toEqual({
       physicalViewport: [960, 544],
       logicalViewports: [[480, 272]],
       presentations: ["integer-fit"],
+      rasterDensity: 2,
     });
   });
 
@@ -137,6 +137,16 @@ describe("platform registry", () => {
     const ids: SyntheticTargetId[] = ["psp", "vita-test"];
     expect(ids).toEqual(["psp", "vita-test"]);
     expect(validatePlatformContractRegistry(SYNTHETIC_CONTRACTS)).toEqual([]);
+  });
+
+  test("rejects invalid target raster densities at the registry boundary", () => {
+    const invalid = structuredClone(SYNTHETIC_CONTRACTS) as any;
+    invalid.targets["vita-test"].display.rasterDensity = 1.5;
+    expect(validatePlatformContractRegistry(invalid)).toContainEqual({
+      code: "registry.invalidRasterDensity",
+      path: "/targets/vita-test/display/rasterDensity",
+      message: "target rasterDensity must be an integer from 1 through 255",
+    });
   });
 });
 
@@ -147,6 +157,8 @@ describe("semantic resolution", () => {
     if (!result.ok) return;
     expect(result.plan.target).toEqual({ id: "psp", hostAbi: 1 });
     expect(result.plan.app).toEqual({
+      id: "dev.pocket-stack.telemetry",
+      title: "Pocket Telemetry",
       entry: "app/main.tsx",
       output: "main",
       framework: "solid",
@@ -155,6 +167,7 @@ describe("semantic resolution", () => {
       logical: [480, 272],
       physical: [480, 272],
       presentation: "integer-fit",
+      rasterDensity: 1,
     });
     expect(result.plan.features).toEqual({
       "input.analog.left": true,
@@ -175,15 +188,16 @@ describe("semantic resolution", () => {
     expect(JSON.stringify(result.plan, null, 2) + "\n").toBe(committed);
   });
 
-  test("portable PSP baseline resolves to a byte-exact 2x Vita plan", async () => {
+  test("portable PSP baseline resolves to a native-density Vita plan", async () => {
     const result = validateAndResolveBuildPlan(portableInput, { target: "vita" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.plan.target).toEqual({ id: "vita", hostAbi: 1 });
+    expect(result.plan.target).toEqual({ id: "vita", hostAbi: 2 });
     expect(result.plan.viewport).toEqual({
       logical: [480, 272],
       physical: [960, 544],
       presentation: "integer-fit",
+      rasterDensity: 2,
     });
     expect(result.plan.features).toEqual({
       "input.analog.left": true,
@@ -196,7 +210,7 @@ describe("semantic resolution", () => {
     expect(JSON.stringify(result.plan, null, 2) + "\n").toBe(committed);
   });
 
-  test("plan checksum is independent of capability order and manifest identity", () => {
+  test("plan checksum is independent of capability order but covers package identity", () => {
     const changed = structuredClone(portableInput) as Record<string, any>;
     changed.engine.capabilities.requires.reverse();
     changed.id = "dev.pocket-stack.renamed";
@@ -207,8 +221,8 @@ describe("semantic resolution", () => {
     const right = validateAndResolveBuildPlan(changed, { target: "psp" });
     expect(left.ok && right.ok).toBe(true);
     if (!left.ok || !right.ok) return;
-    expect(canonicalJson(left.plan)).toBe(canonicalJson(right.plan));
-    expect(left.plan.planHash).toBe(right.plan.planHash);
+    expect(left.plan.features).toEqual(right.plan.features);
+    expect(left.plan.planHash).not.toBe(right.plan.planHash);
   });
 
   test("reports unknown targets and missing hard requirements", () => {
@@ -242,6 +256,7 @@ describe("semantic resolution", () => {
       logical: [480, 272],
       physical: [960, 544],
       presentation: "integer-fit",
+      rasterDensity: 2,
     });
     expect(Object.values(result.plan.features).every(Boolean)).toBe(true);
   });
@@ -259,10 +274,11 @@ describe("semantic resolution", () => {
     expect(vita.plan.features["input.touch"]).toBe(true);
   });
 
-  test("production Vita rejects future touch instead of advertising hardware without an API", () => {
+  test("production Vita resolves the implemented touch contract", () => {
     const result = validateAndResolveBuildPlan(touchInput, { target: "vita" });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.diagnostics.some((item) => item.code === "capability.unknown")).toBe(true);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.target.hostAbi).toBe(2);
+    expect(result.plan.features["input.touch"]).toBe(true);
   });
 });
