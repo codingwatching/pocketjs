@@ -5,7 +5,8 @@
 // Chrome, then composites it onto the input with a crossfade and a staggered text
 // entrance (logo -> tagline -> url, each fades in and eases up). The input's primary
 // audio track is preserved and gently faded out under the card; the card itself is
-// silent (no voiceover).
+// silent (no voiceover). HLG/PQ sources are tone-mapped to BT.709 SDR so the SDR
+// browser card and source share one color space in the final H.264 file.
 //
 // Usage:
 //   bun skills/pocketjs-video-outro/scripts/make-outro.ts -i input.mov [-o out.mp4]
@@ -115,19 +116,60 @@ async function findChrome(): Promise<string> {
   throw new Error("no Chromium-family browser found (Chrome/Chromium/Edge/Brave) for rendering");
 }
 
-async function probe(input: string) {
-  const one = async (args: string[]) => (await $`ffprobe ${args}`.quiet().text()).trim();
-  const w = Number((await one(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width", "-of", "csv=p=0", input])).split("\n")[0]);
-  const h = Number((await one(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=height", "-of", "csv=p=0", input])).split("\n")[0]);
-  const rfr = (await one(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", input])).split("\n")[0];
-  const dur = Number((await one(["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", input])).split("\n")[0]);
-  const aRaw = await one(["-v", "error", "-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", input]);
-  const audioStreams = aRaw ? aRaw.split("\n").filter(Boolean).length : 0;
+type ProbeStream = {
+  codec_type?: string;
+  width?: number | string;
+  height?: number | string;
+  r_frame_rate?: string;
+  avg_frame_rate?: string;
+  color_space?: string;
+  color_transfer?: string;
+  color_primaries?: string;
+  color_range?: string;
+};
 
-  const [num, den] = rfr.split("/");
-  const fps = den && Number(den) > 0 ? Number(num) / Number(den) : Number(rfr);
-  if (!w || !h || !dur) throw new Error("could not probe input width/height/duration");
-  return { w, h, fps, dur, audioStreams };
+type ProbeOutput = {
+  streams?: ProbeStream[];
+  format?: { duration?: number | string };
+};
+
+function frameRate(value: string | undefined): number {
+  if (!value) return 0;
+  const [num, den] = value.split("/").map(Number);
+  if (Number.isFinite(num) && Number.isFinite(den) && den > 0) return num / den;
+  const fps = Number(value);
+  return Number.isFinite(fps) ? fps : 0;
+}
+
+export function parseProbeOutput(raw: string) {
+  let output: ProbeOutput;
+  try {
+    output = JSON.parse(raw) as ProbeOutput;
+  } catch {
+    throw new Error("could not parse ffprobe output");
+  }
+
+  const video = output.streams?.find((stream) => stream.codec_type === "video");
+  const w = Number(video?.width);
+  const h = Number(video?.height);
+  const fps = frameRate(video?.r_frame_rate) || frameRate(video?.avg_frame_rate);
+  const dur = Number(output.format?.duration);
+  const audioStreams = output.streams?.filter((stream) => stream.codec_type === "audio").length ?? 0;
+  const colorSpace = video?.color_space ?? "";
+  const colorTransfer = video?.color_transfer ?? "";
+  const colorPrimaries = video?.color_primaries ?? "";
+  const colorRange = video?.color_range ?? "";
+
+  if (![w, h, fps, dur].every((value) => Number.isFinite(value) && value > 0)) {
+    throw new Error("could not probe input width/height/fps/duration");
+  }
+  return { w, h, fps, dur, audioStreams, colorSpace, colorTransfer, colorPrimaries, colorRange };
+}
+
+async function probe(input: string) {
+  const entries = "stream=codec_type,width,height,r_frame_rate,avg_frame_rate,color_space,color_transfer,color_primaries,color_range:format=duration";
+  const raw = await $`ffprobe -v error -show_entries ${entries} -of json ${input}`.quiet().text();
+  return parseProbeOutput(raw);
 }
 
 async function shotLayer(chrome: string, layer: string, out: string, w: number, h: number, params: URLSearchParams) {
@@ -141,6 +183,15 @@ function round(n: number): number {
   return Math.round(n);
 }
 
+const SWSCALE_MATRICES = ["bt601", "bt470", "smpte170m", "bt470bg", "bt709", "fcc", "smpte240m", "bt2020", "bt2020nc"];
+const SWSCALE_PRIMARIES = ["bt709", "bt470m", "bt470bg", "smpte170m", "smpte240m", "film", "bt2020", "smpte428", "smpte431", "smpte432", "jedec-p22", "ebu3213"];
+
+function hdrColorValue(value: string, supported: readonly string[], fallback: string, field: string): string {
+  if (!value || value === "unknown" || value === "unspecified" || value === "reserved") return fallback;
+  if (!supported.includes(value)) throw new Error(`unsupported HDR ${field}: ${value}`);
+  return value;
+}
+
 async function main() {
   const a = parseArgs(process.argv.slice(2));
   if (!existsSync(HTML)) throw new Error(`template missing: ${HTML}`);
@@ -148,7 +199,20 @@ async function main() {
   await $`command -v ffprobe`.quiet().then(undefined, () => { throw new Error("ffprobe not found on PATH"); });
 
   const chrome = await findChrome();
-  const { w, h, fps, dur, audioStreams } = await probe(a.input);
+  const { w, h, fps, dur, audioStreams, colorSpace, colorTransfer, colorPrimaries, colorRange } = await probe(a.input);
+  const isHdr = colorTransfer === "arib-std-b67" || colorTransfer === "smpte2084";
+  const hdrColorSpace = isHdr
+    ? hdrColorValue(colorSpace, SWSCALE_MATRICES, "bt2020nc", "matrix")
+    : "";
+  const hdrPrimaries = isHdr
+    ? hdrColorValue(colorPrimaries, SWSCALE_PRIMARIES, "bt2020", "primaries")
+    : "";
+  if (isHdr) {
+    const scaleHelp = await $`ffmpeg -hide_banner -h filter=scale`.quiet().text();
+    if (!scaleHelp.includes("out_transfer") || !scaleHelp.includes("intent")) {
+      throw new Error("HDR input requires an ffmpeg build with swscale tone mapping support (FFmpeg 8 or newer)");
+    }
+  }
 
   // type tracks resolution across landscape & portrait
   const scale = Math.min(w, h) / 1080;
@@ -168,6 +232,7 @@ async function main() {
   const u0 = t0 + 0.6;
 
   console.error(`input : ${w}x${h} @ ${fps.toFixed(3)}fps  dur=${dur}s  audio-streams=${audioStreams}`);
+  console.error(`color : ${[colorSpace, colorTransfer, colorPrimaries, colorRange].filter(Boolean).join("/") || "unspecified"}${isHdr ? " -> bt709 SDR" : ""}`);
   console.error(`card  : scale=${scale.toFixed(4)}  outro=${a.outro}s  xfade=${a.xfade}s (offset=${offset.toFixed(3)}s)`);
   console.error(`output: ${a.output}`);
 
@@ -184,16 +249,25 @@ async function main() {
     console.error(`rendered card layers (${w}x${h})`);
 
     const f = (n: number) => n.toFixed(2);
+    const bt709 = "setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709";
+    const colorFlags = "lanczos+accurate_rnd+full_chroma_int";
+    const cardColor = isHdr
+      ? `setparams=range=pc:color_primaries=bt709:color_trc=iec61966-2-1:colorspace=gbr,scale=${w}:${h}:in_range=pc:out_range=tv:in_primaries=bt709:out_primaries=bt709:in_transfer=iec61966-2-1:out_transfer=bt709:out_color_matrix=bt709:intent=perceptual:flags=${colorFlags},`
+      : `scale=${w}:${h},`;
+    const mainColor = isHdr
+      ? `scale=${w}:${h}:in_color_matrix=${hdrColorSpace}:out_color_matrix=bt709:in_range=${colorRange === "pc" ? "pc" : "tv"}:out_range=tv:in_primaries=${hdrPrimaries}:out_primaries=bt709:in_transfer=${colorTransfer}:out_transfer=bt709:intent=perceptual:flags=${colorFlags},setsar=1,format=yuv420p,${bt709}`
+      : `scale=${w}:${h},setsar=1,format=yuv420p`;
+    const outputColor = isHdr ? `,${bt709}` : "";
     const graphLines = [
-      `[1:v]scale=${w}:${h},setsar=1,fps=${fps},format=yuv420p,setpts=PTS-STARTPTS[bg];`,
-      `[2:v]fps=${fps},format=yuva420p,fade=t=in:st=${f(l0)}:d=0.60:alpha=1,setpts=PTS-STARTPTS[lg];`,
-      `[3:v]fps=${fps},format=yuva420p,fade=t=in:st=${f(t0)}:d=0.60:alpha=1,setpts=PTS-STARTPTS[tg];`,
-      `[4:v]fps=${fps},format=yuva420p,fade=t=in:st=${f(u0)}:d=0.50:alpha=1,setpts=PTS-STARTPTS[ur];`,
+      `[1:v]${cardColor}setsar=1,fps=${fps},format=yuv420p${outputColor},setpts=PTS-STARTPTS[bg];`,
+      `[2:v]${cardColor}fps=${fps},format=yuva420p${outputColor},fade=t=in:st=${f(l0)}:d=0.60:alpha=1,setpts=PTS-STARTPTS[lg];`,
+      `[3:v]${cardColor}fps=${fps},format=yuva420p${outputColor},fade=t=in:st=${f(t0)}:d=0.60:alpha=1,setpts=PTS-STARTPTS[tg];`,
+      `[4:v]${cardColor}fps=${fps},format=yuva420p${outputColor},fade=t=in:st=${f(u0)}:d=0.50:alpha=1,setpts=PTS-STARTPTS[ur];`,
       `[bg][lg]overlay=x=0:y='${slideL}*pow(1-clip((t-${f(l0)})/0.60,0,1),3)'[o1];`,
       `[o1][tg]overlay=x=0:y='${slideT}*pow(1-clip((t-${f(t0)})/0.60,0,1),3)'[o2];`,
-      `[o2][ur]overlay=x=0:y='${slideU}*pow(1-clip((t-${f(u0)})/0.50,0,1),3)',format=yuv420p,setpts=PTS-STARTPTS[outro];`,
-      `[0:v]fps=${fps},scale=${w}:${h},setsar=1,format=yuv420p,setpts=PTS-STARTPTS[main];`,
-      `[main][outro]xfade=transition=fade:duration=${a.xfade}:offset=${offset.toFixed(3)},format=yuv420p[v];`,
+      `[o2][ur]overlay=x=0:y='${slideU}*pow(1-clip((t-${f(u0)})/0.50,0,1),3)',format=yuv420p${outputColor},setpts=PTS-STARTPTS[outro];`,
+      `[0:v]fps=${fps},${mainColor},setpts=PTS-STARTPTS[main];`,
+      `[main][outro]xfade=transition=fade:duration=${a.xfade}:offset=${offset.toFixed(3)},format=yuv420p${outputColor}[v];`,
     ];
 
     const maps: string[] = ["-map", "[v]"];
@@ -222,6 +296,7 @@ async function main() {
       "-filter_complex_script", graphPath,
       ...maps,
       "-c:v", "libx264", "-profile:v", "high", "-crf", String(a.crf), "-preset", a.preset, "-pix_fmt", "yuv420p",
+      ...(isHdr ? ["-color_range", "tv", "-colorspace", "bt709", "-color_trc", "bt709", "-color_primaries", "bt709"] : []),
       "-movflags", "+faststart", "-shortest",
       a.output,
     ];
@@ -235,9 +310,11 @@ async function main() {
   }
 }
 
-try {
-  await main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+if (import.meta.main) {
+  try {
+    await main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
 }
