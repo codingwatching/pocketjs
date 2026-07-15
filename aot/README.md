@@ -56,6 +56,9 @@ A fan-made (同人) mini-RPG: the title screen auto-opens a chapter menu (剑冢
 ```bash
 # prerequisites: bun, arm-none-eabi-gcc + binutils, mgba (libmgba),
 #                GBDK-2020 (~/.pocketjs/toolchains/gbdk or $GBDK_HOME), cc65
+cd aot
+bun install --frozen-lockfile          # install the pinned compiler dependencies
+cd ..
 bun aot/spec/gen-c.ts                # regenerate per-target pjgb_gen.h
 bash aot/test/harness/build.sh       # build the headless mGBA runner (once)
 cd aot
@@ -64,6 +67,16 @@ bun run shendiao                     # 神雕旧事 .gba + .gb + .nes
 bun run test                         # legacy GBA suite (19 assertions)
 bun run test:all                     # cross-target: pocket-town (54) + 神雕 full story (69)
 ```
+
+For interactive play of 神雕旧事, run these from `aot/` (mGBA handles GBA/GB; FCEUX handles NES):
+
+```bash
+bun play:gba
+bun play:gb
+bun play:nes
+```
+
+`bun play` remains an alias for `bun play:gba`. Each command builds `dist/shendiao.<target>` before launching the emulator, and also accepts a custom game entry when needed.
 
 Outputs land in `aot/dist/`: `pocket-town.{gba,gb,nes}`, `shendiao.{gba,gb,nes}`, plus per-build `.ir.json` / `.debug.json` (symbol maps for the harnesses) and `dist/shots/*.ppm` screenshots from E2E runs.
 
