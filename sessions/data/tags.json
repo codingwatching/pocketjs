@@ -1,0 +1,8 @@
+[
+ {"tag":"v0.1.0","date":"2026-07-06","pr":53,"title":"追认的 Initial public release：pocketjs.dev + Introducing PocketJS"},
+ {"tag":"v0.2.0","date":"2026-07-07","pr":61,"title":"首个 npm release：publish pipeline、pocketjs CLI、changelog 页"},
+ {"tag":"v0.2.1","date":"2026-07-07","pr":64,"title":"40 分钟后的补丁：npm 徽章与安装文档"},
+ {"tag":"v0.3.0","date":"2026-07-08","pr":65,"title":"时间旅行 devtools 成为框架原语"},
+ {"tag":"v0.4.0","date":"2026-07-13","pr":108,"title":"平台契约 + PS Vita host；两次 release gate flake 后重打 tag"},
+ {"tag":"v0.5.0","date":"2026-07-17","pr":119,"title":"系统 OSK、input.cursor、Pocket YouTube 周"}
+]

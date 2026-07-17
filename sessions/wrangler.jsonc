@@ -1,0 +1,14 @@
+{
+  // PocketJS Sessions — the development-archive deep wiki. Assets-only Worker
+  // (same pattern as site/wrangler.jsonc). Deploy from the repo root:
+  //   bun sessions/build.ts && bunx wrangler deploy -c sessions/wrangler.jsonc
+  "name": "pocketjs-sessions",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [{ "pattern": "sessions.pocketjs.dev", "custom_domain": true }]
+}
