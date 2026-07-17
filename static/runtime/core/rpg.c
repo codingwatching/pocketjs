@@ -28,8 +28,12 @@ typedef struct {
   u16 talk;
   u8 stepLeft; /* pixels remaining in the current step */
   u8 anim;
+  u8 phase; /* wander cadence offset (slot * WANDER_PHASE, precomputed) */
   u16 lcg;
 } ActorRt;
+/* NOTE: 8-bit-safe arithmetic only in this file — sdcc 4.6 (SM83) miscompiles
+ * some u8*u8 multiply frames (__muluchar), so anything that would lower to it
+ * is written as accumulation or shifts instead. */
 
 static ActorRt actors[MAX_ACTORS];
 static u8 actor_count;
@@ -117,16 +121,19 @@ static u8 blocked(u8 x, u8 y) {
 /* ---- map load --------------------------------------------------------------*/
 static void map_load(u8 map, u8 x, u8 y, u8 dir) {
   const u8 *m;
-  u8 i;
-  u16 enter;
+  const u8 *a;
+  u8 i, phase;
+  u16 lcg, enter;
 
   cur_map = map;
   map_view_load();
   m = hal_blob(mblob);
   enter = rd16(m + 6);
 
+  a = m + actors_off;
+  phase = 0;
+  lcg = 0x1234;
   for (i = 0; i < actor_count; i++) {
-    const u8 *a = m + actors_off + (u16)i * ACTOR_SIZE;
     actors[i].x = a[0];
     actors[i].y = a[1];
     actors[i].px = (u16)a[0] << 3;
@@ -138,7 +145,11 @@ static void map_load(u8 map, u8 x, u8 y, u8 dir) {
     actors[i].talk = rd16(a + 6);
     actors[i].stepLeft = 0;
     actors[i].anim = 0;
-    actors[i].lcg = (u16)(0x1234 + i * 977);
+    actors[i].phase = phase;
+    actors[i].lcg = lcg;
+    a += ACTOR_SIZE;
+    phase = (u8)(phase + WANDER_PHASE);
+    lcg = (u16)(lcg + 977);
   }
 
   ptx = x;
@@ -331,16 +342,18 @@ static void choice_tick(void) {
 /* ---- warps / triggers -------------------------------------------------------*/
 static void check_warp_trigger(void) {
   const u8 *m = hal_blob(mblob);
+  const u8 *w;
+  const u8 *t;
   u8 i;
-  for (i = 0; i < warp_count; i++) {
-    const u8 *w = m + warps_off + (u16)i * WARP_SIZE;
+  w = m + warps_off;
+  for (i = 0; i < warp_count; i++, w += WARP_SIZE) {
     if (w[0] == ptx && w[1] == pty) {
       map_load(w[2], w[3], w[4], w[5]);
       return;
     }
   }
-  for (i = 0; i < trig_count; i++) {
-    const u8 *t = m + trig_off + (u16)i * TRIGGER_SIZE;
+  t = m + trig_off;
+  for (i = 0; i < trig_count; i++, t += TRIGGER_SIZE) {
     if (t[0] == ptx && t[1] == pty) {
       u16 script = rd16(t + 2);
       if ((t[4] & TRIGGER_F_ONCE) && vm_get_flag(t[5])) continue;
@@ -416,7 +429,7 @@ static void actors_tick(void) {
     }
     if (a->move != MOVE_WANDER) continue;
     if (vm.active || tb_mode != TB_NONE) continue;
-    if (((u16)((u16)frame_no + (u16)i * WANDER_PHASE) % WANDER_PERIOD) != 0) continue;
+    if (((u16)((u16)frame_no + a->phase) % WANDER_PERIOD) != 0) continue;
     a->lcg = (u16)(a->lcg * 25173u + 13849u);
     {
       u8 d = (u8)((a->lcg >> 8) & 3);

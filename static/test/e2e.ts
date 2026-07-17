@@ -197,7 +197,7 @@ async function testTarget(target: TargetName): Promise<void> {
     check("cheers (macro unroll)", r.cheers, orc.cheers);
     check("sub calls (CALL/RET)", r.subCalls, orc.subCalls);
     check("re-talk textbox", r.retalkText, 1);
-    const retalk = out.debug.texts.findIndex((t) => t.includes("already won"));
+    const retalk = out.debug.texts.findIndex((t) => t.replace(/\n/g, " ").includes("already won"));
     check("re-talk page", r.retalkPage, retalk);
   }
 
