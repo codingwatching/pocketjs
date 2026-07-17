@@ -108,7 +108,10 @@ export const TARGETS: Record<TargetName, TargetSpec> = {
     objTiles: 256, // pattern table 1
     debugAddr: 0x0700, // top page of the 2 KB CPU RAM
     maxMapW: 32,
-    maxMapH: 30, // one nametable
+    // One nametable is 32x30, but the textbox permanently owns tile rows
+    // 24-29 (attribute cells are 16px — the box must own whole attr rows),
+    // so maps stop at 24 and closing the box restores blank fills only.
+    maxMapH: 24,
     scrolls: false,
     ext: ".nes",
   },
