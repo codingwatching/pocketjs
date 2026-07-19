@@ -182,7 +182,7 @@ impl Input {
         self.super_down = false;
     }
 
-    /// Call once per rendered frame, after game logic consumed the state.
+    /// Call once per simulation turn, after game logic consumed edge state.
     pub fn end_frame(&mut self) {
         self.pressed.clear();
         self.mouse_pressed.clear();
@@ -231,7 +231,6 @@ impl Input {
     pub fn mouse_delta(&self) -> Vec2 {
         self.mouse_delta
     }
-
     // --- synthetic injection (headless scripting/tests) -------------------
 
     pub fn inject_key(&mut self, code: KeyCode, down: bool) {
@@ -277,5 +276,62 @@ impl Input {
     /// Add scroll-wheel delta in logical px (scripted scrolling).
     pub fn inject_scroll(&mut self, dx: f32, dy: f32) {
         self.scroll += Vec2::new(dx, dy);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn end_frame_consumes_edges_but_preserves_held_state() {
+        let mut input = Input::default();
+        input.inject_key(KeyCode::KeyX, true);
+        input.inject_mouse_button(MouseButton::Left, true);
+        assert!(input.key_pressed(KeyCode::KeyX));
+        assert!(input.mouse_button_pressed(MouseButton::Left));
+
+        input.end_frame();
+        assert!(!input.key_pressed(KeyCode::KeyX));
+        assert!(!input.mouse_button_pressed(MouseButton::Left));
+        assert!(input.key_down(KeyCode::KeyX));
+        assert!(input.mouse_button_down(MouseButton::Left));
+    }
+
+    #[test]
+    fn scroll_normalizes_lines_and_preserves_precise_pixels() {
+        let mut input = Input::default();
+        input.on_window_event(&WindowEvent::MouseWheel {
+            device_id: winit::event::DeviceId::dummy(),
+            delta: MouseScrollDelta::LineDelta(1.5, -2.0),
+            phase: winit::event::TouchPhase::Moved,
+        });
+        input.on_window_event(&WindowEvent::MouseWheel {
+            device_id: winit::event::DeviceId::dummy(),
+            delta: MouseScrollDelta::PixelDelta(
+                winit::dpi::PhysicalPosition::new(3.25, -7.5),
+            ),
+            phase: winit::event::TouchPhase::Moved,
+        });
+        assert_eq!(input.scroll(), Vec2::new(33.25, -47.5));
+    }
+
+    #[test]
+    fn wheel_events_accumulate_until_the_simulation_turn_is_consumed() {
+        let mut input = Input::default();
+        input.on_window_event(&WindowEvent::MouseWheel {
+            device_id: winit::event::DeviceId::dummy(),
+            delta: MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition::new(2.0, -3.0)),
+            phase: winit::event::TouchPhase::Moved,
+        });
+        input.on_window_event(&WindowEvent::MouseWheel {
+            device_id: winit::event::DeviceId::dummy(),
+            delta: MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition::new(4.0, 1.0)),
+            phase: winit::event::TouchPhase::Moved,
+        });
+        assert_eq!(input.scroll(), Vec2::new(6.0, -2.0));
+
+        input.end_frame();
+        assert_eq!(input.scroll(), Vec2::ZERO);
     }
 }

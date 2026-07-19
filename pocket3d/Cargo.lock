@@ -801,7 +801,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "handheld"
+name = "pocket-stage"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -812,6 +812,8 @@ dependencies = [
  "pocket-ui-wgpu",
  "pocket-widget",
  "pocket3d",
+ "serde",
+ "serde_json",
  "wgpu",
  "winit",
 ]
@@ -1665,6 +1667,7 @@ dependencies = [
  "png",
  "pocket3d-bsp",
  "pollster",
+ "serde_json",
  "wgpu",
  "winit",
 ]

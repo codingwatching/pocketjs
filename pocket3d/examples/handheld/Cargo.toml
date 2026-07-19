@@ -1,10 +1,10 @@
 [package]
-name = "handheld"
+name = "pocket-stage"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "A borderless 3D PSP on the desktop that runs Pocket apps: the first pocket-widget runtime"
+description = "A low-power 3D stage that mounts Pocket apps onto authored display surfaces"
 
 [dependencies]
 pocket3d = { workspace = true }
@@ -17,3 +17,5 @@ glam = { workspace = true, features = ["std"] }
 anyhow = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

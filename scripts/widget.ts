@@ -1,12 +1,13 @@
-// bun run widget [app] [flags…] — build + launch the 3D PSP desktop widget
-// (pocket3d/examples/handheld, the first pocket-widget runtime; WIDGET.md).
+// bun run widget [app] [flags…] — build + launch a Pocket Stage desktop widget
+// (the first bundled stage is the PSP asset; WIDGET.md).
 //
 //   bun run widget                # the hero demo inside the widget
 //   bun run widget im             # any demo (name resolves to <name>-main)
 //   bun run widget -- --focus     # extra flags pass through to the binary
-//   bun run widget --proof        # headless acceptance: scripted D-pad +
-//                                 # CIRCLE taps drive hero to "Count: 2",
-//                                 # screenshot lands in dist/
+//   bun run widget im --auto-quit 5
+//   bun run widget --proof        # headless acceptance: a scripted D-pad
+//                                 # tap + a real ray-picked CIRCLE click
+//                                 # drive hero to "Count: 1"
 //
 // The windowed run stays attached to your terminal — quit with Esc (or
 // Ctrl-C). On exit the shell prints its governor receipt:
@@ -15,32 +16,73 @@
 import { $ } from "bun";
 
 const root = new URL("..", import.meta.url).pathname;
-const args = process.argv.slice(2).filter((a) => a !== "--");
-const flags = args.filter((a) => a.startsWith("--"));
-const names = args.filter((a) => !a.startsWith("--"));
-const proof = flags.includes("--proof");
-const pass = flags.filter((f) => f !== "--proof");
 
-// Demo names resolve to their mounted -main entry (demos/<name>/main.tsx);
-// the bare name would build the side-effect-free component module.
-const name = names[0] ?? "hero";
-const app = name.includes("/") || name.endsWith("-main") ? name : `${name}-main`;
+export interface WidgetArgs {
+  app: string;
+  proof: boolean;
+  pass: string[];
+}
 
-await $`bun scripts/build.ts ${app}`.cwd(root);
-await $`cargo build --release -p handheld`.cwd(`${root}pocket3d`);
+export function validateWidgetArgs(args: WidgetArgs): void {
+  if (args.proof && args.app !== "hero-main") {
+    throw new Error("--proof uses the bundled hero-main acceptance app");
+  }
+  if (args.proof && args.pass.length > 0) {
+    throw new Error(
+      "--proof is a fixed bundled-stage acceptance and cannot be combined with stage flags",
+    );
+  }
+}
 
-const bin = `${root}pocket3d/target/release/handheld`;
-const env = { ...process.env, RUST_LOG: process.env.RUST_LOG ?? "info" };
+/**
+ * Parse wrapper arguments without guessing which tokens are flag values.
+ * Only argv[0], when positional, names the app. Everything after it keeps
+ * its original order for the Rust binary, except the wrapper-only --proof.
+ */
+export function parseWidgetArgs(rawArgs: readonly string[]): WidgetArgs {
+  // `bun run widget -- ...` may leave the option separator in argv. It is a
+  // wrapper delimiter, not an argument understood by the pocket-stage binary.
+  const args = rawArgs.filter((arg) => arg !== "--");
+  const first = args[0];
+  const hasApp = first !== undefined && !first.startsWith("--");
+  const name = hasApp ? first : "hero";
+  const rest = hasApp ? args.slice(1) : args;
 
-if (proof) {
-  const shot = `${root}dist/handheld-proof.png`;
-  await $`${bin} --app ${app} --screenshot ${shot} --frames 90 --tap down@10 --tap circle@30 --tap circle@50 ${pass}`.env(env);
-  console.log(
-    "\nproof: a D-pad tap focused the app, then two CIRCLE taps went through" +
-      '\nthe 3D buttons — with the hero demo the screen reads "Count: 2".' +
-      `\n${shot}`,
-  );
-  await $`open ${shot}`.nothrow();
-} else {
-  await $`${bin} --app ${app} ${pass}`.env(env);
+  // Demo names resolve to their mounted -main entry (demos/<name>/main.tsx);
+  // the bare name would build the side-effect-free component module.
+  const app = name.includes("/") || name.endsWith("-main") ? name : `${name}-main`;
+  return {
+    app,
+    proof: rest.includes("--proof"),
+    pass: rest.filter((arg) => arg !== "--proof"),
+  };
+}
+
+async function main(): Promise<void> {
+  const parsed = parseWidgetArgs(process.argv.slice(2));
+  validateWidgetArgs(parsed);
+  const { app, proof, pass } = parsed;
+
+  await $`bun scripts/build.ts ${app}`.cwd(root);
+  await $`cargo build --release -p pocket-stage`.cwd(`${root}pocket3d`);
+
+  const bin = `${root}pocket3d/target/release/pocket-stage`;
+  const env = { ...process.env, RUST_LOG: process.env.RUST_LOG ?? "info" };
+
+  if (proof) {
+    const shot = `${root}dist/pocket-stage-proof.png`;
+    await $`${bin} --app ${app} --screenshot ${shot} --frames 90 --tap down@10 --click 869,255 --expect-hit btn_circle --expect-ui-hash 0xc34a21cff1f13b06`.env(env);
+    console.log(
+      "\nproof: the binary asserted both the 3D CIRCLE ray hit and" +
+        '\nthe final PocketJS DrawList — the screen reads "Count: 1".' +
+        `\n${shot}`,
+    );
+    await $`open ${shot}`.nothrow();
+  } else {
+    await $`${bin} --app ${app} ${pass}`.env(env);
+  }
+}
+
+if (import.meta.main) {
+  await main();
 }

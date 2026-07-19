@@ -7,8 +7,8 @@
 //! re-renders nothing, which is the heart of the shell's demand rendering.
 
 use anyhow::Result;
-use pocket3d::gpu::{Gpu, OFFSCREEN_FORMAT, OffscreenTarget};
 use pocket_ui_wgpu::{UiRenderer, UiSurface};
+use pocket3d::gpu::{Gpu, OFFSCREEN_FORMAT, OffscreenTarget};
 
 pub struct EmbeddedUi {
     surface: UiSurface,
@@ -95,6 +95,12 @@ impl EmbeddedUi {
 
     pub fn size(&self) -> (u32, u32) {
         self.px
+    }
+
+    /// Deterministic hash of the most recent DrawList. Headless products can
+    /// pin this as an app-state acceptance without reading GPU pixels.
+    pub fn content_hash(&self) -> u64 {
+        self.hash
     }
 }
 

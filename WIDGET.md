@@ -1,8 +1,8 @@
 # Pocket Widget — desktop widgets as a runtime-family capability
 
 *How the Pocket runtime family puts small, always-on, guest-programmable
-presences on the desktop — and the first runtime built on it: a borderless
-3D PSP on your Mac that actually runs Pocket apps.*
+presences on the desktop — and the first runtime built on it: Pocket Stage,
+which mounts real Pocket apps into authored 3D devices and rooms.*
 
 This document names and generalizes what
 [pocket-character](https://github.com/pocket-stack/pocket-character) proved,
@@ -38,17 +38,19 @@ plumbing, not the full capability. **pocket-widget** is the missing middle: a
 | Piece | Role |
 | --- | --- |
 | `shell` | The window contract and its event loop: transparent / undecorated / always-on-top (from #125) plus occlusion suspend, per-press drag-to-move / resize-grip policy hooks, optional live resizing, and the governor of §4 — fixed-rate guest ticks, demand-driven GPU frames, with a frames-vs-ticks receipt logged on exit. One governor, two widget shapes: `WidgetGame` (3D — scene, camera, embedded screens) and `FlatWidget` (2D — the window IS the `ui` surface, one `render_words_scaled` pass, no scene). |
-| `embed` | A full PocketJS `ui` surface rendered off-window: `pocket-ui-wgpu` draws the core's DrawList into an `OffscreenTarget` whose texture view binds onto any mesh (`ModelAsset::from_geometry_textured`). A screen inside a widget is a *real app*, not a video. The per-tick DrawList content hash is the dirty signal. |
-| `parts` + `pick` | The interaction vocabulary: named part shapes (`btn_cross`, `dpad_up`, `nub`, `screen`) → spec BTN bits, analog packing (raw extremes 255/1, never 0), the shared uihost keyboard map, and cursor-ray picking against oriented part bounds (event-driven, CPU, cold path). Procedural shells register each part as its own model instance; glTF node names remain the convention for authored shells. |
+| `embed` | A full PocketJS `ui` surface rendered off-window: `pocket-ui-wgpu` draws the core's DrawList into a persistent `OffscreenTarget`. A semantic glTF material override binds that texture view directly to the authored screen primitive. A screen inside a widget is a *real app*, not a video or a second overlay window. The per-tick DrawList content hash is the dirty signal. |
+| `parts` + `pick` | The interaction vocabulary: named part shapes (`btn_cross`, `dpad_up`, `nub`, `screen`) → spec BTN bits, analog packing (raw extremes 255/1, never 0), the shared uihost keyboard map, and cursor-ray picking against oriented part bounds (event-driven, CPU, cold path). Procedural shells can register parts directly; authored shells declare cheap proxies in package data, so visual topology never enters the picking hot path. |
 
 What stays out of pocket-widget: any specific model, part map, or behavior —
 those are the product. (pocket-character retrofits onto `shell` naturally;
 that refactor is desirable but not a blocker.)
 
-## 2. The first runtime: pocket-handheld
+## 2. The first runtime: pocket-stage
 
-The motivating product — and the proof that `EmbeddedUi` + `PartMap` carry
-real weight — is a **3D PSP model on the desktop that works**:
+**Pocket Stage** is the model-neutral process contract that combines an
+authored 3D asset, camera policy, interactions, and one or more live Pocket app
+surfaces inside a low-power widget window. A PSP is its first package and proof that
+`EmbeddedUi` + `PartMap` carry real weight:
 
 - Borderless, transparent, always-on-top window framing a 3D PSP.
 - The PSP's screen is a live 480×272 PocketJS `ui` surface — the same
@@ -59,25 +61,29 @@ real weight — is a **3D PSP model on the desktop that works**:
   `frame(buttons, analog)` carries `BTN_CROSS` — the identical bit the real
   hardware's pad register produces. Drag the analog nub and the guest sees
   the same packed axes a real nub produces.
-- Therefore: **any existing PocketJS app boots inside the widget unmodified.**
-  The bundle that runs on a real PSP, in uihost, and on the Vita runs here,
-  and cannot tell the difference. That is the whole demo.
+- Therefore: **any PocketJS app whose fixed viewport variant passes the
+  Stage surface admission boots unmodified.** The outer macOS window has
+  `form: "widget"`, but the guest is mounted on a screen mesh and therefore
+  resolves against `form: "embedded"`. A fixed 480×272 PSP/Vita app fits;
+  a dynamic-only desktop app such as Pocket Note is correctly rejected until
+  it declares a compatible fixed variant.
 
-Shipped first as the in-tree example `pocket3d/examples/handheld` — the
-runtime, the procedural shell, and the scripted verification live next to
-the mechanism they prove. The standalone product (`pocket-handheld` per the
-`pocket-<product>` convention; "handheld" rather than "psp" because the
-runtime is shell-agnostic — §6 — and to avoid colliding with the
-`pocketjs-psp` host library) extracts to its own pocket-stack repo when the
-shell asset grows beyond what procedural authoring carries.
+The source remains in the historical `pocket3d/examples/handheld` directory
+while the first package is PSP-only, but the Cargo package, binary, process,
+and window title are `pocket-stage`. Asset type is data, not a process fork:
+an iPod, phone, laptop, TV, or room-with-monitor should change the package and
+typed manifest extension, not introduce another native runtime.
+The checked-in host is still transitional: viewport, camera defaults, and the
+device input adapter retain PSP assumptions until the manifest migration in
+§6.1 lands.
 
 In RUNTIMES.md notation:
 
 ```
-pocket-handheld (Rust bin, macOS)
+pocket-stage (Rust bin, macOS)
   = widget shell        (pocket-widget: window, picking, part input, power)
-  + PSP shell asset     (glTF: body, named button nodes, screen material, nub)
-  + mounts `ui`         (pocket-ui-wgpu → OffscreenTarget → screen material)
+  + stage package       (glTF LODs, views, interactions, provenance)
+  + mounts `ui` slots   (pocket-ui-wgpu → OffscreenTarget → display material)
   + mounts `widget`     (optional, §7: hover/led/framing facts and intents)
   + pocket-mod guest    (one unmodified PocketJS app bundle + pak)
 ```
@@ -108,9 +114,10 @@ one `render_words_scaled` pass on dirty frames. It exercises everything the
   (ops 30..32) needs no new ops for a host that lives in-process: real
   keyboard/mouse/wheel/resize go to the guest as JSON lines
   (`{t:"ch"|"key"|"mouse"|"scroll"|"resize"|"load"}`), save/quit intents
-  come back (`{t:"save"|"quit"}`). The same bundle boots on svc-less hosts
-  (PSP, sim, goldens) as a read-only note — the unmodified-app base case
-  still holds, so the §7 `widget` surface stays unbuilt.
+  come back (`{t:"save"|"quit"}`). The app source retains a svc-less
+  read-only fallback, but the current Note manifest is dynamic-only; it must
+  add a fixed viewport variant before a PSP or embedded host can admit that
+  fallback. The §7 `widget` surface stays unbuilt.
 - **The desktop surface is first-class in the platform contracts.** Six
   registered capability ids name it (`input.text`, `input.pointer`,
   `input.ime`, `host.clipboard`, `display.viewport.live`,
@@ -121,15 +128,14 @@ one `render_words_scaled` pass on dirty frames. It exercises everything the
   `form` — takeover/window/widget/kiosk/embedded); ids are labels
   (convention `<platform>-<form>`, future: `macos-app`, `linux-kiosk`),
   and apps declare viewport intent per policy (`fixed`/`dynamic`
-  variants), not per target. The note's
-  pocket.json is the reference dual-nature manifest: the desktop surface
-  sits in `enhances`, so the app ADMITS everywhere and lights up per
-  target (`hasFeature("input.text")` gates the editor — a PSP build never
-  shows the pencil), while a widget-only app putting them in `requires`
-  is refused by PSP admission at resolve time, not discovered broken on
-  device. Native hosts assert identity (`__host`/`__hostAbi` vs the plan's
-  target), and `bun run note` builds through the manifest — density and
-  features come from the profile, not flags.
+  variants), not per target. Pocket Note currently declares only a dynamic
+  variant and is therefore intentionally admitted by `macos-widget`, not by
+  PSP/Vita or an embedded Stage screen. Its desktop-only APIs sit in
+  `enhances`; if the app later adds a fixed variant, the same source can
+  degrade to a read-only note on hosts without those features. Native hosts
+  assert identity (`__host`/`__hostAbi` vs the plan's target), and
+  `bun run note` builds through the manifest — density and features come from
+  the profile, not flags.
 - **Clicks are CIRCLE.** The host synthesizes the spec press button while
   the mouse is down; the app resolves hover → focus (`hitFocusable` +
   `focusNode`) from svc mouse moves, and the framework's stock onPress
@@ -168,21 +174,19 @@ The bridge is deliberately dumb — a static table, no gameplay logic:
 
 - **Buttons.** `btn_cross/circle/square/triangle`, `dpad_up/down/left/right`,
   `btn_start/select`, `trig_l/r` map 1:1 to the spec BTN bits. Mouse-down on
-  a part sets the bit until mouse-up; keyboard chords compose into the same
-  word (the OSK needs them). Pressed parts get a procedural press — a small
-  translation on the part's instance transform (parts are their own
-  instances; skinned authored shells would use the #125 pose-injection split
-  instead) — no baked animations required.
+  a profile proxy sets the bit until mouse-up; keyboard chords compose into
+  the same word (the OSK needs them). The visual model stays a single scene
+  instance; input does not traverse or mutate its 80k–132k triangles.
 - **Analog nub.** Drag within the nub's radius maps to the packed axes
   (`(x << 8) | y`, 0–255, 128 center); release springs back to center.
   Extremes are raw 255/1 — never 0 — matching the input-tape convention.
 - **Keyboard, always.** The uihost key map (arrows, Z/Enter = CROSS, …) is
   mounted unconditionally. Mouse-on-model is the magic; keys are the daily
   driver. Both funnel into one `buttons` word per tick — Law 3 is untouched.
-- **Picking is event-shaped.** A cursor ray against named-node AABBs (then a
-  triangle test for the hit node) runs only on mouse events, never per frame.
-  Buttons are rigid; node global transform × static local bounds is exact
-  enough.
+- **Picking is event-shaped.** A cursor ray against profile-authored oriented
+  boxes runs only on mouse events, never per frame. Mesh triangle count is
+  therefore irrelevant to picking cost. Profiles can be generated or hand
+  tuned once per shell without adding model-specific runtime code.
 - **Click-through.** Clicks on fully transparent pixels should reach the
   desktop behind. v1 ships without it (the window hugs the model, so dead
   margin is small); the candidate mechanism — toggle the window's cursor
@@ -210,14 +214,18 @@ to implement:
 - `max_fps` pacing (sleep, not spin) bounds the active case; macOS occlusion
   events suspend rendering entirely while ticks continue, so the app stays
   live behind other windows.
-- **Targets, measured not vibed** (pocket-character's methodology: ≥60 s
-  steady-state over the process tree): idle < 1% CPU and 0 GPU frames;
-  actively animating comparable to pocket-character's 3.9%; RSS in the same
-  ~100 MB class. The steady-state harness lands with the product repo; the
-  shell already logs its receipt on every exit, and the first measurements
-  agree: over a 10 s run on an M3 Max, an app that settles rendered 103
-  frames across 601 ticks (all in the first seconds; ~0 after), the
-  perpetually-spinning hero demo 365, and RSS held at ~87 MB — one process.
+- The windowed shell explicitly requests wgpu's `LowPower` adapter. On Apple
+  Silicon that remains Metal on the integrated Apple GPU; headless tooling and
+  full-screen game hosts keep the existing `HighPerformance` default.
+- **Measured receipt (M3 Max, 10 s, release build).** The static settings app
+  ran 601 guest ticks but presented only 2 GPU frames (0.3%); the hero app,
+  whose spinner keeps changing, presented 224 (37.3%). Total process CPU time
+  was 0.21 s and 0.40 s respectively over about 10.2 s wall time, nowhere near
+  one saturated core. A longer static run sampled at 0.7–1.0% CPU and about
+  161 MB RSS after startup. `/usr/bin/time` peak RSS was 218–221 MB because it
+  includes GLB decode/upload; this is not a direct GPU power measurement.
+  These are local samples, not cross-machine guarantees; the exit receipt is
+  the repeatable check.
 
 ## 5. Screen fidelity
 
@@ -235,28 +243,188 @@ A 480×272 texture sampled in perspective shimmers. Levers, in order:
   keeps the screen near-parallel to the view.
 - **Two framings**: "desk" (whole device, ambient) and "focus" (screen fills
   the window, near-flat — effectively uihost with a bezel). Double-click the
-  screen or scroll to toggle; the camera animates between them. Focus mode is
-  how you actually *use* the app for minutes at a time.
+  screen to toggle; framing and orbit animate to exact front together. The
+  second double-click restores the exact pre-focus desk orbit, including across
+  repeated or mid-animation reversals. Focus mode is how you actually *use* the
+  app for minutes at a time. Two-finger trackpad scrolling is reserved for
+  orbiting the model and pauses during focus transitions, so framing and
+  rotation cannot conflict.
 
-## 6. The shell asset convention
+## 6. The stage package convention
 
-The model is data, the contract is names:
+The model is data. The current PSP `profile.json` is the working schema-1
+prototype; the cross-device contract graduates it to a package entry named
+`pocket-stage.json` plus one or more semantic display materials:
 
-- The v1 PSP shell is **authored procedurally in code** (a rounded-slab
-  body, cap and cylinder parts, ~180 lines) — original by construction, no
-  committed binary, no fetched asset, and every part is born with its
-  semantic name. Sony's trade dress is a real concern for anything
-  distributed; the shape stays "generic handheld, obviously PSP-adjacent".
-- Authored shells (Blender → glTF) use node names for the same contract:
-  `btn_*`, `dpad_*`, `trig_*`, `nub`, `screen`, `led_power`, body meshes
-  free-form. The `screen` material's base color is replaced by the
-  `EmbeddedUi` texture at load; `led_power` is an emissive the host (or the
-  `widget` surface) can tint. Authored assets are fetched at setup, never
-  committed — pocket-character's posture.
-- The convention is shell-agnostic on purpose: a Vita shell (960×544 screen,
-  density-2 native, front-touch as cursor) is the obvious second model, and
-  the platform-contracts work means the same guest bundle is already
-  admissible on both.
+- The bundled PSP shell is Dibad's CC BY 4.0 community model, cooked into a
+  131,680-triangle settled LOD and an 80,879-triangle orbit LOD. Attribution
+  and trademark caveats ship beside both GLBs. Runtime loading downsizes any
+  overlarge embedded texture to 1024 px.
+- The screen material exports `extras.pocket3d_role = "dynamic_screen"` (a
+  `P3D_dynamic_screen__` name prefix is the compatibility fallback) and valid
+  normalized `TEXCOORD_0` UVs. The loader requires exactly the primitive count
+  declared by the profile, replaces its base-color view with the persistent
+  480×272 `EmbeddedUi` target, and forces that material white, unlit, and
+  opaque. Nothing deletes or edits mesh geometry at runtime.
+- The transitional `profile.json` declares the two relative LOD paths,
+  attribution file, model width and orientation, screen semantic, and named
+  CPU pick boxes. LOD bounds
+  must agree after canonical scaling. Two-axis `MouseWheel` input is the
+  primary orbit control (precise macOS pixel deltas make this a natural
+  two-finger gesture); right-drag remains the ordinary-mouse fallback. Either
+  path swaps only the model asset, then restores the quality LOD after the
+  gesture settles, renders once, and lets the compositor retain that
+  framebuffer. A small exact-front magnetic dead zone plus a wider release
+  threshold makes `(0, 0)` easy to land on without jitter; raw gesture input
+  keeps accumulating inside the dead zone so a deliberate movement can always
+  pull the camera away. An optional `suppressed_materials` list binds a
+  transparent 1×1 texture to cosmetic layers such as an overly dark LCD glass
+  sheet; geometry remains untouched and the policy stays model data.
+- Independently cooked LODs share a content-addressed `ModelTextureCache`.
+  This PSP uploads 19 unique material textures and records 19 reuse hits for
+  LOD3, instead of retaining duplicate GPU texture sets; only the two geometry
+  buffers remain separate.
+- A future PSP, iPod, phone, laptop, TV, or room uses the same binary and
+  render mechanism: cook one or more GLBs, tag every live display material,
+  and provide a stage manifest. Different geometry, material count, triangle
+  count, screen count, camera layout, and controls do not require a new
+  runtime. A single visual artifact can serve every LOD role when
+  simplification is unnecessary.
+
+### 6.1 Naming and manifest v1 direction
+
+Terms are deliberately separate:
+
+| Term | Meaning |
+| --- | --- |
+| `pocket-widget` | Reusable OS-window, fixed-tick, dirty-frame, and embedding capability. |
+| `pocket-stage` | The model-neutral runtime/binary/process that loads one stage package. |
+| stage package | Versioned distributable directory rooted at `pocket-stage.json`. |
+| artifact | One immutable package file: a GLB LOD, interaction sidecar, IBL, or notice. |
+| surface slot | Stable injection point such as `display.main`; never a material index. |
+| instance | Runtime state such as current LOD, orbit, focus, and app bindings. |
+| scene | Internal `pocket3d::scene::Scene`; not a second product or process name. |
+
+The stage manifest follows `pocket.json` conventions: JSON Schema 2020-12, a
+`$schema` URI, one integer major discriminator (`pocketStage`), reverse-DNS
+IDs, SemVer, `additionalProperties: false`, and package-relative paths that
+cannot escape the package root. It does **not** replace the app manifest. The
+authority boundary introduced by the platform contracts remains intact:
+
+| Input | Owns |
+| --- | --- |
+| app `pocket.json` | App intent: entry, framework, capabilities, fixed/dynamic viewport variants. |
+| `pocket-stage.json` | Package facts: visual artifacts, semantic screen slots, display facts, views, interaction adapters, notices. |
+| Stage host profile | Runtime facts: actual platform, `form: "embedded"`, host ABI, implemented capabilities. |
+| `ResolvedBuildPlan` | The one admitted app variant and its resolved viewport/features. |
+| `ResolvedStageLaunchPlan` | The verified app plan + package digest + chosen LOD/surface binding used by the binary. |
+
+The outer desktop process still uses the `pocket-widget` window mechanism;
+that does not make the guest a `macos-widget` target. A guest drawn into a
+screen mesh resolves against an `embedded` profile derived from the selected
+surface. Target ids are labels and must never be parsed to recover these
+facts.
+
+The current PSP package would describe its fixed display like this. Density 2
+later changes `physicalViewport` to `[960, 544]` and `rasterDensity` to `2`
+without changing the app's logical coordinates:
+
+```json
+{
+  "$schema": "https://pocketjs.dev/schema/pocket-stage-1.json",
+  "pocketStage": 1,
+  "id": "dev.pocket-stack.stage.psp-eg02",
+  "name": "psp-eg02",
+  "title": "PSP EG02",
+  "version": "1.0.0",
+  "artifacts": {
+    "visual.settled": {
+      "path": "models/settled.glb",
+      "mediaType": "model/gltf-binary"
+    },
+    "notice.attribution": {
+      "path": "ATTRIBUTION.md",
+      "mediaType": "text/markdown"
+    }
+  },
+  "visual": {
+    "canonical": { "units": "meters", "up": "+Y", "front": "+Z" },
+    "lods": [{ "id": "settled", "artifact": "visual.settled" }]
+  },
+  "surfaces": [{
+    "id": "display.main",
+    "required": true,
+    "binding": {
+      "materialRole": "dynamic_screen",
+      "texcoord": 0,
+      "expectedPrimitives": 1
+    },
+    "display": {
+      "physicalViewport": [480, 272],
+      "logicalViewports": [[480, 272]],
+      "presentations": ["native", "integer-fit"],
+      "rasterDensity": 1
+    },
+    "uvContract": "normalized-full-span"
+  }],
+  "views": {
+    "default": "desk",
+    "focus": { "surface": "display.main", "restoreOrbit": true },
+    "orbit": { "snapEnterDegrees": 2, "snapExitDegrees": 4 }
+  },
+  "provenance": {
+    "noticeArtifact": "notice.attribution"
+  }
+}
+```
+
+The mounted app separately declares its policy, for example:
+
+```json
+"viewport": {
+  "fixed": { "logical": [480, 272], "presentation": "integer-fit" }
+}
+```
+
+An app intended for both a resizable flat widget and an embedded screen may
+declare both `fixed` and `dynamic` variants. Resolution selects exactly one;
+the stage package never copies or overrides app intent.
+
+Core v1 should accept only fields with a real consumer. Identity, canonical
+coordinates, visual artifacts/LOD roles, one verified surface slot, display
+facts, view presets, material exclusions, and an attribution notice already
+map to the transitional loader. Content hashes, byte counts, multiple live
+surfaces, generic `kind`, and typed device/room extensions land only together
+with their verifier or adapter; until then they remain draft rather than
+silently accepted metadata. Device controls (buttons, nub, rotary wheel) and
+room controls (cameras, lighting, entities) belong behind named, versioned
+adapters—not branches in the render governor.
+
+The schema itself should have one TypeScript source
+(`spec/pocket-stage.ts`), a generated byte-exact
+`schema/pocket-stage-1.json`, JSON-Pointer diagnostics, strict unknown-field
+rejection, and contract fixtures. Unsupported adapters, missing or multiply
+matched surfaces, invalid full-span UVs, cross-LOD bound drift, package path
+escape, and every declared-but-unconsumed field fail before GPU startup.
+
+Launch should become manifest-first:
+
+```text
+pocket.json + pocket-stage.json + actual Stage host facts
+                    │ resolve once
+                    ▼
+       ResolvedBuildPlan + ResolvedStageLaunchPlan
+                    │
+                    ▼
+          compiler + one pocket-stage binary
+```
+
+The launcher should accept `--manifest`, `--stage`, `--surface`,
+`--project-root`, and `--outdir`; runtime-only flags follow `--`. The binary
+then receives the two verified plans instead of guessing
+`dist/<app>-main.{js,pak}` from `--app`. The scheduler (`tick_hz`, dirty-frame
+latch, fps cap, occlusion policy) stays a `pocket-widget` invariant and is not
+author-controlled stage metadata.
 
 ## 7. The `widget` surface (v2, optional)
 
@@ -281,10 +449,12 @@ Kept to one page of spec, append-only, or it doesn't ship.
   behind-origin cases; nearest-hit part resolution; the analog packing's
   255/1-never-0 extremes.
 - **End-to-end is a script, today**: `--click x,y` presses a window pixel
-  through pick → part → BTN → guest; `--tap circle@30` sequences buttons.
-  The proof run drives the unmodified hero demo — D-pad tap to focus, two
-  CIRCLE taps — and the screen reads `Count: 2`. Captures are composite
-  PNGs whose alpha is the real window transparency.
+  through pick → part → BTN → guest; `--tap circle@30` sequences abstract
+  buttons. The proof run drives the unmodified hero demo — a D-pad tap focuses
+  it, then a cursor ray hits the bundled model's CIRCLE proxy — and the screen
+  reads `Count: 1`. The binary fails unless both that named hit and the final
+  deterministic DrawList hash match. Captures are composite PNGs whose alpha
+  is the real window transparency.
 - **Power is a receipt, then a gate**: the shell logs ticks vs. frames
   rendered on every exit, now with arm sources (dirt / resize / occlusion /
   scale) so a hot widget explains itself — in steady state the only healthy
@@ -296,17 +466,20 @@ Kept to one page of spec, append-only, or it doesn't ship.
 
 Landed in this repo:
 
-1. `pocket3d`: `ModelAsset::from_geometry_textured` (external texture view
-   as a material), `Camera::screen_ray`, `Input::inject_cursor`, and
-   `pick_alpha_mode` made public for alternative shells.
+1. `pocket3d`: semantic `load_glb*_with_overrides` APIs for external texture
+   views; glTF base-color factors, alpha modes, and double-sided materials;
+   plus public `Camera::screen_ray`, `Input::inject_cursor`, and
+   `pick_alpha_mode` for alternative shells.
 2. `pocket-ui-wgpu`: `UiRenderer::render_words` — render a DrawList the
    host already built, so the per-tick dirty hash costs one tree walk, not
    two.
 3. `pocket-widget`: the crate — `shell` (demand-render loop), `embed`,
    `parts`, `pick` — with the RUNTIMES.md table row.
-4. `examples/handheld`: the full first runtime — procedural PSP shell,
-   mouse/keyboard input, desk/focus framings, headless scripting
-   (`--screenshot/--click/--tap/--hold/--focus/--auto-quit`).
+4. `examples/handheld`: the first `pocket-stage` package and transitional
+   host — profile-driven authored glTF shell, semantic live screen,
+   quality/orbit LOD switching, mouse/keyboard input, desk/focus/orbit
+   framings, and headless scripting
+   (`--screenshot/--click/--tap/--hold/--focus/--orbit/--auto-quit`).
 5. The flat form (§2b): `shell::run_flat` + `FlatWidget` + resizable
    windows; `UiRenderer::render_words_scaled` (density-N presentation);
    `UiSurface::new_with_density` + in-process svc queues; `Input` edit
@@ -317,9 +490,10 @@ Landed in this repo:
 
 Still ahead: the golden-specs wiring (§8), density-2 screens for the 3D
 form (§5 — the flat form ships them), the `widget` surface (§7),
-click-through, bold-weight CJK fallback faces + line-start kinsoku for
-CJK wrap, and the extraction into `pocket-stack/pocket-handheld` /
-`pocket-stack/pocket-note` with the steady-state measurement harness.
+click-through, per-camera sorting for shells with overlapping transparent
+layers, bold-weight CJK fallback faces + line-start kinsoku for CJK wrap,
+and extraction into `pocket-stack/pocket-stage` / `pocket-stack/pocket-note`
+with the steady-state measurement harness and strict package schema in §6.1.
 pocket-character retrofits onto pocket-widget when convenient.
 
 Open questions:
@@ -328,8 +502,9 @@ Open questions:
   events stop; re-enabling needs either a low-rate (~10 Hz) cursor poll only
   while in pass-through, or raw device events if winit delivers them
   unfocused on macOS. Decide by experiment.
-- **Name**: `pocket-handheld` is a proposal; only "pocket-widget" (the
-  capability) is pinned.
+- **Manifest migration**: the checked-in PSP still loads transitional
+  `profile.json`; migrate it mechanically to `pocket-stage.json`, then remove
+  the legacy reader rather than maintaining two permanent contracts.
 
 Resolved: dirty detection is an FNV-1a hash of the DrawList words — texture
 generations ride along in the handles, so re-uploaded pixels change the
