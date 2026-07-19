@@ -407,7 +407,11 @@ rejection, and contract fixtures. Unsupported adapters, missing or multiply
 matched surfaces, invalid full-span UVs, cross-LOD bound drift, package path
 escape, and every declared-but-unconsumed field fail before GPU startup.
 
-Launch should become manifest-first:
+The bundled PSP launcher is now manifest-first on the **app** side: it resolves
+the selected demo's `pocket.json` against a transitional
+`macos-embedded` profile, writes a `ResolvedBuildPlan`, compiles from that
+plan, and publishes the same target id/ABI through `UiSurface`. Full package
+launch should extend that path rather than add a second resolver:
 
 ```text
 pocket.json + pocket-stage.json + actual Stage host facts
@@ -419,7 +423,7 @@ pocket.json + pocket-stage.json + actual Stage host facts
           compiler + one pocket-stage binary
 ```
 
-The launcher should accept `--manifest`, `--stage`, `--surface`,
+The generalized launcher should accept `--manifest`, `--stage`, `--surface`,
 `--project-root`, and `--outdir`; runtime-only flags follow `--`. The binary
 then receives the two verified plans instead of guessing
 `dist/<app>-main.{js,pak}` from `--app`. The scheduler (`tick_hz`, dirty-frame
@@ -478,7 +482,7 @@ Landed in this repo:
 4. `examples/handheld`: the first `pocket-stage` package and transitional
    host — profile-driven authored glTF shell, semantic live screen,
    quality/orbit LOD switching, mouse/keyboard input, desk/focus/orbit
-   framings, and headless scripting
+   framings, embedded-target app admission/build plans, and headless scripting
    (`--screenshot/--click/--tap/--hold/--focus/--orbit/--auto-quit`).
 5. The flat form (§2b): `shell::run_flat` + `FlatWidget` + resizable
    windows; `UiRenderer::render_words_scaled` (density-N presentation);

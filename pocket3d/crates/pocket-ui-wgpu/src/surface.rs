@@ -87,7 +87,7 @@ impl UiSurface {
     }
 
     /// Declare this host's platform-contract identity (a POCKET_TARGETS id
-    /// + its hostAbi) before `mount`. Plan-built bundles assert it; the
+    /// and its hostAbi) before `mount`. Plan-built bundles assert it; the
     /// default "desktop" (no ABI) serves plan-less development hosts.
     pub fn set_identity(&self, host_id: &str, host_abi: u32) {
         let mut inner = self.inner.borrow_mut();

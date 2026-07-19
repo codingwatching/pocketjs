@@ -908,7 +908,7 @@ function ToggleSeg(props: {
   ink: () => Ink;
   dark: () => boolean;
   onPress: () => void;
-  children?: unknown;
+  children?: JSX.Element;
 }): ReturnType<typeof View> {
   return (
     <Focusable

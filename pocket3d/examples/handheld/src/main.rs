@@ -729,6 +729,10 @@ fn boot(args: &Args) -> Result<(Guest, UiSurface)> {
         std::fs::read(&pak_path).with_context(|| format!("reading {}", pak_path.display()))?;
 
     let surface = UiSurface::new((UI_W as f32, UI_H as f32));
+    // scripts/widget.ts resolves plan-built guests against this custom-host
+    // profile. The outer OS window is widget-shaped; the mounted screen is a
+    // fixed embedded target (spec/platforms.ts), so macos-widget is wrong.
+    surface.set_identity("macos-embedded", 3);
     surface.feed_pak(&pak);
     let guest = Guest::new()?;
     surface.mount(&guest)?;

@@ -458,9 +458,10 @@ impl<D: Driver> WidgetApp<D> {
 
         if self.config.ime {
             let area = self.driver.ime_cursor_area();
-            if area.is_some() && area != state.ime_area {
+            if let Some((x, y, w, h)) = area
+                && area != state.ime_area
+            {
                 state.ime_area = area;
-                let (x, y, w, h) = area.unwrap();
                 state.window.set_ime_cursor_area(
                     winit::dpi::PhysicalPosition::new(x, y),
                     winit::dpi::PhysicalSize::new(w, h),

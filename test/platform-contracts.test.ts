@@ -178,6 +178,20 @@ describe("platform registry", () => {
       message: "target rasterDensity must be an integer from 1 through 255",
     });
   });
+
+  test("reports a missing dynamic range instead of throwing during resolution", async () => {
+    const invalid = structuredClone(POCKET_PLATFORM_CONTRACTS) as any;
+    delete invalid.targets["macos-widget"].display.dynamicViewport;
+    const note = await Bun.file(new URL("../demos/note/pocket.json", import.meta.url)).json();
+    const result = validateAndResolveBuildPlan(note, { target: "macos-widget" }, invalid);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.diagnostics).toContainEqual({
+      code: "registry.dynamicViewportMissing",
+      path: "/targets/macos-widget/display",
+      message: "widget-form targets must declare display.dynamicViewport",
+    });
+  });
 });
 
 describe("semantic resolution", () => {
@@ -325,6 +339,22 @@ describe("semantic resolution", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.diagnostics.map((d) => d.code)).toContain("viewport.fixedUnhosted");
+  });
+
+  test("diagnostics point into an explicit fixed viewport variant", () => {
+    const fixed = structuredClone(portableInput) as any;
+    fixed.app.viewport = {
+      fixed: { logical: [320, 240], presentation: "stretch" },
+    };
+    const result = validateAndResolveBuildPlan(fixed, { target: "psp" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.diagnostics.map((diagnostic) => diagnostic.path)).toEqual(
+      expect.arrayContaining([
+        "/app/viewport/fixed/logical",
+        "/app/viewport/fixed/presentation",
+      ]),
+    );
   });
 
   test("profiles carry queryable platform/form fields — ids are labels", () => {

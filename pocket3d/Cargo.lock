@@ -801,24 +801,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pocket-stage"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger",
- "glam",
- "log",
- "pocket-mod",
- "pocket-ui-wgpu",
- "pocket-widget",
- "pocket3d",
- "serde",
- "serde_json",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1613,6 +1595,24 @@ dependencies = [
  "log",
  "pocketjs-core",
  "rquickjs",
+]
+
+[[package]]
+name = "pocket-stage"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "glam",
+ "log",
+ "pocket-mod",
+ "pocket-ui-wgpu",
+ "pocket-widget",
+ "pocket3d",
+ "serde",
+ "serde_json",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

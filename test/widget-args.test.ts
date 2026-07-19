@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { parseWidgetArgs, validateWidgetArgs } from "../scripts/widget.ts";
+import {
+  STAGE_HOST_ABI,
+  STAGE_TARGET_ID,
+  parseWidgetArgs,
+  resolveStageBuildPlan,
+  validateWidgetArgs,
+} from "../scripts/widget.ts";
 
 describe("widget wrapper arguments", () => {
   test("defaults to the hero app", () => {
@@ -69,5 +75,26 @@ describe("widget wrapper arguments", () => {
       proof: false,
       pass: ["--profile", "/tmp/model.json", "--orbit", "10,20"],
     });
+  });
+});
+
+describe("Pocket Stage manifest admission", () => {
+  test("resolves a fixed PSP-shaped app as an embedded target", async () => {
+    const manifest = await Bun.file(new URL("../pocket.json", import.meta.url)).json();
+    const plan = resolveStageBuildPlan(manifest);
+    expect(plan.target).toEqual({ id: STAGE_TARGET_ID, hostAbi: STAGE_HOST_ABI });
+    expect(plan.viewport).toEqual({
+      logical: [480, 272],
+      physical: [480, 272],
+      presentation: "integer-fit",
+      rasterDensity: 1,
+    });
+  });
+
+  test("rejects a dynamic-only app before the native host starts", async () => {
+    const manifest = await Bun.file(
+      new URL("../demos/note/pocket.json", import.meta.url),
+    ).json();
+    expect(() => resolveStageBuildPlan(manifest)).toThrow("fixed screen");
   });
 });

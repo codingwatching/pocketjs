@@ -3,6 +3,7 @@ import type { PocketManifestV2 } from "../../spec/pocket-manifest.ts";
 import {
   POCKET_PLATFORM_CONTRACTS,
   type PlatformContractRegistry,
+  type PresentationMode,
   type TargetProfile,
   type Viewport,
 } from "../../spec/platforms.ts";
@@ -62,7 +63,11 @@ function resolveViewport(
   const dynamicTarget = DYNAMIC_FORMS.includes(profile.form);
 
   if (dynamicTarget) {
-    const range = dynamicViewport!;
+    // Registry validation already records the actionable diagnostic. Do not
+    // dereference malformed framework-owned data and turn it into a runtime
+    // TypeError before the caller can receive that diagnostic.
+    if (!dynamicViewport) return null;
+    const range = dynamicViewport;
     if (viewport.dynamic) {
       const size = viewport.dynamic.default;
       if (!within(size, range.min, range.max)) {
@@ -121,11 +126,12 @@ function resolveViewport(
     return null;
   }
   const { logical, presentation } = viewport.fixed;
+  const fixedPath = "logical" in manifest.app.viewport ? "/app/viewport" : "/app/viewport/fixed";
   let ok = true;
   if (!logicalViewports.some((supported) => sameViewport(supported, logical))) {
     diagnostics.push({
       code: "viewport.logicalUnsupported",
-      path: "/app/viewport/logical",
+      path: `${fixedPath}/logical`,
       message: `target does not support logical viewport ${logical[0]}x${logical[1]}`,
     });
     ok = false;
@@ -133,7 +139,7 @@ function resolveViewport(
   if (!presentations.includes(presentation)) {
     diagnostics.push({
       code: "viewport.presentationUnsupported",
-      path: "/app/viewport/presentation",
+      path: `${fixedPath}/presentation`,
       message: `target does not support ${JSON.stringify(presentation)} presentation`,
     });
     ok = false;
@@ -145,7 +151,7 @@ function resolveViewport(
   ) {
     diagnostics.push({
       code: "viewport.nativeMismatch",
-      path: "/app/viewport",
+      path: fixedPath,
       message: "native presentation requires the logical viewport to fill the panel",
     });
     ok = false;
@@ -156,7 +162,7 @@ function resolveViewport(
     if (!Number.isInteger(x) || x < 1 || x !== y) {
       diagnostics.push({
         code: "viewport.integerFitMismatch",
-        path: "/app/viewport",
+        path: fixedPath,
         message: "integer-fit requires one positive integer scale on both axes",
       });
       ok = false;
