@@ -37,7 +37,7 @@ plumbing, not the full capability. **pocket-widget** is the missing middle: a
 
 | Piece | Role |
 | --- | --- |
-| `shell` | The window contract and its event loop: transparent / undecorated / always-on-top (from #125) plus occlusion suspend, a per-press drag-to-move policy hook, and the governor of §4 — fixed-rate guest ticks, demand-driven GPU frames, with a frames-vs-ticks receipt logged on exit. |
+| `shell` | The window contract and its event loop: transparent / undecorated / always-on-top (from #125) plus occlusion suspend, per-press drag-to-move / resize-grip policy hooks, optional live resizing, and the governor of §4 — fixed-rate guest ticks, demand-driven GPU frames, with a frames-vs-ticks receipt logged on exit. One governor, two widget shapes: `WidgetGame` (3D — scene, camera, embedded screens) and `FlatWidget` (2D — the window IS the `ui` surface, one `render_words_scaled` pass, no scene). |
 | `embed` | A full PocketJS `ui` surface rendered off-window: `pocket-ui-wgpu` draws the core's DrawList into an `OffscreenTarget` whose texture view binds onto any mesh (`ModelAsset::from_geometry_textured`). A screen inside a widget is a *real app*, not a video. The per-tick DrawList content hash is the dirty signal. |
 | `parts` + `pick` | The interaction vocabulary: named part shapes (`btn_cross`, `dpad_up`, `nub`, `screen`) → spec BTN bits, analog packing (raw extremes 255/1, never 0), the shared uihost keyboard map, and cursor-ray picking against oriented part bounds (event-driven, CPU, cold path). Procedural shells register each part as its own model instance; glTF node names remain the convention for authored shells. |
 
@@ -85,6 +85,79 @@ pocket-handheld (Rust bin, macOS)
 There is no new domain vocabulary to invent for v1: the guest-facing surface
 is the existing `ui` surface, byte-for-byte. The runtime's novelty is
 entirely host-side composition.
+
+## 2b. The second runtime: pocket-note (the flat form)
+
+The other half of the capability, proven by `examples/note-widget` +
+`demos/note`: a **markdown sticky note** whose borderless, resizable,
+always-on-top window is nothing but a `ui` surface — no scene, no camera,
+one `render_words_scaled` pass on dirty frames. It exercises everything the
+3D form doesn't:
+
+- **The window is the app.** `FlatWidget` + `run_flat` share the governor;
+  a settled note renders zero GPU frames (measured: 481 ticks, 2 frames,
+  ~0.7% CPU / 86 MB RSS idle over a windowed run — one process, debug
+  build).
+- **Live resize is a relayout, not a reboot.** The host tracks the window,
+  calls `Ui::set_viewport` (runtime-legal since #125's plumbing; clamped to
+  the DrawList i16 range) and tells the app, which re-wraps text against
+  the new width via the framework's new `resizeViewport()`. Borderless
+  windows keep macOS edge-resize; the shell also tracks an explicit
+  grip-corner drag (`resize_at`, `WidgetConfig::resizable`/`min_size`).
+- **The svc channel is the desktop companion contract.** The spec mailbox
+  (ops 30..32) needs no new ops for a host that lives in-process: real
+  keyboard/mouse/wheel/resize go to the guest as JSON lines
+  (`{t:"ch"|"key"|"mouse"|"scroll"|"resize"|"load"}`), save/quit intents
+  come back (`{t:"save"|"quit"}`). The same bundle boots on svc-less hosts
+  (PSP, sim, goldens) as a read-only note — the unmodified-app base case
+  still holds, so the §7 `widget` surface stays unbuilt.
+- **The desktop surface is first-class in the platform contracts.** Six
+  registered capability ids name it (`input.text`, `input.pointer`,
+  `input.ime`, `host.clipboard`, `display.viewport.live`,
+  `text.glyphs.runtime` — each a distinct observable guarantee; a real
+  pointer is NOT `input.cursor`), and a `desktop-widget-macos` target
+  profile (hostAbi 3, density 2, `dynamicViewport` range) provides them.
+  Target ids for host-windowed platforms follow `<class>-<form>-<os>`
+  (future: `desktop-app-macos`, `desktop-kiosk-linux`). The note's
+  pocket.json is the reference dual-nature manifest: the desktop surface
+  sits in `enhances`, so the app ADMITS everywhere and lights up per
+  target (`hasFeature("input.text")` gates the editor — a PSP build never
+  shows the pencil), while a widget-only app putting them in `requires`
+  is refused by PSP admission at resolve time, not discovered broken on
+  device. Native hosts assert identity (`__host`/`__hostAbi` vs the plan's
+  target), and `bun run note` builds through the manifest — density and
+  features come from the profile, not flags.
+- **Clicks are CIRCLE.** The host synthesizes the spec press button while
+  the mouse is down; the app resolves hover → focus (`hitFocusable` +
+  `focusNode`) from svc mouse moves, and the framework's stock onPress
+  pipeline dispatches — including into Portal overlays (the hit-test root
+  now spans the overlay layer, fixing menus for every cursor-mode app).
+- **Text editing without an OSK.** The `pocket3d` `Input` grew a per-frame
+  edit-keystroke stream (chars with layout applied, named keys, repeats)
+  and a wheel accumulator; the guest's editor (measured soft wrap, caret
+  math, click-to-caret, drag selection, a coalescing undo/redo stack
+  driven by ⌘Z/⇧⌘Z) is pure JS over `measureText`, unit-tested in bun.
+  Preview mode gets browser-style drag selection over the rendered rows
+  (select.ts — (row, char) space, boundary rows clipped, code blocks
+  atomic) and clicks are inert, exactly like a real markdown preview —
+  edit mode is entered through the eye/pencil toggle. ⌘C/⌘X/⌘V complete
+  the clipboard both ways (the host pipes copy intents to the system
+  clipboard and reads it back for paste).
+- **IME input without a charset.** The shell enables OS composition
+  (`WidgetConfig::ime`); preedit/commit ride the Input's `ime_events`
+  stream into svc lines, the guest splices the preedit at the caret with
+  an underline, and reports its caret rect back so candidate windows dock
+  next to the text. Coverage is solved at RUNTIME: the host rasterizes
+  unseen codepoints from a system CJK font (mmapped), appends them to the
+  pak's FONT ATLAS v3 blobs (cmap stays sorted, coverage is gid-linear —
+  appending is cheap) and reloads the slot through the spec
+  `loadFontAtlas` op; the wgpu renderer re-uploads any slot whose glyph
+  count moved. No charset guessing, no megabyte paks — a note types 你好
+  and two glyphs are baked on the spot.
+  Mouse lines carry the primary-button state so the guest sees press/
+  drag/release, and the guest tells the host while its menu is up so
+  header clicks reach the menu backdrop instead of starting a window
+  drag.
 
 ## 3. Input: from meshes to BTN bits
 
@@ -149,9 +222,12 @@ A 480×272 texture sampled in perspective shimmers. Levers, in order:
 
 - **Render the surface at density 2** (960×544) — the Vita host already
   proved the same logical layout renders at density 2 with density-2 paks;
-  the widget can reuse that asset path. v1 renders density 1 (480×272, the
-  byte-exact golden flavor) and leans on the framing instead; density 2 is
-  the next fidelity lever.
+  the widget can reuse that asset path. The handheld's v1 renders density 1
+  (480×272, the byte-exact golden flavor) and leans on the framing instead.
+  The flat form (§2b) ships the lever: `UiRenderer::render_words_scaled`
+  multiplies DrawList coordinates into the physical target while density-2
+  atlases land 1:1 — the Vita presentation model on wgpu, built with
+  `bun scripts/build.ts <app> --density=2`.
 - Mipmaps + anisotropic filtering on the screen material; default framing
   keeps the screen near-parallel to the view.
 - **Two framings**: "desk" (whole device, ambient) and "focus" (screen fills
@@ -207,8 +283,11 @@ Kept to one page of spec, append-only, or it doesn't ship.
   CIRCLE taps — and the screen reads `Count: 2`. Captures are composite
   PNGs whose alpha is the real window transparency.
 - **Power is a receipt, then a gate**: the shell logs ticks vs. frames
-  rendered on every exit; the product repo's measurement harness turns the
-  thresholds into a failing check.
+  rendered on every exit, now with arm sources (dirt / resize / occlusion /
+  scale) so a hot widget explains itself — in steady state the only healthy
+  source is dirt, and an idle app has none. OS-initiated redraws with
+  nothing pending are skipped and counted; the product repo's measurement
+  harness turns the thresholds into a failing check.
 
 ## 9. Delivery plan and open questions
 
@@ -225,10 +304,19 @@ Landed in this repo:
 4. `examples/handheld`: the full first runtime — procedural PSP shell,
    mouse/keyboard input, desk/focus framings, headless scripting
    (`--screenshot/--click/--tap/--hold/--focus/--auto-quit`).
+5. The flat form (§2b): `shell::run_flat` + `FlatWidget` + resizable
+   windows; `UiRenderer::render_words_scaled` (density-N presentation);
+   `UiSurface::new_with_density` + in-process svc queues; `Input` edit
+   stream; `resizeViewport()` + overlay-aware hit testing framework-side;
+   `--density=N` builds; and the second runtime — `examples/note-widget`
+   over `demos/note` (markdown view/edit/menu, autosave, tested in
+   `test/note.test.ts`).
 
-Still ahead: the golden-specs wiring (§8), density-2 screens (§5), the
-`widget` surface (§7), click-through, and the extraction into
-`pocket-stack/pocket-handheld` with the steady-state measurement harness.
+Still ahead: the golden-specs wiring (§8), density-2 screens for the 3D
+form (§5 — the flat form ships them), the `widget` surface (§7),
+click-through, bold-weight CJK fallback faces + line-start kinsoku for
+CJK wrap, and the extraction into `pocket-stack/pocket-handheld` /
+`pocket-stack/pocket-note` with the steady-state measurement harness.
 pocket-character retrofits onto pocket-widget when convenient.
 
 Open questions:
