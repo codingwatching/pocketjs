@@ -43,6 +43,14 @@ export class PocketHost {
     this.onLog = () => {};
     this.onFps = () => {};
     this.onError = () => {};
+    this.onBlit = () => {};
+    this.showHud = true;
+    this.idleAfterMs = Infinity;
+    this.activeUntil = Infinity;
+    this.lastDrawHash = null;
+    this.tickCount = 0;
+    this.blitCount = 0;
+    this.afterTick = [];
     this._statsFrames = 0;
     this._statsT = 0;
     this._hudFps = 0; // on-canvas HUD, sampled once/second (see hud.js)
@@ -55,6 +63,9 @@ export class PocketHost {
     this.onLog = opts.onLog ?? this.onLog;
     this.onFps = opts.onFps ?? this.onFps;
     this.onError = opts.onError ?? this.onError;
+    this.onBlit = opts.onBlit ?? this.onBlit;
+    this.showHud = opts.showHud ?? this.showHud;
+    this.idleAfterMs = opts.idleAfterMs ?? this.idleAfterMs;
     this.canvas = canvas;
     canvas.width = FB_W;
     canvas.height = FB_H;
@@ -62,11 +73,14 @@ export class PocketHost {
     this.ctx.imageSmoothingEnabled = false;
     this.imageData = this.ctx.createImageData(FB_W, FB_H);
 
-    // Keyboard only while the canvas is focused (an editor may share the page).
-    canvas.tabIndex = 0;
-    canvas.addEventListener("keydown", (e) => this._onKey(e, true));
-    canvas.addEventListener("keyup", (e) => this._onKey(e, false));
-    canvas.addEventListener("blur", () => (this.held = 0));
+    // Keyboard only while the visible surface is focused (an editor may share
+    // the page). Embedded stages can keep this 2D canvas hidden and nominate
+    // their WebGL canvas as the keyboard target.
+    const keyboardTarget = opts.keyboardTarget ?? canvas;
+    keyboardTarget.tabIndex = 0;
+    keyboardTarget.addEventListener("keydown", (e) => this._onKey(e, true));
+    keyboardTarget.addEventListener("keyup", (e) => this._onKey(e, false));
+    keyboardTarget.addEventListener("blur", () => (this.held = 0));
 
     const url = opts.wasmUrl ?? new URL("./pocketjs.wasm", import.meta.url).href;
     const res = await fetch(url);
@@ -86,12 +100,14 @@ export class PocketHost {
     e.preventDefault();
     if (down) this.held |= bit;
     else this.held &= ~bit;
+    this.wake();
   }
 
   /** Virtual on-screen d-pad/buttons. */
   press(bit, down) {
     if (down) this.held |= bit;
     else this.held &= ~bit;
+    this.wake();
   }
 
   /** Fresh core + host globals. Call before installing a new app. */
@@ -102,6 +118,31 @@ export class PocketHost {
     globalThis.ui = this.wasm.ops;
     globalThis.frame = undefined;
     globalThis.__pak = undefined;
+    this.lastDrawHash = null;
+    this.afterTick = [];
+  }
+
+  /** Run a callback after the guest has consumed its next fixed-timestep turn.
+   * Returns a cancellation function for blur/offscreen/error cleanup. */
+  afterNextTick(callback) {
+    const task = { target: this.tickCount + 1, callback, active: true };
+    this.afterTick.push(task);
+    this.wake();
+    return () => {
+      task.active = false;
+    };
+  }
+
+  _flushAfterTick() {
+    const ready = [];
+    const pending = [];
+    for (const task of this.afterTick) {
+      if (!task.active) continue;
+      if (this.tickCount >= task.target) ready.push(task);
+      else pending.push(task);
+    }
+    this.afterTick = pending;
+    for (const task of ready) task.callback();
   }
 
   /** After the caller has mounted an app (globalThis.frame installed), start the
@@ -116,7 +157,7 @@ export class PocketHost {
     this._hudMem = wasmMemoryBytes(this.wasm); // so MEM shows before the first 1s sample
     this._safeFrame();
     this._blit();
-    this._start();
+    this.wake();
   }
 
   /** Run a prebuilt IIFE bundle (dist/<app>.js + <app>.pak). */
@@ -129,14 +170,25 @@ export class PocketHost {
   }
 
   _safeFrame() {
-    if (!this.frameCb) return;
+    if (!this.frameCb) return false;
     try {
       this.frameCb(this.held);
       this.wasm.tick();
+      this.tickCount++;
+      if (this.wasm.drawHash) {
+        const hash = this.wasm.drawHash();
+        const changed = hash !== this.lastDrawHash;
+        this.lastDrawHash = hash;
+        this._flushAfterTick();
+        return changed;
+      }
+      this._flushAfterTick();
+      return true;
     } catch (e) {
       this.onError(e);
       this.onLog("FRAME ERROR: " + (e && e.stack ? e.stack : e));
       this.frameCb = null; // stop repeating the throw 60x/s
+      return false;
     }
   }
 
@@ -144,7 +196,11 @@ export class PocketHost {
     if (!this.wasm || !this.ctx) return;
     this.imageData.data.set(this.wasm.render());
     this.ctx.putImageData(this.imageData, 0, 0);
-    drawHud(this.ctx, FB_W, FB_H, this._hudFps, this._hudMem); // built-in on-canvas overlay
+    if (this.showHud) {
+      drawHud(this.ctx, FB_W, FB_H, this._hudFps, this._hudMem); // built-in on-canvas overlay
+    }
+    this.blitCount++;
+    this.onBlit(this.canvas);
   }
 
   _tick = (now) => {
@@ -155,13 +211,19 @@ export class PocketHost {
     this.acc += dt;
     const STEP = 1000 / 60;
     let steps = 0;
+    let changed = false;
     while (this.acc >= STEP && steps < 4) {
-      this._safeFrame();
+      changed = this._safeFrame() || changed;
       this.acc -= STEP;
       steps++;
       this._statsFrames++;
     }
-    if (steps > 0) this._blit();
+    // A finite ambient host settles only after its DrawList has stayed stable
+    // for the configured window. Real animation therefore keeps itself alive,
+    // while an old wasm without the dirty ABI retains the hard wake deadline.
+    if (changed && this.wasm.drawHash && Number.isFinite(this.idleAfterMs)) {
+      this.activeUntil = now + this.idleAfterMs;
+    }
     this._statsT += dt;
     if (this._statsT >= 1000) {
       // Sample FPS + memory once per second for the on-canvas HUD.
@@ -170,8 +232,22 @@ export class PocketHost {
       this.onFps(this._hudFps);
       this._statsFrames = 0;
       this._statsT = 0;
+      // Even a static playground should refresh its once-per-second HUD.
+      changed = changed || this.showHud;
+    }
+    if (changed) this._blit();
+    if (Number.isFinite(this.idleAfterMs) && now >= this.activeUntil && this.held === 0) {
+      this.stop();
     }
   };
+
+  /** Resume fixed ticks for an interaction-sized burst. Infinite is the
+   * playground default; ambient embeds can settle to zero RAF work. */
+  wake() {
+    const now = performance.now();
+    this.activeUntil = Number.isFinite(this.idleAfterMs) ? now + this.idleAfterMs : Infinity;
+    this._start();
+  }
 
   _start() {
     if (this.rafId) return;

@@ -94,7 +94,7 @@ jobs:
 
       - name: Build documentation and public schema
         run: |
-          bun site/build.ts
+          bun run site:build
           cmp schema/pocket-2.json site/dist/schema/pocket-2.json
 
       - name: Publish @pocketjs/framework
