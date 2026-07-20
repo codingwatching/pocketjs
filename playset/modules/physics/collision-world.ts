@@ -94,15 +94,37 @@ interface Shape {
   // cylinder/ball
   radius: number;
   halfHeight: number;
+  /** Circumscribed planar radius (yaw-independent broadphase bound). */
+  reach: number;
+  /** Last gather() pass that visited this shape (O(1) dedupe, no allocs). */
+  stamp: number;
 }
 
 const EPS = 1e-9;
+
+// Broadphase: a uniform planar grid over (right, forward). Shapes register
+// in every cell their circumscribed circle touches; queries gather the
+// cells under the capsule/point plus the world's max shape reach, then
+// sort by handle so resolution keeps the exact full-scan insertion order.
+// Purely an iteration filter — results are identical to scanning all
+// shapes, it just skips the ones that provably cannot interact.
+const GRID_CELL = 8;
+const GRID_OFF = 32768; // supports ±32k cells (±256k units) per axis
+const byHandle = (a: Shape, b: Shape) => a.handle - b.handle;
+
+function cellKey(cr: number, cf: number): number {
+  return (cr + GRID_OFF) * 65536 + (cf + GRID_OFF);
+}
 
 export class CollisionWorld {
   readonly basis: WorldBasis;
   private terrain: TerrainLike | null = null;
   private shapes: Shape[] = [];
   private nextHandle = 1;
+  private grid = new Map<number, Shape[]>();
+  private maxReach = 0;
+  private gatherStamp = 0;
+  private candidates: Shape[] = []; // reused across gathers, never exposed
 
   constructor({ basis = DEFAULT_WORLD_BASIS }: { basis?: WorldBasis } = {}) {
     this.basis = basis;
@@ -118,7 +140,8 @@ export class CollisionWorld {
     s.hUp = Math.abs(this.basis.upComponent(desc.halfExtents));
     s.hForward = Math.abs(this.basis.forwardComponent(desc.halfExtents));
     s.yaw = desc.quaternion ? quatToPlanarYaw(desc.quaternion, this.basis) : 0;
-    this.shapes.push(s);
+    s.reach = Math.sqrt(s.hRight * s.hRight + s.hForward * s.hForward);
+    this.insert(s);
     return s.handle;
   }
 
@@ -126,7 +149,8 @@ export class CollisionWorld {
     const s = this.baseShape("cylinder", desc);
     s.radius = desc.radius;
     s.halfHeight = desc.halfHeight;
-    this.shapes.push(s);
+    s.reach = desc.radius;
+    this.insert(s);
     return s.handle;
   }
 
@@ -134,17 +158,84 @@ export class CollisionWorld {
     const s = this.baseShape("ball", desc);
     s.radius = desc.radius;
     s.halfHeight = desc.radius;
-    this.shapes.push(s);
+    s.reach = desc.radius;
+    this.insert(s);
     return s.handle;
   }
 
   remove(handle: ColliderHandle): void {
     const i = this.shapes.findIndex((s) => s.handle === handle);
-    if (i >= 0) this.shapes.splice(i, 1);
+    if (i < 0) return;
+    const s = this.shapes[i];
+    this.shapes.splice(i, 1);
+    this.forEachCoveredCell(s, (key) => {
+      const cell = this.grid.get(key);
+      if (!cell) return;
+      const j = cell.indexOf(s);
+      if (j >= 0) cell.splice(j, 1);
+    });
+    // maxReach stays a (conservative) upper bound — correctness never
+    // depends on it shrinking, only gather sizes do.
   }
 
   clear(): void {
     this.shapes.length = 0;
+    this.grid.clear();
+    this.maxReach = 0;
+  }
+
+  private insert(s: Shape): void {
+    this.shapes.push(s);
+    if (s.reach > this.maxReach) this.maxReach = s.reach;
+    this.forEachCoveredCell(s, (key) => {
+      let cell = this.grid.get(key);
+      if (!cell) {
+        cell = [];
+        this.grid.set(key, cell);
+      }
+      cell.push(s);
+    });
+  }
+
+  private forEachCoveredCell(s: Shape, fn: (key: number) => void): void {
+    const c0r = Math.floor((s.right - s.reach) / GRID_CELL);
+    const c1r = Math.floor((s.right + s.reach) / GRID_CELL);
+    const c0f = Math.floor((s.forward - s.reach) / GRID_CELL);
+    const c1f = Math.floor((s.forward + s.reach) / GRID_CELL);
+    for (let cr = c0r; cr <= c1r; cr += 1) {
+      for (let cf = c0f; cf <= c1f; cf += 1) fn(cellKey(cr, cf));
+    }
+  }
+
+  /**
+   * Shapes whose circumscribed circle could reach within `radius` of the
+   * planar point, in insertion (handle) order. The returned array is a
+   * reused scratch buffer — consume it before the next gather.
+   */
+  private gather(right: number, forward: number, radius: number): Shape[] {
+    const out = this.candidates;
+    out.length = 0;
+    if (this.shapes.length === 0) return out;
+    const reach = radius + this.maxReach;
+    const c0r = Math.floor((right - reach) / GRID_CELL);
+    const c1r = Math.floor((right + reach) / GRID_CELL);
+    const c0f = Math.floor((forward - reach) / GRID_CELL);
+    const c1f = Math.floor((forward + reach) / GRID_CELL);
+    this.gatherStamp += 1;
+    const stamp = this.gatherStamp;
+    for (let cr = c0r; cr <= c1r; cr += 1) {
+      for (let cf = c0f; cf <= c1f; cf += 1) {
+        const cell = this.grid.get(cellKey(cr, cf));
+        if (!cell) continue;
+        for (const s of cell) {
+          if (s.stamp === stamp) continue;
+          s.stamp = stamp;
+          out.push(s);
+        }
+      }
+    }
+    out.sort(byHandle);
+    return out;
   }
 
   get colliderCount(): number {
@@ -154,7 +245,7 @@ export class CollisionWorld {
   /** Ground authority: terrain height plus any walkable top underfoot. */
   groundHeightAt(right: number, forward: number): number {
     let h = this.terrain ? this.terrain.heightAt(right, forward) : 0;
-    for (const s of this.shapes) {
+    for (const s of this.gather(right, forward, EPS)) {
       if (!s.walkable) continue;
       if (!this.planarInside(s, right, forward, 0)) continue;
       const top = s.up + (s.kind === "cuboid" ? s.hUp : s.halfHeight);
@@ -182,7 +273,10 @@ export class CollisionWorld {
     let hitWall = false;
 
     // Planar push-out vs solids whose vertical span overlaps the capsule.
-    for (const s of this.shapes) {
+    // Gathered once up front around the desired position: the 2x margins
+    // cover push-out chains relocating the capsule mid-loop. (The gather
+    // scratch is free again by the time groundHeightAt below re-gathers.)
+    for (const s of this.gather(right, forward, radius * 2 + this.maxReach + 1)) {
       if (!s.solid) continue;
       const feet = up - feetOffset;
       const head = up + feetOffset;
@@ -288,6 +382,8 @@ export class CollisionWorld {
       yaw: 0,
       radius: 0,
       halfHeight: 0,
+      reach: 0,
+      stamp: 0,
     };
   }
 

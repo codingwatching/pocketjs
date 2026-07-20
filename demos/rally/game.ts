@@ -173,6 +173,9 @@ export function createRallyGame(): RallyGame {
     },
   }).create();
   env.createColliders(world);
+  // Everything so far is settled scenery (terrain, trees, gates, fences) —
+  // the per-frame flush differ skips it. Cars and camera come after.
+  scene.markStatic();
 
   scene.sun(new Vector3(-0.45, -1, -0.35), rgbToAbgr(0xfff1d6));
   scene.ambient(rgbToAbgr(0x9db8d6), rgbToAbgr(0x55624a));

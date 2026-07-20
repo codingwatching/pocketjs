@@ -36,6 +36,7 @@ export class SceneNode {
 
   /** @internal */ readonly __id: number;
   /** @internal */ __last: Float64Array | null = null; // 10 floats; null = never sent
+  /** @internal */ __static = false; // settled scenery: flush() skips the diff
   private __visible = true;
   private __dead = false;
 
@@ -298,6 +299,30 @@ export class Scene3D {
     return this.material(color, MAT.unlit | MAT.additive);
   }
 
+  /**
+   * Declare `root` and all its current descendants — or, with no argument,
+   * every node created so far — settled scenery: after each node's next
+   * flush the per-frame differ skips it entirely. Pose writes to a static
+   * node never reach the host, so mark only what the sim will never
+   * animate (environments, track furniture). Nodes created later are
+   * unaffected.
+   */
+  markStatic(root?: SceneNode): void {
+    if (!root) {
+      for (const n of this.nodes) n.__static = true;
+      return;
+    }
+    root.__static = true;
+    for (const n of this.nodes) {
+      for (let p = n.parent; p; p = p.parent) {
+        if (p === root) {
+          n.__static = true;
+          break;
+        }
+      }
+    }
+  }
+
   // -- frame flush -----------------------------------------------------------------------
 
   /**
@@ -314,6 +339,10 @@ export class Scene3D {
     }
     for (const n of this.nodes) {
       if (!n.__alive) continue;
+      // Settled scenery: once its initial pose has been pushed, skip the
+      // whole diff. On a 500-node track this is the difference between
+      // flush() touching ~20 mirrors and touching all of them.
+      if (n.__static && n.__last !== null) continue;
       if (!poseDirty(n.__last, n.position, n.quaternion, n.scale)) continue;
       n.__last ??= new Float64Array(10);
       writePose(n.__last, n.position, n.quaternion, n.scale);

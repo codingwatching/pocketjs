@@ -24,11 +24,20 @@ export default function Rally() {
   const game = createRallyGame();
   const [hud, setHud] = createSignal(game.hudState());
 
+  let stepCount = 0;
   createGameLoop({
-    step: (dt, input) => game.step(dt, input),
+    step: (dt, input) => {
+      game.step(dt, input);
+      stepCount += 1;
+    },
     render: () => {
       game.scene.flush();
-      setHud(game.hudState());
+      // HUD at 10 Hz, anchored to the VIRTUAL 0.1 s grid (sim steps, not
+      // render frames) so every simulationHz refreshes the HUD at the same
+      // virtual instants and the subsampling theorem keeps holding for the
+      // HUD pixels too. Pure presentation: lap/speed/minimap don't need
+      // 60 Hz, and on-device hudState()+propagation cost real JS time.
+      if (stepCount % 6 === 0) setHud(game.hudState());
     },
   });
 
