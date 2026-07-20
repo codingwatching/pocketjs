@@ -1659,6 +1659,7 @@ dependencies = [
  "anyhow",
  "glam",
  "log",
+ "objc2",
  "pocket-ui-wgpu",
  "pocket3d",
  "pocketjs-core",

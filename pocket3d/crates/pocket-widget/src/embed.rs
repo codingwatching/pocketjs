@@ -7,8 +7,8 @@
 //! re-renders nothing, which is the heart of the shell's demand rendering.
 
 use anyhow::Result;
-use pocket3d::gpu::{Gpu, OFFSCREEN_FORMAT, OffscreenTarget};
 use pocket_ui_wgpu::{UiRenderer, UiSurface};
+use pocket3d::gpu::{Gpu, OFFSCREEN_FORMAT, OffscreenTarget};
 
 pub struct EmbeddedUi {
     surface: UiSurface,
