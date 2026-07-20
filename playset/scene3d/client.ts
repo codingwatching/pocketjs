@@ -172,10 +172,19 @@ export class Scene3D {
   readonly camera = new Camera3D();
 
   private readonly nodes: SceneNode[] = [];
+  /**
+   * The nodes `flush()` actually walks. Settled scenery leaves this list, so a
+   * 550-node track costs the differ ~20 visits a frame instead of 550 — which
+   * on a 333 MHz interpreter is the difference between 5ms and 0.2ms of pure
+   * bookkeeping. Rebuilt by markStatic(); new nodes join it on creation.
+   */
+  private dynamic: SceneNode[] = [];
   private readonly matCache = new Map<string, number>();
   private readonly geomCache = new Map<string, number>();
   private readonly pools: SpritePool[] = [];
   private poseBuf = new Float32Array(64 * POSE_STRIDE);
+  /** Set by markStatic; cleared once every static node has been flushed once. */
+  private staticPending = false;
   private nextLocalId = 1; // pure-mirror mode id spring
 
   constructor(injected?: Scene3dOps | null) {
@@ -190,6 +199,7 @@ export class Scene3D {
     const id = this.__ops ? this.__ops.nodeCreate(this.__scene, pid) : this.nextLocalId++;
     const n = new SceneNode(this, id, parent ?? null);
     this.nodes.push(n);
+    this.dynamic.push(n);
     return n;
   }
 
@@ -198,10 +208,22 @@ export class Scene3D {
     return this.node(parent).setMesh(geomId, matId);
   }
 
+  /** Nodes the per-frame flush still walks (diagnostics; see markStatic). */
+  get dynamicCount(): number {
+    return this.dynamic.length;
+  }
+
+  /** Every node this scene has ever created and not destroyed. */
+  get nodeCount(): number {
+    return this.nodes.length;
+  }
+
   /** @internal */
   __removeNode(n: SceneNode): void {
     const i = this.nodes.indexOf(n);
     if (i >= 0) this.nodes.splice(i, 1);
+    const d = this.dynamic.indexOf(n);
+    if (d >= 0) this.dynamic.splice(d, 1);
   }
 
   // -- geometry (cached by params — factories can re-request freely) ----------
@@ -308,6 +330,7 @@ export class Scene3D {
    * unaffected.
    */
   markStatic(root?: SceneNode): void {
+    this.staticPending = true;
     if (!root) {
       for (const n of this.nodes) n.__static = true;
       return;
@@ -337,11 +360,10 @@ export class Scene3D {
     if (this.poseBuf.length < need) {
       this.poseBuf = new Float32Array(Math.ceil(need * 1.5));
     }
-    for (const n of this.nodes) {
+    for (const n of this.dynamic) {
       if (!n.__alive) continue;
-      // Settled scenery: once its initial pose has been pushed, skip the
-      // whole diff. On a 500-node track this is the difference between
-      // flush() touching ~20 mirrors and touching all of them.
+      // A static node still needs its FIRST pose pushed; after that it drops
+      // out of `dynamic` entirely (see settle() below).
       if (n.__static && n.__last !== null) continue;
       if (!poseDirty(n.__last, n.position, n.quaternion, n.scale)) continue;
       n.__last ??= new Float64Array(10);
@@ -361,6 +383,11 @@ export class Scene3D {
       count++;
     }
     if (count > 0) ops.writePoses(this.poseBuf, count);
+    // Drop settled scenery from the walk list now that its pose has landed.
+    if (this.staticPending) {
+      this.dynamic = this.dynamic.filter((n) => !(n.__static && n.__last !== null));
+      this.staticPending = this.dynamic.some((n) => n.__static);
+    }
     const cam = this.camera;
     if (poseDirty(cam.__last, cam.position, cam.quaternion, LENS.set(cam.fovY, cam.znear, cam.zfar))) {
       cam.__last ??= new Float64Array(10);
@@ -386,6 +413,7 @@ export class Scene3D {
   destroy(): void {
     this.__ops?.sceneDestroy(this.__scene);
     this.nodes.length = 0;
+    this.dynamic.length = 0;
     this.pools.length = 0;
   }
 }

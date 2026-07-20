@@ -169,6 +169,10 @@ fn boot(args: &Args) -> Result<(Guest, UiSurface, Scene3dSurface)> {
     let guest = Guest::new()?;
     surface.mount(&guest)?;
     scene3d.mount(&guest)?;
+    // globalThis.ps — the native sim cores (playset/sim/ops.ts). Must share
+    // the SAME Scene3dSurface that gets rendered: `ps.step` writes chassis and
+    // wheel poses straight into that store instead of returning them to JS.
+    pocket_playset::mount::SimSurface::new(&scene3d).mount(&guest)?;
     guest.eval(&args.app, &bundle)?;
     if !guest.has_frame() {
         return Err(anyhow!("bundle evaluated but installed no frame() — is this a PocketJS app?"));

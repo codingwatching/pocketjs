@@ -29,5 +29,6 @@ pub mod ge;
 pub mod ge3d;
 pub mod host;
 pub mod pak;
+pub mod playset;
 pub mod qjs_alloc;
 pub mod scene3d;

@@ -5,6 +5,7 @@ members = [
     "crates/pocket3d-bsp",
     "crates/pocket3d-cook",
     "crates/pocket-mod",
+    "crates/pocket-playset",
     "crates/pocket-scene3d",
     "crates/pocket-ui-wgpu",
     "examples/uihost",
@@ -23,6 +24,7 @@ repository = "https://github.com/pocketjs/pocketjs"
 pocket3d = { path = "crates/pocket3d" }
 pocket3d-bsp = { path = "crates/pocket3d-bsp" }
 pocket-mod = { path = "crates/pocket-mod" }
+pocket-playset = { path = "crates/pocket-playset" }
 pocket-scene3d = { path = "crates/pocket-scene3d" }
 pocket-ui-wgpu = { path = "crates/pocket-ui-wgpu" }
 pocketjs-core = { path = "../core", features = ["std"] }

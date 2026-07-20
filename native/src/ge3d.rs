@@ -27,6 +27,11 @@
 //! never toward fog color — desktop parity). Pools are unlit and unfogged;
 //! their radial soft-falloff fragment term becomes a 32x32 glow texture
 //! built once at first use.
+//!
+//! The mesh walk frustum-culls against a per-geom bounding sphere before it
+//! enqueues anything (see `composite`) — the same test the desktop renderer
+//! runs, and the single biggest lever on this surface: rally goes from 707
+//! submissions / 23,585 triangles a frame to ~66 / ~6,400.
 
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
@@ -112,6 +117,11 @@ const MAX_PRIM_IDX: usize = 65532;
 struct BakedGeom {
     verts: Vec<MeshVert>,
     indices: Vec<u16>,
+    /// Local-space bounding sphere (AABB midpoint + the max vertex distance
+    /// from it) — the frustum-cull bound, computed here because bake already
+    /// walks every vertex.
+    bound_center: Vec3,
+    bound_radius: f32,
 }
 
 static mut GEOMS: Option<BTreeMap<i32, BakedGeom>> = None;
@@ -137,9 +147,13 @@ pub unsafe fn bake_geom(id: i32, store: &Store) {
         return;
     }
     let mut verts = Vec::with_capacity(mesh.positions.len());
+    let mut lo = Vec3::splat(f32::INFINITY);
+    let mut hi = Vec3::splat(f32::NEG_INFINITY);
     for i in 0..mesh.positions.len() {
         let p = mesh.positions[i];
         let n = mesh.normals[i];
+        lo = lo.min(Vec3::from_array(p));
+        hi = hi.max(Vec3::from_array(p));
         // Per-vertex RGB bakes into the color channel (alpha ff); material
         // color x tint modulates at draw time through the light colors.
         let color = match &mesh.colors {
@@ -150,13 +164,22 @@ pub unsafe fn bake_geom(id: i32, store: &Store) {
         };
         verts.push(MeshVert { color, nx: n[0], ny: n[1], nz: n[2], x: p[0], y: p[1], z: p[2] });
     }
+    // Sphere about the AABB midpoint: tighter than an origin-centred one for
+    // the off-origin tessellations (cylinder caps, heightfield strips), and
+    // strictly conservative — every vertex is inside it by construction.
+    let bound_center = (lo + hi) * 0.5;
+    let mut r2 = 0.0f32;
+    for p in &mesh.positions {
+        r2 = r2.max((Vec3::from_array(*p) - bound_center).length_squared());
+    }
+    let bound_radius = libm::sqrtf(r2);
     let indices: Vec<u16> = mesh.indices.iter().map(|&i| i as u16).collect();
     sys::sceKernelDcacheWritebackRange(
         verts.as_ptr() as *const c_void,
         (verts.len() * core::mem::size_of::<MeshVert>()) as u32,
     );
     sys::sceKernelDcacheWritebackRange(indices.as_ptr() as *const c_void, (indices.len() * 2) as u32);
-    geoms().insert(id, BakedGeom { verts, indices });
+    geoms().insert(id, BakedGeom { verts, indices, bound_center, bound_radius });
 }
 
 pub unsafe fn free_geom(id: i32) {
@@ -227,13 +250,93 @@ enum Blend {
 
 struct Draw {
     world: Mat4,
-    geom: i32,
+    /// Resolved at collect time — the geom registry is not touched between
+    /// collect and emit, and BakedGeom entries are never removed mid-frame
+    /// (geomFree only runs from the JS turn), so the borrow stays live.
+    baked: *const BakedGeom,
     /// Material color x per-node tint (u32 ABGR).
     color: u32,
     flags: u32,
     blend: Blend,
     /// View depth for back-to-front ordering of the blended set.
     depth: f32,
+}
+
+// ---------------------------------------------------------------------------
+// Per-frame scratch [R]
+//
+// composite() ran with four fresh Vecs per frame (draws, the traversal stack,
+// and partition_opaque's two rebuild buffers) and moved every element through
+// them. rally walks 707 mesh nodes, so that is tens of KB of alloc/copy/free
+// per frame on a CPU whose memory bus is already contended by the GE. These
+// are the same buffers every frame, so retain them like GEOMS/GLOW: cleared,
+// never freed. Single-threaded, and composite never nests, so one set is
+// enough.
+// ---------------------------------------------------------------------------
+
+static mut DRAWS: Option<Vec<Draw>> = None;
+static mut BLENDED: Option<Vec<Draw>> = None;
+static mut STACK: Option<Vec<(i32, u32)>> = None;
+static mut WORLDS: Option<Vec<Mat4>> = None;
+
+/// Six frustum planes (a,b,c,d) with unit normals, inside = ax+by+cz+d >= 0.
+struct Frustum {
+    planes: [[f32; 4]; 6],
+}
+
+impl Frustum {
+    /// Gribb-Hartmann extraction from `clip = proj * view`. `proj` here is the
+    /// GL-style -1..1-depth projection composite feeds the GE, so near/far are
+    /// `w + z` / `w - z` (a DirectX 0..1 projection would want `z` / `w - z` —
+    /// that is the one line that differs from the desktop renderer's copy).
+    fn from_clip(clip: Mat4) -> Frustum {
+        let row = |i: usize| {
+            [
+                clip.x_axis[i],
+                clip.y_axis[i],
+                clip.z_axis[i],
+                clip.w_axis[i],
+            ]
+        };
+        let (r0, r1, r2, r3) = (row(0), row(1), row(2), row(3));
+        let combine = |a: [f32; 4], b: [f32; 4], add: bool| {
+            let s = if add { 1.0 } else { -1.0 };
+            let mut p = [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2], a[3] + s * b[3]];
+            // Unit-length normal so plane distance is metric and can be
+            // compared against the sphere radius directly.
+            let len = libm::sqrtf(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+            if len > 1e-20 {
+                let inv = 1.0 / len;
+                p[0] *= inv;
+                p[1] *= inv;
+                p[2] *= inv;
+                p[3] *= inv;
+            }
+            p
+        };
+        Frustum {
+            planes: [
+                combine(r3, r0, true),  // left
+                combine(r3, r0, false), // right
+                combine(r3, r1, true),  // bottom
+                combine(r3, r1, false), // top
+                combine(r3, r2, true),  // near
+                combine(r3, r2, false), // far
+            ],
+        }
+    }
+
+    /// True when the sphere is entirely outside at least one plane — i.e. it
+    /// cannot contribute a pixel, so dropping the draw is pixel-exact.
+    #[inline]
+    fn rejects(&self, c: Vec3, r: f32) -> bool {
+        for p in &self.planes {
+            if p[0] * c.x + p[1] * c.y + p[2] * c.z + p[3] < -r {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// Composite `scene` into the DrawList rect. Enters with the 2D pass state
@@ -262,24 +365,76 @@ pub unsafe fn composite(scene: i32, x: i32, y: i32, w: i32, h: i32) {
     let proj = glam::camera::rh::proj::opengl::perspective(cam.fov_y, aspect, znear, zfar);
     let fwd = cam.q * Vec3::NEG_Z;
 
+    // FRUSTUM CULL [R]: rally submits 707 meshes / 23,585 triangles per frame
+    // spread over the whole circuit, of which the chase camera sees ~66 /
+    // ~6,400 (measured through the desktop renderer, which runs the same store
+    // and now the same test). Everything else was transformed, state-changed
+    // and handed to the GE only to be clipped away — and at ~70k lit vertex
+    // transforms the GE list was measured at ~30 ms, so this is the one cut
+    // that lands on BOTH the CPU enqueue and the GE.
+    //
+    // The sphere test is CONSERVATIVE: bake_geom's sphere encloses every
+    // vertex and the radius is scaled by the world matrix's longest basis
+    // vector, so a rejected node provably contributes no pixel. VERIFIED, not
+    // argued: 90 distinct rally frames captured through PPSSPP's software
+    // renderer are byte-identical with and without this block.
+    let frustum = Frustum::from_clip(proj * view);
+
     // -- collect draws (world transforms top-down, visibility pruned) --------
-    let mut draws: Vec<Draw> = Vec::new();
-    let mut stack: Vec<(i32, Mat4)> =
-        sc.root.iter().rev().map(|&id| (id, Mat4::IDENTITY)).collect();
-    while let Some((id, parent_world)) = stack.pop() {
+    let draws = draws_scratch();
+    let blended = blended_scratch();
+    let stack = stack_scratch();
+    let worlds = worlds_scratch();
+    draws.clear();
+    blended.clear();
+    stack.clear();
+    // The stack carries a SLOT into `worlds` rather than a copy of the parent
+    // matrix: rally hangs ~260 barrier posts off one group, which used to mean
+    // 260 copies of the same 64-byte Mat4 pushed and popped. One write, N
+    // reads. Slots are never recycled within a frame, so a parent's entry is
+    // still live when the last of its children pops.
+    worlds.clear();
+    worlds.push(Mat4::IDENTITY); // slot 0 = scene root
+    stack.extend(sc.root.iter().rev().map(|&id| (id, 0u32)));
+    // Consecutive nodes overwhelmingly share a geom and a material (the 260
+    // posts are one cylinder and one material), and both registries are
+    // BTreeMaps — memoize the last hit instead of re-walking the tree.
+    let mut last_geom: (i32, *const BakedGeom) = (0, core::ptr::null());
+    while let Some((id, pslot)) = stack.pop() {
         let Some(node) = store.node(id) else { continue };
         if !node.visible {
             continue; // hidden nodes hide their subtree
         }
+        let parent_world = worlds[pslot as usize];
         let world = parent_world * Mat4::from_scale_rotation_translation(node.s, node.q, node.p);
-        for &c in node.children.iter().rev() {
-            stack.push((c, world));
+        if !node.children.is_empty() {
+            let slot = worlds.len() as u32;
+            worlds.push(world);
+            for &c in node.children.iter().rev() {
+                stack.push((c, slot));
+            }
         }
         if node.geom == 0 || node.mat == 0 {
             continue; // bare group
         }
-        if !geoms().contains_key(&node.geom) {
-            continue; // dangling/degenerate: draws nothing
+        if last_geom.0 != node.geom {
+            let Some(baked) = geoms().get(&node.geom) else {
+                continue; // dangling/degenerate: draws nothing
+            };
+            last_geom = (node.geom, baked as *const BakedGeom);
+        }
+        let baked = &*last_geom.1;
+        // Cull HERE, not by skipping the subtree: a group node's own bounds
+        // say nothing about where its children sit in this store.
+        let center = world.transform_point3(baked.bound_center);
+        let scale2 = world
+            .x_axis
+            .truncate()
+            .length_squared()
+            .max(world.y_axis.truncate().length_squared())
+            .max(world.z_axis.truncate().length_squared());
+        if frustum.rejects(center, baked.bound_radius * libm::sqrtf(scale2)) {
+            continue;
         }
         let Some(mat) = store.material(node.mat) else { continue };
         let blend = if mat.flags & mat_flags::ADDITIVE != 0 {
@@ -289,17 +444,25 @@ pub unsafe fn composite(scene: i32, x: i32, y: i32, w: i32, h: i32) {
         } else {
             Blend::Opaque
         };
-        draws.push(Draw {
+        let draw = Draw {
             world,
-            geom: node.geom,
+            baked: baked as *const BakedGeom,
             color: abgr_mul(mat.color, node.tint),
             flags: mat.flags,
             blend,
             depth: (world.w_axis.truncate() - cam.p).dot(fwd),
-        });
+        };
+        // Split at collect time — same result as the old collect-then-
+        // partition, without moving every element through two fresh Vecs.
+        if blend == Blend::Opaque {
+            draws.push(draw);
+        } else {
+            blended.push(draw);
+        }
     }
     // Opaques keep tree order; the blended set draws after, far -> near.
-    let split = partition_opaque(&mut draws);
+    let split = draws.len();
+    draws.append(blended);
     draws[split..].sort_by(|a, b| b.depth.total_cmp(&a.depth));
 
     // -- rect viewport + depth clear ------------------------------------------
@@ -352,8 +515,14 @@ pub unsafe fn composite(scene: i32, x: i32, y: i32, w: i32, h: i32) {
     // -- meshes: opaques in tree order, then blended far -> near ---------------
     let mut cur_blend: Option<Blend> = None;
     let mut cur_cull: Option<bool> = None;
-    for d in &draws {
-        let baked = &geoms()[&d.geom];
+    // The lighting-unit commands below are a pure function of (color, unlit)
+    // once `ambient`/`sun` are fixed for the frame, and GE state is sticky —
+    // so re-sending an identical set is a no-op the guest pays for. rally's
+    // ~260 barrier posts share one material, which is ~4 display-list words
+    // each plus the abgr_mul math.
+    let mut cur_light: Option<(u32, bool)> = None;
+    for d in &draws[..] {
+        let baked = &*d.baked;
         if cur_blend != Some(d.blend) {
             apply_blend(d.blend, fog);
             cur_blend = Some(d.blend);
@@ -368,21 +537,10 @@ pub unsafe fn composite(scene: i32, x: i32, y: i32, w: i32, h: i32) {
             cur_cull = Some(cull);
         }
         // Lighting-unit modulate: out = vtxColor x (ambient' + sun' x ndotl).
-        if d.flags & mat_flags::UNLIT != 0 {
-            sys::sceGuDisable(GuState::Light0);
-            sys::sceGuAmbient(d.color);
-        } else {
-            // Ambient rgb = avg hemisphere x material; alpha rides the
-            // ambient path on the GE, so it carries the material alpha.
-            let amb_rgb = abgr_mul(ambient.unwrap_or(0), d.color) & 0x00ff_ffff;
-            sys::sceGuAmbient(amb_rgb | (d.color & 0xff00_0000));
-            match sun {
-                Some(color) => {
-                    sys::sceGuLightColor(0, LightComponent::DIFFUSE, abgr_mul(color, d.color));
-                    sys::sceGuEnable(GuState::Light0);
-                }
-                None => sys::sceGuDisable(GuState::Light0),
-            }
+        let unlit = d.flags & mat_flags::UNLIT != 0;
+        if cur_light != Some((d.color, unlit)) {
+            cur_light = Some((d.color, unlit));
+            apply_light(d.color, unlit, ambient, sun);
         }
         sys::sceGuSetMatrix(sys::MatrixMode::Model, &to_psp_matrix(d.world));
         let mut done = 0usize;
@@ -505,22 +663,54 @@ pub unsafe fn composite(scene: i32, x: i32, y: i32, w: i32, h: i32) {
     sys::sceGuBlendFunc(BlendOp::Add, BlendFactor::SrcAlpha, BlendFactor::OneMinusSrcAlpha, 0, 0);
 }
 
-/// Split draws into [opaque..][blended..] preserving opaque tree order
-/// (stable partition; the blended tail is re-sorted by depth right after).
-fn partition_opaque(draws: &mut Vec<Draw>) -> usize {
-    let mut opaque: Vec<Draw> = Vec::with_capacity(draws.len());
-    let mut blended: Vec<Draw> = Vec::new();
-    for d in draws.drain(..) {
-        if d.blend == Blend::Opaque {
-            opaque.push(d);
-        } else {
-            blended.push(d);
-        }
+unsafe fn draws_scratch() -> &'static mut Vec<Draw> {
+    if DRAWS.is_none() {
+        DRAWS = Some(Vec::new());
     }
-    let split = opaque.len();
-    opaque.extend(blended);
-    *draws = opaque;
-    split
+    DRAWS.as_mut().unwrap()
+}
+
+unsafe fn blended_scratch() -> &'static mut Vec<Draw> {
+    if BLENDED.is_none() {
+        BLENDED = Some(Vec::new());
+    }
+    BLENDED.as_mut().unwrap()
+}
+
+unsafe fn stack_scratch() -> &'static mut Vec<(i32, u32)> {
+    if STACK.is_none() {
+        STACK = Some(Vec::new());
+    }
+    STACK.as_mut().unwrap()
+}
+
+unsafe fn worlds_scratch() -> &'static mut Vec<Mat4> {
+    if WORLDS.is_none() {
+        WORLDS = Some(Vec::new());
+    }
+    WORLDS.as_mut().unwrap()
+}
+
+/// Program the lighting unit for one material colour. Depends only on
+/// (color, unlit) plus the frame-constant env, which is why the emit loop can
+/// skip it whenever those match the previous draw (GE state is sticky).
+unsafe fn apply_light(color: u32, unlit: bool, ambient: Option<u32>, sun: Option<u32>) {
+    if unlit {
+        sys::sceGuDisable(GuState::Light0);
+        sys::sceGuAmbient(color);
+        return;
+    }
+    // Ambient rgb = avg hemisphere x material; alpha rides the ambient path
+    // on the GE, so it carries the material alpha.
+    let amb_rgb = abgr_mul(ambient.unwrap_or(0), color) & 0x00ff_ffff;
+    sys::sceGuAmbient(amb_rgb | (color & 0xff00_0000));
+    match sun {
+        Some(sun_color) => {
+            sys::sceGuLightColor(0, LightComponent::DIFFUSE, abgr_mul(sun_color, color));
+            sys::sceGuEnable(GuState::Light0);
+        }
+        None => sys::sceGuDisable(GuState::Light0),
+    }
 }
 
 unsafe fn apply_blend(blend: Blend, fog: Option<(u32, f32, f32)>) {

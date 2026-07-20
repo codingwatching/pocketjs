@@ -56,6 +56,16 @@ function defaultTerrainColor(height = 0, colorNoise = 0): { r: number; g: number
   };
 }
 
+/** The height grid the mesh was tessellated from — the drawn surface itself. */
+export interface TerrainGrid {
+  /** World extent, centred on the origin. */
+  size: number;
+  /** Vertices per side (`segments + 1`). */
+  side: number;
+  /** Row-major `side * side`; row = forward, col = right. */
+  heights: Float32Array;
+}
+
 export interface CreateTerrainMeshOptions {
   scene: Scene3D;
   terrainSampler: MeshTerrainSampler;
@@ -63,6 +73,40 @@ export interface CreateTerrainMeshOptions {
   segments?: number;
   /** Accepted for API compatibility; ignored (see header). */
   materialOptions?: Record<string, unknown>;
+  /**
+   * Split the mesh into `tiles`x`tiles` separately-drawn patches so a host
+   * with frustum culling can reject the parts of the ground that are behind
+   * or beside the camera.
+   *
+   * MEASURED (real PSP, rally): once the props were being culled, this ONE
+   * mesh was 4,608 of the 6,381 triangles still reaching the GE — its bounding
+   * volume spans the whole map, so it could never be rejected, while most of
+   * its vertices sat outside the view. 1 keeps the single-mesh behaviour.
+   *
+   * Adjacent tiles deliberately OVERLAP by one quad row. Vertex normals are
+   * averaged per mesh, so tiles that merely touched would give a boundary
+   * vertex a half-neighbourhood on each side and a visible lighting seam; with
+   * the overlap every boundary vertex has its full ring in both tiles and the
+   * normals come out identical. The shared quads are drawn twice — same depth,
+   * same shading, and a few percent of overdraw buys the fidelity.
+   *
+   * Fidelity is very close but not bit-exact: a tile derives its vertex
+   * positions from its own span and then rides a translated node, so the
+   * rounding differs from the single mesh's. Measured against the untiled
+   * render at 6 tiles: 7% of pixels differ, by at most 2/255.
+   */
+  tiles?: number;
+
+  /**
+   * Called with the sampled grid just before it becomes geometry.
+   *
+   * PLAYSET ADDITION (no GameBlocks counterpart): a native sim core cannot
+   * re-derive these heights and land on the same surface — the procedural
+   * samplers hash through `sin`, which is a different function in f32 than in
+   * f64 — so a car would drive on ground that is not the ground being drawn.
+   * Handing the grid over lets the sim sample exactly what is on screen.
+   */
+  onGrid?: (grid: TerrainGrid) => void;
 }
 
 export function createTerrainMesh({
@@ -71,6 +115,8 @@ export function createTerrainMesh({
   size = 184,
   segments = 220,
   materialOptions = {},
+  tiles = 1,
+  onGrid,
 }: CreateTerrainMeshOptions): SceneNode {
   void materialOptions;
   if (!terrainSampler || typeof terrainSampler.sample !== "function") {
@@ -109,9 +155,63 @@ export function createTerrainMesh({
     }
   }
 
-  const geomId = scene.heightfield(safeSize, safeSize, vertexSide, vertexSide, heights, colors);
+  onGrid?.({ size: safeSize, side: vertexSide, heights });
+
   const matId = scene.material(rgbToAbgr(0xffffff), MAT.vertexColors);
-  return scene.mesh(geomId, matId);
+  const tileCount = Math.max(1, Math.min(Math.floor(tiles), safeSegments));
+  if (tileCount === 1) {
+    const geomId = scene.heightfield(safeSize, safeSize, vertexSide, vertexSide, heights, colors);
+    return scene.mesh(geomId, matId);
+  }
+
+  // Quad ranges per tile, overlapping by one row/column so boundary vertices
+  // keep a complete neighbourhood (see `tiles` above).
+  const group = scene.node();
+  for (let tz = 0; tz < tileCount; tz += 1) {
+    for (let tx = 0; tx < tileCount; tx += 1) {
+      const q0x = Math.max(0, Math.floor((tx * safeSegments) / tileCount) - (tx > 0 ? 1 : 0));
+      const q1x = Math.min(safeSegments, Math.ceil(((tx + 1) * safeSegments) / tileCount));
+      const q0z = Math.max(0, Math.floor((tz * safeSegments) / tileCount) - (tz > 0 ? 1 : 0));
+      const q1z = Math.min(safeSegments, Math.ceil(((tz + 1) * safeSegments) / tileCount));
+      const nx = q1x - q0x + 1;
+      const nz = q1z - q0z + 1;
+      if (nx < 2 || nz < 2) continue;
+
+      const tileHeights = new Float32Array(nx * nz);
+      const tileColors = new Float32Array(nx * nz * 3);
+      for (let r = 0; r < nz; r += 1) {
+        for (let c = 0; c < nx; c += 1) {
+          const src = (q0z + r) * vertexSide + (q0x + c);
+          const dst = r * nx + c;
+          tileHeights[dst] = heights[src];
+          tileColors[dst * 3 + 0] = colors[src * 3 + 0];
+          tileColors[dst * 3 + 1] = colors[src * 3 + 1];
+          tileColors[dst * 3 + 2] = colors[src * 3 + 2];
+        }
+      }
+
+      // `heightfield` centres its mesh on the origin, so each tile rides a
+      // node translated to the centre of the span it covers.
+      const geomId = scene.heightfield(
+        (nx - 1) * step,
+        (nz - 1) * step,
+        nx,
+        nz,
+        tileHeights,
+        tileColors,
+      );
+      const node = scene.mesh(geomId, matId, group);
+      // Columns run along +X, but ROWS run along -Z (geomHeightfield puts row
+      // 0 at +d/2, which is where the sampler's first `forward` row belongs),
+      // so the two offsets carry opposite signs.
+      node.position.set(
+        -halfSize + (q0x + (nx - 1) / 2) * step,
+        0,
+        halfSize - (q0z + (nz - 1) / 2) * step,
+      );
+    }
+  }
+  return group;
 }
 
 /**

@@ -15,13 +15,30 @@
 // <Index> (not For): they are positional projections recomputed per update —
 // For would tear every dot down each frame. `basis` is exposed as a prop
 // (the original hardcoded the default basis in its super() call).
+//
+// FAN-OUT DISCIPLINE (this is a hot component; measured, not guessed). The
+// first version computed every dot from one memo that read both the static
+// checkpoint list AND the live pose, so one HUD refresh woke all twelve dot
+// effects, re-projected all ten checkpoints and rebuilt twelve style objects.
+// On a 333 MHz PSP that was ~2/3 of a 78 ms HUD refresh — and ten of the
+// twelve dots had not moved a pixel since boot. The reactive graph is now cut
+// along what actually changes:
+//
+//   checkpointPoints     depends ONLY on `checkpoints` — projected at mount
+//   nextCheckpointIndex  a NUMBER, so an unchanged next gate stops the update
+//                        dead instead of reaching ten style effects
+//   carDots / the local marker   the only per-refresh work, two dots' worth
+//
+// Everything on the per-refresh path projects through one scratch point and
+// builds its style object as a flat literal (no object spread): with QuickJS
+// at ~1.7 µs/op, allocation and graph churn ARE the cost, not the arithmetic.
 
 import type { JSX as SolidJSX } from "solid-js";
 import { Index, Show, createMemo } from "solid-js";
 import { View, type ViewProps } from "@pocketjs/framework/components";
 import { toDeg } from "../math/scalar-utils.ts";
 import { DEFAULT_WORLD_BASIS, type VecLike, type WorldBasis } from "../math/world-basis.ts";
-import { MinimapProjector2D, type PlanarBounds } from "./minimap-projector-2d.ts";
+import { MinimapProjector2D, type PlanarBounds, type Point2D } from "./minimap-projector-2d.ts";
 
 type StyleObject = NonNullable<ViewProps["style"]>;
 
@@ -83,13 +100,6 @@ export interface RaceMinimapProps {
   aiLeaderId?: () => unknown;
 }
 
-interface ProjectedCheckpoint {
-  x: number;
-  y: number;
-  radius: number;
-  color: string;
-}
-
 interface ProjectedCar {
   x: number;
   y: number;
@@ -112,24 +122,31 @@ export function RaceMinimap(props: RaceMinimapProps): SolidJSX.Element {
     basis,
   });
 
-  const checkpointDots = createMemo<ProjectedCheckpoint[]>(() => {
+  // Every projection on the per-refresh path lands here and is copied out
+  // before the next one runs — one buffer instead of a literal per dot.
+  const point: Point2D = { x: 0, y: 0 };
+  // The fallback heading, resolved once (forwardVector() allocates a Vector3).
+  const defaultForward = basis.forwardVector();
+
+  // Static geometry: reads `checkpoints` and NOTHING else, so a HUD refresh
+  // that only moved the cars never re-enters this.
+  const checkpointPoints = createMemo<Point2D[]>(() => {
     const checkpoints = props.checkpoints?.() ?? [];
-    const progress = props.localProgress?.() ?? null;
-    const nextCheckpointIndex = progress
-      ? progress.nextCheckpointIndex % checkpoints.length
-      : -1;
-    const out: ProjectedCheckpoint[] = [];
+    const out: Point2D[] = [];
     for (let i = 0; i < checkpoints.length; i += 1) {
-      const point = projector.project(checkpoints[i], { x: 0, y: 0 });
-      const isNext = i === nextCheckpointIndex;
-      out.push({
-        x: point.x,
-        y: point.y,
-        radius: isNext ? 3.4 : 2.1,
-        color: isNext ? styles.nextCheckpoint : styles.checkpoint,
-      });
+      out.push(projector.project(checkpoints[i], { x: 0, y: 0 }));
     }
     return out;
+  });
+
+  // The one checkpoint fact that moves, as a plain number: identical values
+  // stop here instead of rebuilding every dot's style (the original folded
+  // this into the geometry memo, which is what made the whole row churn).
+  const nextCheckpointIndex = createMemo<number>(() => {
+    const count = checkpointPoints().length;
+    const progress = props.localProgress?.() ?? null;
+    if (!progress || count === 0) return -1;
+    return progress.nextCheckpointIndex % count;
   });
 
   const carDots = createMemo<ProjectedCar[]>(() => {
@@ -139,7 +156,7 @@ export function RaceMinimap(props: RaceMinimapProps): SolidJSX.Element {
       const position = aiCar?.position ?? aiCar?.motion?.position ?? null;
       if (!position) continue;
 
-      const point = projector.project(position, { x: 0, y: 0 });
+      projector.project(position, point);
       out.push({
         x: point.x,
         y: point.y,
@@ -150,17 +167,13 @@ export function RaceMinimap(props: RaceMinimapProps): SolidJSX.Element {
     return out;
   });
 
-  const local = createMemo<{ x: number; y: number; rotate: number } | null>(() => {
-    const vehicle = props.localVehicle?.() ?? null;
-    const localPosition = vehicle?.position;
-    if (!localPosition) return null;
+  /** Is there a local vehicle to draw? Presence only — a boolean, so moving
+   *  the player never touches the <Show> that mounts its marker. */
+  const hasLocal = createMemo<boolean>(() => Boolean(props.localVehicle?.()?.position));
 
-    const point = projector.project(localPosition, { x: 0, y: 0 });
-    const yaw = projector.projectYaw(vehicle?.bodyFrame?.forward ?? basis.forwardVector());
-    return { x: point.x, y: point.y, rotate: toDeg(yaw) };
-  });
-
-  const dotStyle = (x: number, y: number, radius: number, rest: StyleObject): StyleObject => ({
+  // Flat style literals rather than one builder + object spread: the spread
+  // copied nine keys through a generic path on every dot, every refresh.
+  const fillDot = (x: number, y: number, radius: number, bgColor: string): StyleObject => ({
     posType: POS_ABSOLUTE,
     insetL: 0,
     insetT: 0,
@@ -169,7 +182,20 @@ export function RaceMinimap(props: RaceMinimapProps): SolidJSX.Element {
     radius,
     translateX: x - radius,
     translateY: y - radius,
-    ...rest,
+    bgColor,
+  });
+
+  const ringDot = (x: number, y: number, radius: number, borderColor: string): StyleObject => ({
+    posType: POS_ABSOLUTE,
+    insetL: 0,
+    insetT: 0,
+    width: radius * 2,
+    height: radius * 2,
+    radius,
+    translateX: x - radius,
+    translateY: y - radius,
+    borderColor,
+    borderWidth: 1,
   });
 
   return View({
@@ -182,18 +208,24 @@ export function RaceMinimap(props: RaceMinimapProps): SolidJSX.Element {
       borderWidth: 1,
     },
     children: [
-      // checkpoints (the v1 track line is these dots' circuit)
+      // checkpoints (the v1 track line is these dots' circuit). Each dot owns a
+      // boolean memo over the shared next-gate index, so passing a gate wakes
+      // exactly the two dots whose highlight actually flipped.
       Index({
         get each() {
-          return checkpointDots();
+          return checkpointPoints();
         },
-        children: (item: () => ProjectedCheckpoint) =>
-          View({
+        children: (item: () => Point2D, index: number) => {
+          const isNext = createMemo<boolean>(() => index === nextCheckpointIndex());
+          return View({
             get style(): StyleObject {
-              const d = item();
-              return dotStyle(d.x, d.y, d.radius, { bgColor: d.color });
+              const p = item();
+              return isNext()
+                ? fillDot(p.x, p.y, 3.4, styles.nextCheckpoint)
+                : fillDot(p.x, p.y, 2.1, styles.checkpoint);
             },
-          }),
+          });
+        },
       }) as unknown as SolidJSX.Element,
       // AI competitors + leader ring
       Index({
@@ -205,7 +237,7 @@ export function RaceMinimap(props: RaceMinimapProps): SolidJSX.Element {
             View({
               get style(): StyleObject {
                 const d = item();
-                return dotStyle(d.x, d.y, 2.8, { bgColor: d.color });
+                return fillDot(d.x, d.y, 2.8, d.color);
               },
             }),
             Show({
@@ -216,32 +248,42 @@ export function RaceMinimap(props: RaceMinimapProps): SolidJSX.Element {
                 return View({
                   get style(): StyleObject {
                     const d = item();
-                    return dotStyle(d.x, d.y, 4.8, {
-                      borderColor: styles.leaderRing,
-                      borderWidth: 1,
-                    });
+                    return ringDot(d.x, d.y, 4.8, styles.leaderRing);
                   },
                 });
               },
             }),
           ] as unknown as SolidJSX.Element,
       }) as unknown as SolidJSX.Element,
-      // local vehicle — triangle collapsed to a stroked dot, yaw kept as rotate
+      // local vehicle — triangle collapsed to a stroked dot, yaw kept as rotate.
+      // Projected straight inside the style getter: an intermediate memo would
+      // only add a graph hop and an object, and this runs every refresh.
       Show({
         get when() {
-          return local() !== null;
+          return hasLocal();
         },
         get children() {
           return View({
             get style(): StyleObject {
-              const d = local();
-              if (!d) return {};
-              return dotStyle(d.x, d.y, LOCAL_MARKER_RADIUS, {
+              const vehicle = props.localVehicle?.() ?? null;
+              const position = vehicle?.position;
+              if (!position) return {};
+              projector.project(position, point);
+              const yaw = projector.projectYaw(vehicle?.bodyFrame?.forward ?? defaultForward);
+              return {
+                posType: POS_ABSOLUTE,
+                insetL: 0,
+                insetT: 0,
+                width: LOCAL_MARKER_RADIUS * 2,
+                height: LOCAL_MARKER_RADIUS * 2,
+                radius: LOCAL_MARKER_RADIUS,
+                translateX: point.x - LOCAL_MARKER_RADIUS,
+                translateY: point.y - LOCAL_MARKER_RADIUS,
                 bgColor: styles.localFill,
                 borderColor: styles.localStroke,
                 borderWidth: 1,
-                rotate: d.rotate,
-              });
+                rotate: toDeg(yaw),
+              };
             },
           });
         },

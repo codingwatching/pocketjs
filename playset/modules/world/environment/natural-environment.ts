@@ -29,7 +29,12 @@ import { DEFAULT_WORLD_BASIS, type WorldBasis } from "../../math/world-basis.ts"
 import { DEFAULT_PRNG, type RandomGenerator } from "../../math/random-utils.ts";
 import type { Scene3D, SceneNode } from "../../../scene3d/client.ts";
 import type { CollisionWorld, ColliderHandle } from "../../physics/collision-world.ts";
-import { createTerrainMesh, registerTerrainCollider, type MeshTerrainSampler } from "./terrain-mesh-factory.ts";
+import {
+  createTerrainMesh,
+  registerTerrainCollider,
+  type MeshTerrainSampler,
+  type TerrainGrid,
+} from "./terrain-mesh-factory.ts";
 import * as defaultPlantVisualFactory from "../object/factory/plant-visual-factory.ts";
 import * as defaultRockVisualFactory from "../object/factory/rock-visual-factory.ts";
 import { NaturalTerrainSampler } from "./terrain-sampler.ts";
@@ -98,6 +103,10 @@ export interface NaturalEnvironmentOptions {
   propBlockRegions?: SpawnRegion[];
   renderOrder?: number;
   prng?: RandomGenerator;
+  /** Forwarded to createTerrainMesh — see TerrainGrid (native sim cores). */
+  onTerrainGrid?: (grid: TerrainGrid) => void;
+  /** Forwarded to createTerrainMesh — split the ground so it can be culled. */
+  terrainTiles?: number;
   basis?: WorldBasis;
   plantFactory?: PlantVisualFactoryLike;
   rockFactory?: RockVisualFactoryLike;
@@ -115,6 +124,8 @@ export class NaturalEnvironment {
   grassBladeCount: number;
   propSpawnAreaSampler: SpawnAreaSampler;
   renderOrder: number;
+  onTerrainGrid: ((grid: TerrainGrid) => void) | undefined;
+  terrainTiles: number;
   placementBounds: PlanarBounds;
   group: SceneNode;
   terrainMesh: SceneNode | null;
@@ -144,6 +155,8 @@ export class NaturalEnvironment {
     renderOrder = 0,
     prng = DEFAULT_PRNG,
     basis = DEFAULT_WORLD_BASIS,
+    onTerrainGrid,
+    terrainTiles = 1,
     plantFactory = defaultPlantVisualFactory,
     rockFactory = defaultRockVisualFactory,
   }: NaturalEnvironmentOptions) {
@@ -173,6 +186,8 @@ export class NaturalEnvironment {
       blockRegions: propBlockRegions,
     });
     this.renderOrder = renderOrder;
+    this.onTerrainGrid = onTerrainGrid;
+    this.terrainTiles = terrainTiles;
     this.group = this.scene.node();
     this.terrainMesh = null;
     this.trees = [];
@@ -233,6 +248,8 @@ export class NaturalEnvironment {
         roughness: 0.9,
         metalness: 0.02,
       },
+      onGrid: this.onTerrainGrid,
+      tiles: this.terrainTiles,
     });
     this.applyRenderOrder(mesh);
     this.group.add(mesh);

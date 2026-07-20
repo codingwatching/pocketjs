@@ -21,6 +21,13 @@ export interface PlanarBounds {
 
 export type PositiveForwardDirection = "down" | "up";
 
+// One shared planar scratch for project()/projectYaw(). The original relied on
+// toPlanar()'s default `{ right, forward }` literal, which allocated on every
+// projected dot; the rally HUD does that ~12 times per refresh at 10 Hz and
+// QuickJS pays for all of it. Both readers consume the pair synchronously and
+// never hold it, so one buffer is enough.
+const PLANAR_SCRATCH = { right: 0, forward: 0 };
+
 export function projectRelativePlanar(
   right: number,
   forward: number,
@@ -139,12 +146,12 @@ export class MinimapProjector2D {
   }
 
   project(worldPosition: VecLike | null | undefined, out: Point2D = { x: 0, y: 0 }): Point2D {
-    const planar = this.basis.toPlanar(worldPosition);
+    const planar = this.basis.toPlanar(worldPosition, PLANAR_SCRATCH);
     return this.projectPlanar(planar.right, planar.forward, out);
   }
 
   projectYaw(forwardVector: VecLike | null | undefined): number {
-    const planar = this.basis.toPlanar(forwardVector);
+    const planar = this.basis.toPlanar(forwardVector, PLANAR_SCRATCH);
     const right = planar.right;
     const forward = planar.forward;
     const mapDx = (this.invertRight ? -1 : 1) * right;

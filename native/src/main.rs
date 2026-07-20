@@ -26,7 +26,7 @@ use psp::sys::DisplaySetBufSync;
 use psp::sys::DisplayPixelFormat;
 use psp::sys::{self, CtrlMode, GuContextType, GuSyncBehavior, GuSyncMode, IoOpenFlags, SceCtrlData};
 
-use pocketjs_psp::{dbg, ffi, ge, host, pak, scene3d};
+use pocketjs_psp::{dbg, ffi, ge, host, pak, playset, scene3d};
 #[cfg(feature = "bench")]
 use pocketjs_psp::arena;
 
@@ -141,38 +141,75 @@ const PERF_WINDOW: u32 = 300;
 struct PerfState {
     frames: u32,
     js_sum_us: u64,
+    tick_sum_us: u64,
+    draw_sum_us: u64,
+    render_sum_us: u64,
     work_sum_us: u64,
     max_work_us: u64,
     gu_wait_sum_us: u64,
+    /// Frames whose CRITICAL PATH missed the 60 Hz budget. An average under
+    /// budget is not the same as holding frame rate: the display is vblank
+    /// quantised, so a single frame over 16,667µs costs a whole 16.7ms.
+    over_budget: u32,
 }
 
-static mut PERF: PerfState =
-    PerfState { frames: 0, js_sum_us: 0, work_sum_us: 0, max_work_us: 0, gu_wait_sum_us: 0 };
+static mut PERF: PerfState = PerfState {
+    frames: 0,
+    js_sum_us: 0,
+    tick_sum_us: 0,
+    draw_sum_us: 0,
+    render_sum_us: 0,
+    work_sum_us: 0,
+    max_work_us: 0,
+    gu_wait_sum_us: 0,
+    over_budget: 0,
+};
 
 #[inline]
 unsafe fn perf_now() -> u64 {
     sys::sceKernelGetSystemTimeWide() as u64
 }
 
-unsafe fn perf_record(ctx: *mut JSContext, js_us: u64, work_us: u64, gu_wait_us: u64) {
+#[allow(clippy::too_many_arguments)]
+unsafe fn perf_record(
+    ctx: *mut JSContext,
+    js_us: u64,
+    tick_us: u64,
+    draw_us: u64,
+    render_us: u64,
+    work_us: u64,
+    gu_wait_us: u64,
+) {
     PERF.frames += 1;
     PERF.js_sum_us += js_us;
+    PERF.tick_sum_us += tick_us;
+    PERF.draw_sum_us += draw_us;
+    PERF.render_sum_us += render_us;
     PERF.work_sum_us += work_us;
     PERF.gu_wait_sum_us += gu_wait_us;
     if work_us > PERF.max_work_us {
         PERF.max_work_us = work_us;
+    }
+    // The frame's real cost: everything before the sync, the GE wait, then the
+    // render enqueue. `work_us` excludes the wait, so it alone understates.
+    if work_us + gu_wait_us > 16_667 {
+        PERF.over_budget += 1;
     }
     if PERF.frames < PERF_WINDOW {
         return;
     }
     let n = PERF.frames as u64;
     let mut line = alloc::format!(
-        "[pocketjs perf] frames={} avg_js_us={} avg_work_us={} max_work_us={} avg_gu_wait_us={} cpu_mhz={} (budget 16667)\n",
+        "[pocketjs perf] frames={} avg_js_us={} avg_tick_us={} avg_draw_us={} avg_render_us={} avg_work_us={} max_work_us={} avg_gu_wait_us={} over_budget={} cpu_mhz={} (budget 16667)\n",
         n,
         PERF.js_sum_us / n,
+        PERF.tick_sum_us / n,
+        PERF.draw_sum_us / n,
+        PERF.render_sum_us / n,
         PERF.work_sum_us / n,
         PERF.max_work_us,
         PERF.gu_wait_sum_us / n,
+        PERF.over_budget,
         sys::scePowerGetCpuClockFrequencyInt(),
     );
     // JS-side split: when the app publishes cumulative counters on
@@ -214,7 +251,17 @@ unsafe fn perf_record(ctx: *mut JSContext, js_us: u64, work_us: u64, gu_wait_us:
         sys::sceIoWrite(fd, line.as_ptr() as *const c_void, line.len());
         sys::sceIoClose(fd);
     }
-    PERF = PerfState { frames: 0, js_sum_us: 0, work_sum_us: 0, max_work_us: 0, gu_wait_sum_us: 0 };
+    PERF = PerfState {
+        frames: 0,
+        js_sum_us: 0,
+        tick_sum_us: 0,
+        draw_sum_us: 0,
+        render_sum_us: 0,
+        work_sum_us: 0,
+        max_work_us: 0,
+        gu_wait_sum_us: 0,
+        over_budget: 0,
+    };
 }
 
 #[cfg(feature = "bench")]
@@ -511,6 +558,10 @@ unsafe fn run() {
     // so playset's detectScene3d finds it (graceful absence otherwise).
     scene3d::register(ctx, global);
     trace("run: register s3 ok");
+    // globalThis.ps — the SimOps surface (playset.rs). Same graceful-absence
+    // contract: a guest that does not find it runs the TS module composition.
+    playset::register(ctx, global);
+    trace("run: register ps ok");
 
     // Expose the asset pack read-only as globalThis.__pak (zero-copy over
     // .rodata; free_func = None). Web/test hosts feed core through loadStyles/
@@ -616,7 +667,9 @@ unsafe fn run() {
         // scene3d bindViewport events -> PROP.scene3d writes, before tick
         // lays out (uihost's apply_scene_bindings order).
         scene3d::apply_bindings(ui);
+        let perf_before_tick = perf_now();
         ui.tick();
+        let perf_after_tick = perf_now();
         #[cfg(feature = "bench")]
         let bench_after_tick = bench_now_us();
         if frame_count == 0 {
@@ -626,6 +679,7 @@ unsafe fn run() {
             let dl = ui.draw();
             (dl.words.as_ptr(), dl.words.len())
         };
+        let perf_after_draw = perf_now();
         #[cfg(feature = "bench")]
         let bench_after_draw = bench_now_us();
         if frame_count == 0 {
@@ -678,11 +732,16 @@ unsafe fn run() {
         if frame_count == 0 {
             trace("frame 0: gu start ok");
         }
+        let perf_before_render = perf_now();
         ge::render(ffi::ui(), core::slice::from_raw_parts(words_ptr, words_len));
+        let perf_after_render = perf_now();
         perf_record(
             ctx,
             perf_after_js.saturating_sub(perf_t0),
-            perf_now()
+            perf_after_tick.saturating_sub(perf_before_tick),
+            perf_after_draw.saturating_sub(perf_after_tick),
+            perf_after_render.saturating_sub(perf_before_render),
+            perf_after_render
                 .saturating_sub(perf_t0)
                 .saturating_sub(perf_after_present.saturating_sub(perf_before_sync)),
             perf_after_sync.saturating_sub(perf_before_sync),

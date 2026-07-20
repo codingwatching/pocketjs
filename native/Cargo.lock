@@ -97,6 +97,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "pocket-playset"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "libm",
+ "pocket-scene3d",
+]
+
+[[package]]
 name = "pocket-scene3d"
 version = "0.1.0"
 dependencies = [
@@ -118,6 +127,7 @@ dependencies = [
  "glam",
  "libm",
  "libquickjs-sys",
+ "pocket-playset",
  "pocket-scene3d",
  "pocketjs-core",
  "psp",
