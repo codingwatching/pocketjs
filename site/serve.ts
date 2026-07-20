@@ -10,7 +10,8 @@ const MIME: Record<string, string> = {
   svg: "image/svg+xml", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
   ttf: "font/ttf", map: "application/json",
   mp4: "video/mp4", gif: "image/gif",
-  pak: "application/octet-stream",
+  pak: "application/octet-stream", glb: "model/gltf-binary",
+  md: "text/markdown; charset=utf-8",
 };
 const SECURITY_HEADERS = {
   "Cross-Origin-Opener-Policy": "same-origin",

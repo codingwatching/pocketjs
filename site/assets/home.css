@@ -2,7 +2,7 @@
    PocketJS — "Bare Metal Modern Web" landing page
    Direction: Docs navy with brushed metal accents. All classes are .lp-* scoped.
    The hero plays the baked demo wall (site/bake-demo-wall.ts) as a full-bleed
-   background; the interactive handheld shell lives only in the playground now.
+   background and mounts the demand-rendered Pocket Stage below its CTA.
    ========================================================================== */
 
 @font-face {
@@ -376,6 +376,96 @@ a.lp-btn--primary:hover {
   justify-content: center;
   gap: 0.85rem;
   margin-top: 2.1rem;
+}
+
+/* ---- Live Pocket Stage ---------------------------------------------------- */
+.lp-stage {
+  width: min(100%, 980px);
+  margin: clamp(1.5rem, 3.2vw, 2.35rem) auto 0;
+}
+.lp-stage__viewport {
+  position: relative;
+  width: 100%;
+  height: clamp(285px, 39vw, 455px);
+  overflow: hidden;
+  background: transparent;
+}
+.lp-stage__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: grab;
+  touch-action: none;
+}
+.lp-stage__canvas:active { cursor: grabbing; }
+.lp-stage__canvas:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(157, 229, 199, 0.88);
+}
+.lp-stage__screen { display: none; }
+.lp-stage__status {
+  position: absolute;
+  left: 50%;
+  bottom: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.48rem 0.8rem;
+  border: 1px solid rgba(85, 103, 133, 0.56);
+  border-radius: 999px;
+  color: var(--ink-2);
+  background: rgba(6, 10, 18, 0.78);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.025em;
+  transform: translateX(-50%);
+  backdrop-filter: blur(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.lp-stage__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 10px rgba(157, 229, 199, 0.82);
+  animation: lp-stage-pulse 1.1s ease-in-out infinite alternate;
+}
+.lp-stage.is-ready .lp-stage__status {
+  opacity: 0;
+  transform: translate(-50%, 5px);
+  pointer-events: none;
+}
+.lp-stage.has-error .lp-stage__status {
+  color: #f0b8b8;
+  border-color: rgba(239, 143, 143, 0.4);
+}
+.lp-stage.has-error .lp-stage__status-dot {
+  background: #ef8f8f;
+  box-shadow: none;
+  animation: none;
+}
+.lp-stage__caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.45rem 1.25rem;
+  padding: 0.75rem 0.35rem 0;
+  color: rgba(169, 181, 201, 0.72);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: left;
+}
+.lp-stage__caption strong { color: rgba(226, 234, 246, 0.88); font-weight: 600; }
+.lp-stage__caption a { color: rgba(190, 206, 228, 0.86); text-underline-offset: 2px; }
+.lp-stage__caption a:hover { color: #fff; }
+.lp-stage__credit { margin-left: auto; }
+@keyframes lp-stage-pulse {
+  from { opacity: 0.35; transform: scale(0.78); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (max-width: 640px) {
+  .lp-stage__viewport { height: clamp(245px, 65vw, 330px); }
+  .lp-stage__credit { margin-left: 0; }
 }
 /* ---- Showcase cases (OpenStrike / Pocket Figma) ---------------------------- */
 .lp-case {

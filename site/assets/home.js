@@ -1,7 +1,6 @@
-// site/assets/home.js — homepage behaviors. The hero background is the baked
-// demo wall (site/bake-demo-wall.ts): every demo and satellite-app recording
-// tiled into one muted loop, so there is no live emulator to boot here — the
-// interactive shell lives in /playground/ now.
+// site/assets/home.js — homepage behaviors. The background remains a cheap
+// baked demo wall; the live Pocket Stage below the CTA is code-split and boots
+// only when it approaches the viewport.
 
 function setupCodeTabs() {
   const tabs = [...document.querySelectorAll("[data-code-tab]")];
@@ -44,5 +43,34 @@ function setupDemoWall() {
   io.observe(video);
 }
 
+function setupPocketStage() {
+  const root = document.querySelector("[data-pocket-stage]");
+  if (!root) return;
+  let booted = false;
+  const boot = async () => {
+    if (booted) return;
+    booted = true;
+    try {
+      const { mountPocketStage } = await import("/assets/pocket-stage-web.js");
+      await mountPocketStage(root);
+    } catch (error) {
+      root.classList.add("has-error");
+      const status = root.querySelector("[data-stage-status]");
+      if (status) status.textContent = "Pocket Stage could not be loaded.";
+      console.error("Pocket Stage module failed", error);
+    }
+  };
+  const io = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      io.disconnect();
+      void boot();
+    },
+    { rootMargin: "240px 0px", threshold: 0.01 },
+  );
+  io.observe(root);
+}
+
 setupCodeTabs();
 setupDemoWall();
+setupPocketStage();

@@ -8,7 +8,7 @@ use glam::{Mat4, Vec3};
 use crate::camera::Camera;
 use crate::gpu::{DEPTH_FORMAT, DepthTarget, Gpu};
 use crate::hud::{ATLAS_H, ATLAS_W, Hud, HudVertex, build_font_atlas};
-use crate::model::{ModelAsset, ModelInstance, ModelVertex};
+use crate::model::{MaterialAlphaMode, ModelAsset, ModelInstance, ModelVertex};
 use crate::scene::Scene;
 use crate::texture::{GpuTexture, Samplers, create_rgba_texture};
 use crate::world::{WorldBatchKind, WorldVertex};
@@ -334,7 +334,10 @@ pub(crate) struct ModelDraw {
 }
 
 struct ModelPass {
-    pipeline: wgpu::RenderPipeline,
+    opaque: wgpu::RenderPipeline,
+    opaque_double_sided: wgpu::RenderPipeline,
+    blend: wgpu::RenderPipeline,
+    blend_double_sided: wgpu::RenderPipeline,
     material_layout: wgpu::BindGroupLayout,
     object_layout: wgpu::BindGroupLayout,
     object_bg: wgpu::BindGroup,
@@ -387,41 +390,60 @@ impl ModelPass {
             bind_group_layouts: &[globals_bgl, &material_layout, &object_layout],
             push_constant_ranges: &[],
         });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("model pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                compilation_options: Default::default(),
-                buffers: &[ModelVertex::LAYOUT],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: color_format,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: Some(wgpu::Face::Back),
-                ..Default::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::LessEqual,
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
+        let make_pipeline = |label: &str,
+                             blend: Option<wgpu::BlendState>,
+                             depth_write_enabled: bool,
+                             cull_mode: Option<wgpu::Face>| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
+                    buffers: &[ModelVertex::LAYOUT],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: Some("fs_main"),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: color_format,
+                        blend,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    cull_mode,
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
+        let opaque = make_pipeline("model opaque", None, true, Some(wgpu::Face::Back));
+        let opaque_double_sided = make_pipeline("model opaque double-sided", None, true, None);
+        let blend = make_pipeline(
+            "model blend",
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+            false,
+            Some(wgpu::Face::Back),
+        );
+        let blend_double_sided = make_pipeline(
+            "model blend double-sided",
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+            false,
+            None,
+        );
 
         let instance_capacity = 64 * INSTANCE_STRIDE;
         let joints_capacity = 256 * 1024;
@@ -430,7 +452,10 @@ impl ModelPass {
         let object_bg = Self::make_object_bg(device, &object_layout, &instance_buf, &joints_buf);
 
         Self {
-            pipeline,
+            opaque,
+            opaque_double_sided,
+            blend,
+            blend_double_sided,
             material_layout,
             object_layout,
             object_bg,
@@ -586,13 +611,35 @@ impl ModelPass {
         if draws.is_empty() {
             return;
         }
-        pass.set_pipeline(&self.pipeline);
+        self.draw_phase(pass, draws, false);
+        self.draw_phase(pass, draws, true);
+    }
+
+    /// Draw all opaque/masked primitives across all instances before any
+    /// blended primitive. Blend primitives keep depth testing but never write
+    /// depth; glTF authoring order is retained within each phase.
+    fn draw_phase<'p>(
+        &'p self,
+        pass: &mut wgpu::RenderPass<'p>,
+        draws: &'p [ModelDraw],
+        blend_phase: bool,
+    ) {
         for d in draws {
             pass.set_bind_group(2, &self.object_bg, &[d.inst_offset, d.joints_offset]);
             pass.set_vertex_buffer(0, d.asset.vbuf.slice(..));
             pass.set_index_buffer(d.asset.ibuf.slice(..), wgpu::IndexFormat::Uint32);
             let mut overlay_bound = false;
             for (pi, prim) in d.asset.primitives.iter().enumerate() {
+                if (prim.alpha_mode == MaterialAlphaMode::Blend) != blend_phase {
+                    continue;
+                }
+                let pipeline = match (blend_phase, prim.double_sided) {
+                    (false, false) => &self.opaque,
+                    (false, true) => &self.opaque_double_sided,
+                    (true, false) => &self.blend,
+                    (true, true) => &self.blend_double_sided,
+                };
+                pass.set_pipeline(pipeline);
                 pass.set_bind_group(1, &prim.bind_group, &[]);
                 // Morphing primitives read vertices from the instance's
                 // overlay buffer; base_vertex redirects the shared indices.

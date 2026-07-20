@@ -317,13 +317,13 @@ impl FlatWidget for NoteGame {
         if input.super_down() && input.key_pressed(KeyCode::KeyX) {
             self.svc(serde_json::json!({"t": "key", "k": "Cut"}));
         }
-        if input.super_down() && input.key_pressed(KeyCode::KeyV) {
-            if let Some(text) = clipboard_paste() {
-                if !text.is_empty() {
-                    self.ensure_text(&text);
-                    self.svc(serde_json::json!({"t": "paste", "text": text}));
-                }
-            }
+        if input.super_down()
+            && input.key_pressed(KeyCode::KeyV)
+            && let Some(text) = clipboard_paste()
+            && !text.is_empty()
+        {
+            self.ensure_text(&text);
+            self.svc(serde_json::json!({"t": "paste", "text": text}));
         }
         if let Some(limit) = self.quit_after
             && self.ticks >= limit

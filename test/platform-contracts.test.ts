@@ -178,6 +178,20 @@ describe("platform registry", () => {
       message: "target rasterDensity must be an integer from 1 through 255",
     });
   });
+
+  test("reports a missing dynamic range instead of throwing during resolution", async () => {
+    const invalid = structuredClone(POCKET_PLATFORM_CONTRACTS) as any;
+    delete invalid.targets["macos-widget"].display.dynamicViewport;
+    const note = await Bun.file(new URL("../demos/note/pocket.json", import.meta.url)).json();
+    const result = validateAndResolveBuildPlan(note, { target: "macos-widget" }, invalid);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.diagnostics).toContainEqual({
+      code: "registry.dynamicViewportMissing",
+      path: "/targets/macos-widget/display",
+      message: "widget-form targets must declare display.dynamicViewport",
+    });
+  });
 });
 
 describe("semantic resolution", () => {
@@ -220,7 +234,7 @@ describe("semantic resolution", () => {
     expect(codes).toContain("capability.unavailable");
   });
 
-  test("resolves the note's dual-nature manifest against the desktop widget", async () => {
+  test("resolves the note's dynamic manifest and an explicit fixed variant", async () => {
     const manifest = await Bun.file(new URL("../demos/note/pocket.json", import.meta.url)).json();
     const result = validateAndResolveBuildPlan(manifest, { target: "macos-widget" });
     expect(result.ok).toBe(true);
@@ -236,8 +250,9 @@ describe("semantic resolution", () => {
     expect(result.plan.features["display.viewport.live"]).toBe(true);
     expect(result.plan.features["text.glyphs.runtime"]).toBe(true);
 
-    // The same manifest still ADMITS on PSP (the desktop surface is all
-    // `enhances`) — it degrades to the read-only note instead of failing.
+    // The source has a read-only fallback, but its current dynamic-only
+    // manifest does not admit on PSP. Adding an explicit fixed variant makes
+    // that fallback admissible; the desktop-only enhances then resolve off.
     const onPsp = validateAndResolveBuildPlan(
       { ...manifest, app: { ...manifest.app, viewport: { logical: [480, 272], presentation: "integer-fit" } } },
       { target: "psp" },
@@ -277,6 +292,7 @@ describe("semantic resolution", () => {
       hero: [true, true, false],
       "hero-vue-vapor": [true, true, false],
       im: [true, true, false],
+      "ipod-nano": [false, false, false], // admitted by the package-shaped macos-embedded target
       library: [true, true, false],
       motions: [true, true, false],
       music: [true, true, false],
@@ -313,7 +329,7 @@ describe("semantic resolution", () => {
     const note = await Bun.file(new URL("../demos/note/pocket.json", import.meta.url)).json();
     const onPsp = validateAndResolveBuildPlan(note, { target: "psp" });
     expect(onPsp.ok).toBe(false);
-    if (!onPsp.ok) return;
+    if (onPsp.ok) return;
     expect(onPsp.diagnostics.map((d) => d.code)).toContain("viewport.fixedRequired");
   });
 
@@ -324,6 +340,22 @@ describe("semantic resolution", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.diagnostics.map((d) => d.code)).toContain("viewport.fixedUnhosted");
+  });
+
+  test("diagnostics point into an explicit fixed viewport variant", () => {
+    const fixed = structuredClone(portableInput) as any;
+    fixed.app.viewport = {
+      fixed: { logical: [320, 240], presentation: "stretch" },
+    };
+    const result = validateAndResolveBuildPlan(fixed, { target: "psp" });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.diagnostics.map((diagnostic) => diagnostic.path)).toEqual(
+      expect.arrayContaining([
+        "/app/viewport/fixed/logical",
+        "/app/viewport/fixed/presentation",
+      ]),
+    );
   });
 
   test("profiles carry queryable platform/form fields — ids are labels", () => {

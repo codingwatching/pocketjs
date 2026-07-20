@@ -30,6 +30,7 @@ import {
 } from "@vue-jsx-vapor/runtime/raw";
 import { OG_IMAGE_URL, SITE_DESC, SITE_TITLE, SITE_URL, renderPage } from "./templates.ts";
 import { BLOG_POSTS, DOC_NAV, type DocSection } from "./nav.ts";
+import { emitSingleLodStagePackage } from "./stage-package.ts";
 
 const ROOT = new URL("..", import.meta.url).pathname; // repo root
 const SITE = ROOT + "site/";
@@ -299,6 +300,7 @@ async function main() {
   await bundle("playground/runtime-vue-vapor-entry.ts", "pg/runtime-vue-vapor.js", { external: ["vue"] });
   await bundle("playground/compiler-entry.ts", "pg/compiler.js", { shims: true, prelude: PROCESS_PRELUDE });
   await bundle("playground/playground.js", "pg/playground.bundle.js");
+  await bundle("assets/pocket-stage-web.js", "assets/pocket-stage-web.js");
 
   // 2. runtime assets
   // Keep the editor-facing URL byte-identical to the schema used by the
@@ -309,6 +311,19 @@ async function main() {
   copy(ROOT + "assets/fonts/Inter-Bold.ttf", "pg/fonts/Inter-Bold.ttf");
   for (const f of readdirSync(ROOT + "assets/images/")) copy(ROOT + "assets/images/" + f, "demo-assets/" + f);
   copyDemoAssets();
+
+  // Homepage Pocket Stage package. The deploy workflow builds the admitted
+  // settings guest first; fail here instead of silently publishing a shell
+  // with a missing screen app when site/build.ts is run by hand.
+  for (const file of ["settings-main.js", "settings-main.pak"]) {
+    const source = ROOT + "dist/" + file;
+    if (!existsSync(source)) {
+      throw new Error(`missing dist/${file} — run: bun scripts/build.ts settings-main`);
+    }
+    copy(source, "stage/" + file);
+  }
+  const pspPackage = ROOT + "pocket3d/examples/handheld/assets/dibad-psp/";
+  emitSingleLodStagePackage(pspPackage, OUT + "stage/", "psp-profile.json", "orbit");
 
   // 3. demos manifest
   const demos = demoManifest();
@@ -345,7 +360,7 @@ async function main() {
   copy(SITE + "assets/screen.css", "assets/screen.css");
 
   // 6. homepage — bespoke "cinematic" design: its own chrome + home.css +
-  //    home.js (the baked demo-wall hero). Not wrapped in the shared
+  //    home.js (the baked demo wall + lazy Pocket Stage). Not wrapped in the shared
   //    header/footer (those stay for docs + playground).
   write("index.html", renderHome());
   copy(SITE + "assets/home.css", "assets/home.css");

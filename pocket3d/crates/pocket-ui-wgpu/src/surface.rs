@@ -44,6 +44,10 @@ struct Inner {
     /// widget host *is* the companion process, so lines just cross a queue.
     svc_in: VecDeque<String>,
     svc_out: VecDeque<String>,
+    /// Companion service names accepted by `svcOpen`. `None` preserves the
+    /// historical desktop-host default of accepting any name; a Stage sets an
+    /// exact package-authored allowlist (which may be empty).
+    svc_allowlist: Option<Vec<String>>,
     /// Platform-contract identity published as `ui.__host`/`ui.__hostAbi`.
     /// Bundles built from a resolved plan refuse hosts whose identity does
     /// not match their target (src/host.ts assertNativeHostContract).
@@ -80,6 +84,7 @@ impl UiSurface {
                 sprites: Vec::new(),
                 svc_in: VecDeque::new(),
                 svc_out: VecDeque::new(),
+                svc_allowlist: None,
                 host_id: "desktop".into(),
                 host_abi: None,
             })),
@@ -87,12 +92,28 @@ impl UiSurface {
     }
 
     /// Declare this host's platform-contract identity (a POCKET_TARGETS id
-    /// + its hostAbi) before `mount`. Plan-built bundles assert it; the
+    /// and its hostAbi) before `mount`. Plan-built bundles assert it; the
     /// default "desktop" (no ABI) serves plan-less development hosts.
     pub fn set_identity(&self, host_id: &str, host_abi: u32) {
         let mut inner = self.inner.borrow_mut();
         inner.host_id = host_id.to_string();
         inner.host_abi = Some(host_abi);
+    }
+
+    /// Restrict `svcOpen` to exact companion service names. An empty list
+    /// advertises no service. Call this before `mount`, which installs the
+    /// host-op closure into the guest.
+    pub fn set_svc_allowlist<I, S>(&self, services: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.inner.borrow_mut().svc_allowlist = Some(
+            services
+                .into_iter()
+                .map(Into::into)
+                .collect::<Vec<String>>(),
+        );
     }
 
     /// Queue one JSON line for the guest's next `svcPoll` (host → guest).
@@ -103,6 +124,23 @@ impl UiSurface {
     /// Drain the lines the guest sent with `svcSend` (guest → host).
     pub fn svc_drain(&self) -> Vec<String> {
         self.inner.borrow_mut().svc_out.drain(..).collect()
+    }
+
+    /// Take only matching guest → host service lines, retaining every other
+    /// namespace in FIFO order for another companion adapter.
+    pub fn svc_drain_matching(&self, mut predicate: impl FnMut(&str) -> bool) -> Vec<String> {
+        let mut inner = self.inner.borrow_mut();
+        let mut matched = Vec::new();
+        let mut retained = VecDeque::new();
+        while let Some(line) = inner.svc_out.pop_front() {
+            if predicate(&line) {
+                matched.push(line);
+            } else {
+                retained.push_back(line);
+            }
+        }
+        inner.svc_out = retained;
+        matched
     }
 
     /// Feed an app pak: styles + font atlases go straight to the core,
@@ -411,10 +449,17 @@ impl UiSurface {
             });
 
             // ---- host service channel (spec ops 30..32) ------------------
-            // The widget/desktop host is its own companion process: svcOpen
-            // always succeeds and lines cross an in-process queue instead of
-            // a tethered share. Apps feature-detect exactly like on PSP.
-            op!("svcOpen", move |_app: Coerced<String>| true);
+            // A stage advertises a companion service only when its package
+            // provides one. Lines cross an in-process queue instead of a
+            // tethered share; apps feature-detect exactly like on PSP.
+            let ui = self.inner.clone();
+            op!("svcOpen", move |app: Coerced<String>| {
+                let inner = ui.borrow();
+                match &inner.svc_allowlist {
+                    None => true,
+                    Some(names) => names.iter().any(|name| name == &app.0),
+                }
+            });
 
             let ui = self.inner.clone();
             op!("svcPoll", move || -> Option<String> {
@@ -488,4 +533,64 @@ fn decode_pix_header(blob: &[u8], pixels_off: usize) -> Option<(u32, u32, u32, &
     let psm = *blob.get(4)? as u32;
     let pixels = blob.get(pixels_off..)?;
     Some((w, h, psm, pixels))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_service_allowlist_disables_the_companion() {
+        let guest = Guest::new().unwrap();
+        let surface = UiSurface::new((16.0, 16.0));
+        surface.set_svc_allowlist(std::iter::empty::<&str>());
+        surface.mount(&guest).unwrap();
+        guest
+            .eval("service", "globalThis.serviceOpen = ui.svcOpen('demo');")
+            .unwrap();
+        let open: bool = guest.with(|ctx| ctx.globals().get("serviceOpen").unwrap());
+        assert!(!open);
+    }
+
+    #[test]
+    fn service_allowlist_matches_exact_names() {
+        let guest = Guest::new().unwrap();
+        let surface = UiSurface::new((16.0, 16.0));
+        surface.set_svc_allowlist(["ipod-nano"]);
+        surface.mount(&guest).unwrap();
+        guest
+            .eval(
+                "service",
+                "globalThis.exact = ui.svcOpen('ipod-nano');\
+                 globalThis.wrong = ui.svcOpen('other');",
+            )
+            .unwrap();
+        let (exact, wrong): (bool, bool) = guest.with(|ctx| {
+            (
+                ctx.globals().get("exact").unwrap(),
+                ctx.globals().get("wrong").unwrap(),
+            )
+        });
+        assert!(exact);
+        assert!(!wrong);
+    }
+
+    #[test]
+    fn matching_service_drain_retains_other_namespaces_in_order() {
+        let guest = Guest::new().unwrap();
+        let surface = UiSurface::new((16.0, 16.0));
+        surface.mount(&guest).unwrap();
+        guest
+            .eval(
+                "service",
+                "ui.svcSend('alpha'); ui.svcSend('media'); ui.svcSend('omega');",
+            )
+            .unwrap();
+
+        assert_eq!(
+            surface.svc_drain_matching(|line| line == "media"),
+            vec!["media"]
+        );
+        assert_eq!(surface.svc_drain(), vec!["alpha", "omega"]);
+    }
 }

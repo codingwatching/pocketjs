@@ -39,7 +39,7 @@ winit = "0.30"
 glam = { version = "0.33", default-features = false }
 bytemuck = { version = "1", features = ["derive"] }
 pollster = "0.4"
-gltf = "1.4"
+gltf = { version = "1.4", features = ["extras"] }
 png = "0.18"
 anyhow = "1"
 log = "0.4"

@@ -381,7 +381,11 @@ impl<D: Driver> WidgetApp<D> {
         }
         let instance = Gpu::new_instance();
         let surface = instance.create_surface(window.clone())?;
-        let gpu = Gpu::from_instance_for_surface(instance, &surface)?;
+        let gpu = Gpu::from_instance_for_surface_with_power_preference(
+            instance,
+            &surface,
+            wgpu::PowerPreference::LowPower,
+        )?;
 
         let px = window.inner_size();
         let mut surface_config = surface
@@ -431,6 +435,10 @@ impl<D: Driver> WidgetApp<D> {
                 event_loop.exit();
                 return;
             }
+            // Pressed edges and device deltas belong to one simulation turn,
+            // even when the governor catches up multiple fixed ticks in one
+            // pump. Held state remains set until the matching release event.
+            state.input.end_frame();
             state.next_tick += tick_interval;
             ran += 1;
         }
@@ -438,10 +446,6 @@ impl<D: Driver> WidgetApp<D> {
         if ran == MAX_CATCHUP_TICKS && now >= state.next_tick {
             state.next_tick = now + tick_interval;
         }
-        if ran > 0 {
-            state.input.end_frame();
-        }
-
         if self.driver.wants_exit() {
             event_loop.exit();
             return;
@@ -454,9 +458,10 @@ impl<D: Driver> WidgetApp<D> {
 
         if self.config.ime {
             let area = self.driver.ime_cursor_area();
-            if area.is_some() && area != state.ime_area {
+            if let Some((x, y, w, h)) = area
+                && area != state.ime_area
+            {
                 state.ime_area = area;
-                let (x, y, w, h) = area.unwrap();
                 state.window.set_ime_cursor_area(
                     winit::dpi::PhysicalPosition::new(x, y),
                     winit::dpi::PhysicalSize::new(w, h),
@@ -608,6 +613,12 @@ impl<D: Driver> ApplicationHandler for WidgetApp<D> {
                 }
             }
             WindowEvent::RedrawRequested => {
+                // Ignore redraws while occluded. Unsolicited OS redraws while
+                // the retained frame is current are rejected and counted by
+                // `redraw`; resize/reveal and game dirt arm real frames.
+                if state.occluded {
+                    return;
+                }
                 if let Err(e) = self.redraw() {
                     self.error = Some(e);
                     event_loop.exit();

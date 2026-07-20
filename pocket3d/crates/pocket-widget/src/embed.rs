@@ -7,14 +7,15 @@
 //! re-renders nothing, which is the heart of the shell's demand rendering.
 
 use anyhow::Result;
-use pocket3d::gpu::{Gpu, OFFSCREEN_FORMAT, OffscreenTarget};
 use pocket_ui_wgpu::{UiRenderer, UiSurface};
+use pocket3d::gpu::{Gpu, OFFSCREEN_FORMAT, OffscreenTarget};
 
 pub struct EmbeddedUi {
     surface: UiSurface,
     renderer: UiRenderer,
     target: OffscreenTarget,
     px: (u32, u32),
+    logical_to_physical_scale: f32,
     /// The DrawList words of the latest tick (what render draws).
     words: Vec<u32>,
     hash: u64,
@@ -27,11 +28,24 @@ impl EmbeddedUi {
     /// render target of `px` pixels. For 1:1 rendering `px` must equal the
     /// surface's logical viewport — (480, 272) for stock PSP apps.
     pub fn new(gpu: &Gpu, surface: UiSurface, px: (u32, u32)) -> EmbeddedUi {
+        Self::new_with_scale(gpu, surface, px, 1.0)
+    }
+
+    /// Wrap a density-N surface in a physical target. DrawList coordinates
+    /// stay logical while font/image assets and the output target use N×
+    /// pixels, matching the Vita/Retina presentation model.
+    pub fn new_with_scale(
+        gpu: &Gpu,
+        surface: UiSurface,
+        px: (u32, u32),
+        logical_to_physical_scale: f32,
+    ) -> EmbeddedUi {
         EmbeddedUi {
             surface,
             renderer: UiRenderer::new(gpu, OFFSCREEN_FORMAT),
             target: OffscreenTarget::new(gpu, px.0, px.1),
             px,
+            logical_to_physical_scale,
             words: Vec::new(),
             hash: 0,
             texture_dirty: true,
@@ -64,13 +78,14 @@ impl EmbeddedUi {
         }
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
         self.surface.with_ui(|ui| {
-            self.renderer.render_words(
+            self.renderer.render_words_scaled(
                 gpu,
                 ui,
                 &self.words,
                 &mut encoder,
                 &self.target.view,
                 self.px,
+                self.logical_to_physical_scale,
                 wgpu::LoadOp::Clear(wgpu::Color::BLACK),
             )
         })?;
@@ -95,6 +110,12 @@ impl EmbeddedUi {
 
     pub fn size(&self) -> (u32, u32) {
         self.px
+    }
+
+    /// Deterministic hash of the most recent DrawList. Headless products can
+    /// pin this as an app-state acceptance without reading GPU pixels.
+    pub fn content_hash(&self) -> u64 {
+        self.hash
     }
 }
 
