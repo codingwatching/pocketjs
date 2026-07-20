@@ -54,6 +54,8 @@ test("homepage declares the live settings stage and visible model attribution", 
   expect(home).toContain("Live PocketJS Settings");
   expect(home).toContain("Dibad");
   expect(home).toContain("creativecommons.org/licenses/by/4.0");
+  expect(home).not.toContain("Drag to orbit");
+  expect(home).not.toContain("lp-stage__hint");
 
   const build = readFileSync(ROOT + "site/build.ts", "utf8");
   expect(build).toContain('["settings-main.js", "settings-main.pak"]');

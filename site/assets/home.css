@@ -467,25 +467,6 @@ a.lp-btn--primary:hover {
   box-shadow: none;
   animation: none;
 }
-.lp-stage__hint {
-  position: absolute;
-  left: 50%;
-  bottom: 0.85rem;
-  max-width: calc(100% - 2rem);
-  color: rgba(190, 202, 220, 0.72);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.025em;
-  white-space: nowrap;
-  opacity: 0;
-  transform: translate(-50%, 4px);
-  transition: opacity 0.35s ease 0.18s, transform 0.35s ease 0.18s;
-  pointer-events: none;
-}
-.lp-stage.is-ready .lp-stage__hint {
-  opacity: 1;
-  transform: translateX(-50%);
-}
 .lp-stage__caption {
   display: flex;
   flex-wrap: wrap;
@@ -507,7 +488,6 @@ a.lp-btn--primary:hover {
 }
 @media (max-width: 640px) {
   .lp-stage__viewport { height: clamp(245px, 65vw, 330px); }
-  .lp-stage__hint { font-size: 9px; }
   .lp-stage__credit { margin-left: 0; }
 }
 /* ---- Showcase cases (OpenStrike / Pocket Figma) ---------------------------- */
