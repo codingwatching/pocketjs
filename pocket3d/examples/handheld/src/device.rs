@@ -23,6 +23,7 @@ use pocket3d::texture::create_rgba_texture;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct DeviceProfile {
     schema_version: u32,
     name: String,
@@ -34,15 +35,136 @@ struct DeviceProfile {
     #[serde(default)]
     suppressed_materials: Vec<MaterialProfile>,
     parts: Vec<PartProfile>,
+    #[serde(default)]
+    display: DisplayProfile,
+    #[serde(default)]
+    view: ViewProfile,
+    #[serde(default)]
+    rotary: Option<RotaryProfile>,
+    #[serde(default)]
+    media: Option<MediaProfile>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DisplayProfile {
+    #[serde(default = "default_logical_size")]
+    logical_size: [u32; 2],
+    #[serde(default = "default_raster_density")]
+    raster_density: u32,
+    #[serde(default = "default_window_size")]
+    window_size: [u32; 2],
+}
+
+impl Default for DisplayProfile {
+    fn default() -> Self {
+        Self {
+            logical_size: default_logical_size(),
+            raster_density: default_raster_density(),
+            window_size: default_window_size(),
+        }
+    }
+}
+
+fn default_logical_size() -> [u32; 2] {
+    [480, 272]
+}
+
+fn default_raster_density() -> u32 {
+    1
+}
+
+fn default_window_size() -> [u32; 2] {
+    [480, 260]
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ViewProfile {
+    #[serde(default = "default_desk_position")]
+    desk_position_mm: [f32; 3],
+    #[serde(default)]
+    desk_target_mm: [f32; 3],
+    #[serde(default = "default_focus_distance")]
+    focus_distance_mm: f32,
+    #[serde(default = "default_fov_y")]
+    fov_y_degrees: f32,
+}
+
+impl Default for ViewProfile {
+    fn default() -> Self {
+        Self {
+            desk_position_mm: default_desk_position(),
+            desk_target_mm: [0.0; 3],
+            focus_distance_mm: default_focus_distance(),
+            fov_y_degrees: default_fov_y(),
+        }
+    }
+}
+
+fn default_desk_position() -> [f32; 3] {
+    [0.0, 46.0, 190.0]
+}
+
+fn default_focus_distance() -> f32 {
+    98.0
+}
+
+fn default_fov_y() -> f32 {
+    30.0
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RotaryProfile {
+    adapter: String,
+    name: String,
+    center_mm: [f32; 3],
+    inner_radius_mm: f32,
+    outer_radius_mm: f32,
+    step_degrees: f32,
+    clockwise_button: String,
+    counterclockwise_button: String,
+    #[serde(default)]
+    sectors: Vec<RotarySectorProfile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RotarySectorProfile {
+    name: String,
+    center_degrees: f32,
+    half_width_degrees: f32,
+    button: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MediaProfile {
+    service: String,
+    channel: String,
+    tracks: Vec<MediaTrackProfile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MediaTrackProfile {
+    id: String,
+    title: String,
+    artist: String,
+    file: String,
+    duration_ms: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct LodProfile {
     settled: String,
     orbit: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ScreenProfile {
     material_role: String,
     material_name_prefix: String,
@@ -50,6 +172,7 @@ struct ScreenProfile {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct MaterialProfile {
     material_role: String,
     material_name_prefix: String,
@@ -57,12 +180,100 @@ struct MaterialProfile {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PartProfile {
     name: String,
     #[serde(default)]
     button: Option<String>,
     center_mm: [f32; 3],
     half_extents_mm: [f32; 3],
+    #[serde(default)]
+    rotation_degrees: [f32; 3],
+}
+
+#[derive(Clone, Debug)]
+pub struct ViewSettings {
+    pub desk_position: Vec3,
+    pub desk_target: Vec3,
+    pub focus_distance: f32,
+    pub fov_y: f32,
+}
+
+#[derive(Clone, Debug)]
+pub struct MediaTrack {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub path: PathBuf,
+    pub duration_ms: u64,
+}
+
+#[derive(Clone, Debug)]
+pub struct MediaSettings {
+    pub service: String,
+    pub channel: String,
+    pub tracks: Vec<MediaTrack>,
+}
+
+#[derive(Clone, Debug)]
+pub struct StageSettings {
+    pub logical_size: (u32, u32),
+    pub raster_density: u32,
+    pub physical_size: (u32, u32),
+    pub window_size: (u32, u32),
+    pub view: ViewSettings,
+    pub media: Option<MediaSettings>,
+}
+
+#[derive(Clone, Debug)]
+pub struct RotarySector {
+    pub name: String,
+    pub center_radians: f32,
+    pub half_width_radians: f32,
+    pub buttons: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct RotaryControl {
+    pub name: String,
+    pub center: Vec3,
+    pub inner_radius: f32,
+    pub outer_radius: f32,
+    pub step_radians: f32,
+    pub clockwise_buttons: u32,
+    pub counterclockwise_buttons: u32,
+    pub sectors: Vec<RotarySector>,
+}
+
+impl RotaryControl {
+    /// Angle around the canonical XY wheel plane. Stage packages normalize
+    /// authored controls into this plane, just as they normalize model scale.
+    pub fn angle_from_ray(&self, origin: Vec3, dir: Vec3, require_ring: bool) -> Option<f32> {
+        if dir.z.abs() <= 1e-6 {
+            return None;
+        }
+        let t = (self.center.z - origin.z) / dir.z;
+        if t < 0.0 {
+            return None;
+        }
+        let local = origin + dir * t - self.center;
+        let radius = local.truncate().length();
+        if require_ring && !(self.inner_radius..=self.outer_radius).contains(&radius) {
+            return None;
+        }
+        Some(local.y.atan2(local.x))
+    }
+
+    pub fn sector_at(&self, angle: f32) -> Option<&RotarySector> {
+        self.sectors.iter().find(|sector| {
+            angular_delta(angle, sector.center_radians).abs() <= sector.half_width_radians
+        })
+    }
+}
+
+pub fn angular_delta(next: f32, previous: f32) -> f32 {
+    let tau = std::f32::consts::TAU;
+    (next - previous + std::f32::consts::PI).rem_euclid(tau) - std::f32::consts::PI
 }
 
 /// One CPU interaction proxy. The high-detail shell is intentionally a single
@@ -77,6 +288,7 @@ pub struct Device {
     pub parts: Vec<DevicePart>,
     pub map: PartMap,
     pub screen_center: Vec3,
+    pub rotary: Option<RotaryControl>,
     shell_instance: usize,
     settled_lod: Arc<ModelAsset>,
     orbit_lod: Arc<ModelAsset>,
@@ -105,6 +317,105 @@ pub fn default_profile_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/dibad-psp/profile.json")
 }
 
+pub fn load_settings(profile_path: &Path) -> Result<StageSettings> {
+    let profile_path = profile_path
+        .canonicalize()
+        .with_context(|| format!("missing stage profile {}", profile_path.display()))?;
+    let profile = read_profile(&profile_path)?;
+    validate_profile(&profile)?;
+    let profile_dir = profile_path.parent().expect("profile has a parent");
+    let logical = profile.display.logical_size;
+    let density = profile.display.raster_density;
+    let physical = (
+        logical[0]
+            .checked_mul(density)
+            .ok_or_else(|| anyhow!("display width overflows"))?,
+        logical[1]
+            .checked_mul(density)
+            .ok_or_else(|| anyhow!("display height overflows"))?,
+    );
+    let media = profile
+        .media
+        .map(|media| -> Result<MediaSettings> {
+            let tracks = media
+                .tracks
+                .into_iter()
+                .map(|track| -> Result<MediaTrack> {
+                    let path = canonical_package_file(
+                        profile_dir,
+                        Path::new(&track.file),
+                        &format!("media track {}", track.id),
+                    )?;
+                    Ok(MediaTrack {
+                        id: track.id,
+                        title: track.title,
+                        artist: track.artist,
+                        path,
+                        duration_ms: track.duration_ms,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(MediaSettings {
+                service: media.service,
+                channel: media.channel,
+                tracks,
+            })
+        })
+        .transpose()?;
+    Ok(StageSettings {
+        logical_size: (logical[0], logical[1]),
+        raster_density: density,
+        physical_size: physical,
+        window_size: (
+            profile.display.window_size[0],
+            profile.display.window_size[1],
+        ),
+        view: ViewSettings {
+            desk_position: Vec3::from_array(profile.view.desk_position_mm),
+            desk_target: Vec3::from_array(profile.view.desk_target_mm),
+            focus_distance: profile.view.focus_distance_mm,
+            fov_y: profile.view.fov_y_degrees.to_radians(),
+        },
+        media,
+    })
+}
+
+/// Resolve a declared package file through the filesystem, then enforce the
+/// canonical package boundary. The textual `..`/absolute-path validation is
+/// useful diagnostics, but this check also closes symlink escapes.
+fn canonical_package_file(
+    package_dir: &Path,
+    relative_path: &Path,
+    description: &str,
+) -> Result<PathBuf> {
+    let package_dir = package_dir
+        .canonicalize()
+        .with_context(|| format!("missing stage package {}", package_dir.display()))?;
+    let candidate = package_dir.join(relative_path);
+    let canonical = candidate
+        .canonicalize()
+        .with_context(|| format!("missing {description} {}", candidate.display()))?;
+    ensure!(
+        canonical.starts_with(&package_dir),
+        "{description} resolves outside the stage package: {}",
+        canonical.display()
+    );
+    ensure!(
+        canonical.is_file(),
+        "{description} is not a file: {}",
+        canonical.display()
+    );
+    Ok(canonical)
+}
+
+fn read_profile(profile_path: &Path) -> Result<DeviceProfile> {
+    serde_json::from_slice(
+        &std::fs::read(profile_path)
+            .with_context(|| format!("reading {}", profile_path.display()))?,
+    )
+    .with_context(|| format!("parsing {}", profile_path.display()))
+}
+
 /// Load both visual LODs, bind the persistent PocketJS texture directly onto
 /// the exact semantic screen primitive, and construct cold-path pick proxies.
 pub fn build(
@@ -117,31 +428,18 @@ pub fn build(
     let profile_path = profile_path
         .canonicalize()
         .with_context(|| format!("missing stage profile {}", profile_path.display()))?;
-    let profile: DeviceProfile = serde_json::from_slice(
-        &std::fs::read(&profile_path)
-            .with_context(|| format!("reading {}", profile_path.display()))?,
-    )
-    .with_context(|| format!("parsing {}", profile_path.display()))?;
+    let profile = read_profile(&profile_path)?;
     validate_profile(&profile)?;
     let profile_dir = profile_path.parent().expect("profile has a parent");
-    let settled_path = profile_dir.join(&profile.lods.settled);
-    let orbit_path = profile_dir.join(&profile.lods.orbit);
-    let attribution_path = profile_dir.join(&profile.attribution);
-    ensure!(
-        settled_path.is_file(),
-        "missing settled LOD {}",
-        settled_path.display()
-    );
-    ensure!(
-        orbit_path.is_file(),
-        "missing orbit LOD {}",
-        orbit_path.display()
-    );
-    ensure!(
-        attribution_path.is_file(),
-        "missing model attribution {}",
-        attribution_path.display()
-    );
+    let settled_path =
+        canonical_package_file(profile_dir, Path::new(&profile.lods.settled), "settled LOD")?;
+    let orbit_path =
+        canonical_package_file(profile_dir, Path::new(&profile.lods.orbit), "orbit LOD")?;
+    let attribution_path = canonical_package_file(
+        profile_dir,
+        Path::new(&profile.attribution),
+        "model attribution",
+    )?;
 
     let opts = ModelLoadOptions {
         // More than enough for a 480 logical pixel widget, and a hard guard
@@ -253,10 +551,12 @@ pub fn build(
             part.name
         );
         let buttons = button_bits(part.button.as_deref())?;
+        let radians = part.rotation_degrees.map(f32::to_radians);
+        let rotation = Quat::from_euler(EulerRot::XYZ, radians[0], radians[1], radians[2]);
         map.push(PartShape {
             name: part.name.clone(),
             buttons,
-            transform: Mat4::from_translation(center),
+            transform: Mat4::from_translation(center) * Mat4::from_quat(rotation),
             aabb: (-half, half),
         });
         parts.push(DevicePart {
@@ -280,10 +580,32 @@ pub fn build(
             .sum::<u32>(),
         attribution_path.display()
     );
+    let rotary = profile.rotary.map(|rotary| RotaryControl {
+        name: rotary.name,
+        center: Vec3::from_array(rotary.center_mm),
+        inner_radius: rotary.inner_radius_mm,
+        outer_radius: rotary.outer_radius_mm,
+        step_radians: rotary.step_degrees.to_radians(),
+        clockwise_buttons: button_bits(Some(&rotary.clockwise_button))
+            .expect("validated rotary clockwise button"),
+        counterclockwise_buttons: button_bits(Some(&rotary.counterclockwise_button))
+            .expect("validated rotary counterclockwise button"),
+        sectors: rotary
+            .sectors
+            .into_iter()
+            .map(|sector| RotarySector {
+                name: sector.name,
+                center_radians: sector.center_degrees.to_radians(),
+                half_width_radians: sector.half_width_degrees.to_radians(),
+                buttons: button_bits(Some(&sector.button)).expect("validated rotary sector"),
+            })
+            .collect(),
+    });
     Ok(Device {
         parts,
         map,
         screen_center,
+        rotary,
         shell_instance,
         settled_lod,
         orbit_lod,
@@ -324,7 +646,7 @@ fn canonical_transform(
     Ok(Mat4::from_scale(Vec3::splat(scale)) * Mat4::from_translation(-center) * rotation_matrix)
 }
 
-fn button_bits(name: Option<&str>) -> Result<u32> {
+pub fn button_bits(name: Option<&str>) -> Result<u32> {
     Ok(match name {
         None => 0,
         Some("up") => btn::UP,
@@ -385,6 +707,39 @@ fn validate_profile(profile: &DeviceProfile) -> Result<()> {
         profile.schema_version
     );
     ensure!(!profile.name.trim().is_empty(), "profile name is empty");
+    for (path, description) in [
+        (&profile.attribution, "model attribution"),
+        (&profile.lods.settled, "settled LOD"),
+        (&profile.lods.orbit, "orbit LOD"),
+    ] {
+        let path = Path::new(path);
+        ensure!(
+            !path.as_os_str().is_empty()
+                && !path.is_absolute()
+                && !path
+                    .components()
+                    .any(|part| matches!(part, std::path::Component::ParentDir)),
+            "{description} escapes the stage package"
+        );
+    }
+    ensure!(
+        profile.display.logical_size[0] > 0 && profile.display.logical_size[1] > 0,
+        "display logical_size must be positive"
+    );
+    ensure!(
+        (1..=4).contains(&profile.display.raster_density),
+        "display raster_density must be 1 through 4"
+    );
+    ensure!(
+        profile.display.window_size[0] > 0 && profile.display.window_size[1] > 0,
+        "display window_size must be positive"
+    );
+    ensure!(
+        profile.view.focus_distance_mm > 0.0
+            && profile.view.fov_y_degrees > 1.0
+            && profile.view.fov_y_degrees < 120.0,
+        "view focus distance and fov are invalid"
+    );
     ensure!(
         profile.screen.expected_primitives > 0,
         "screen primitive count must be positive"
@@ -418,6 +773,66 @@ fn validate_profile(profile: &DeviceProfile) -> Result<()> {
         names.contains("screen"),
         "profile is missing required part screen"
     );
+    if let Some(rotary) = &profile.rotary {
+        ensure!(
+            rotary.adapter == "rotary-wheel@1",
+            "unsupported rotary adapter {}",
+            rotary.adapter
+        );
+        ensure!(
+            rotary.inner_radius_mm >= 0.0
+                && rotary.outer_radius_mm > rotary.inner_radius_mm
+                && rotary.step_degrees > 0.0
+                && rotary.step_degrees <= 90.0,
+            "rotary radii or step are invalid"
+        );
+        button_bits(Some(&rotary.clockwise_button))?;
+        button_bits(Some(&rotary.counterclockwise_button))?;
+        for sector in &rotary.sectors {
+            ensure!(
+                !sector.name.trim().is_empty(),
+                "rotary sector name is empty"
+            );
+            ensure!(
+                sector.center_degrees.is_finite()
+                    && sector.half_width_degrees > 0.0
+                    && sector.half_width_degrees <= 180.0,
+                "rotary sector {} has invalid angles",
+                sector.name
+            );
+            button_bits(Some(&sector.button))?;
+        }
+    }
+    if let Some(media) = &profile.media {
+        ensure!(
+            media.service == "audio-playlist@1",
+            "unsupported media service {}",
+            media.service
+        );
+        ensure!(
+            !media.channel.trim().is_empty(),
+            "media service channel is empty"
+        );
+        ensure!(!media.tracks.is_empty(), "media playlist is empty");
+        for track in &media.tracks {
+            ensure!(
+                !track.id.trim().is_empty()
+                    && !track.title.trim().is_empty()
+                    && !track.file.trim().is_empty()
+                    && track.duration_ms > 0,
+                "media track is incomplete"
+            );
+            let path = Path::new(&track.file);
+            ensure!(
+                !path.is_absolute()
+                    && !path
+                        .components()
+                        .any(|part| matches!(part, std::path::Component::ParentDir)),
+                "media track {} escapes the stage package",
+                track.id
+            );
+        }
+    }
     Ok(())
 }
 
@@ -435,6 +850,23 @@ mod tests {
         assert!(dir.join(profile.lods.settled).is_file());
         assert!(dir.join(profile.lods.orbit).is_file());
         assert!(dir.join(profile.attribution).is_file());
+    }
+
+    #[test]
+    fn bundled_ipod_profile_media_and_display_are_valid() {
+        let path =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/ipod-nano-2/profile.json");
+        let profile = read_profile(&path).unwrap();
+        validate_profile(&profile).unwrap();
+        let settings = load_settings(&path).unwrap();
+        assert_eq!(settings.logical_size, (176, 132));
+        assert_eq!(settings.physical_size, (176, 132));
+        assert_eq!(settings.window_size, (320, 600));
+        let media = settings.media.unwrap();
+        assert_eq!(media.service, "audio-playlist@1");
+        assert_eq!(media.channel, "ipod-nano");
+        assert_eq!(media.tracks.len(), 3);
+        assert!(media.tracks.iter().all(|track| track.path.is_file()));
     }
 
     #[test]
@@ -465,5 +897,42 @@ mod tests {
         let orbit = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(11.0, 5.0, 1.0));
         let transform = canonical_transform(settled, 170.0, [0.0; 3]).unwrap();
         assert!(validate_lod_bounds(settled, orbit, transform, 170.0).is_err());
+    }
+
+    #[test]
+    fn angular_delta_unwraps_across_pi() {
+        let previous = 179.0_f32.to_radians();
+        let next = (-179.0_f32).to_radians();
+        assert!((angular_delta(next, previous).to_degrees() - 2.0).abs() < 1e-3);
+        assert!((angular_delta(previous, next).to_degrees() + 2.0).abs() < 1e-3);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_package_file_rejects_symlink_escape() {
+        use std::os::unix::fs::symlink;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let sandbox = std::env::temp_dir().join(format!(
+            "pocket-stage-media-path-{}-{nonce}",
+            std::process::id()
+        ));
+        let package = sandbox.join("package");
+        let outside = sandbox.join("outside");
+        std::fs::create_dir_all(&package).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let outside_track = outside.join("track.aiff");
+        std::fs::write(&outside_track, b"not audio").unwrap();
+        symlink(&outside_track, package.join("track.aiff")).unwrap();
+
+        let error =
+            canonical_package_file(&package, Path::new("track.aiff"), "test track").unwrap_err();
+        assert!(error.to_string().contains("outside the stage package"));
+
+        std::fs::remove_dir_all(&sandbox).unwrap();
     }
 }

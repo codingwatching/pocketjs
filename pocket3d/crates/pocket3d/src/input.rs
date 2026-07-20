@@ -4,7 +4,9 @@
 use std::collections::HashSet;
 
 use glam::Vec2;
-use winit::event::{DeviceEvent, ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    DeviceEvent, ElementState, Ime, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
+};
 use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
 
 /// One IME event, in arrival order — the composition stream a text-editing
@@ -56,6 +58,14 @@ pub struct Input {
     edits: Vec<EditKey>,
     ime: Vec<ImeInput>,
     scroll: Vec2,
+    /// Edge markers for touchpad scroll gestures. Traditional mouse wheels
+    /// may only report `Moved`, so consumers should retain a short idle
+    /// fallback in addition to observing these exact boundaries.
+    scroll_started: bool,
+    scroll_ended: bool,
+    /// One-turn cancellation edge raised by focus loss or an explicit input
+    /// reset. This is distinct from a normal button release.
+    interaction_cancelled: bool,
     /// A super/command chord is held — edit consumers usually skip
     /// `Char` events while true (they are shortcuts, not typing).
     super_down: bool,
@@ -129,12 +139,17 @@ impl Input {
                     Ime::Disabled => ImeInput::Disabled,
                 });
             }
-            WindowEvent::MouseWheel { delta, .. } => {
+            WindowEvent::MouseWheel { delta, phase, .. } => {
                 // Normalize to logical px; a line is worth ~20.
                 self.scroll += match delta {
                     MouseScrollDelta::LineDelta(x, y) => Vec2::new(x * 20.0, y * 20.0),
                     MouseScrollDelta::PixelDelta(p) => Vec2::new(p.x as f32, p.y as f32),
                 };
+                match phase {
+                    TouchPhase::Started => self.scroll_started = true,
+                    TouchPhase::Ended | TouchPhase::Cancelled => self.scroll_ended = true,
+                    TouchPhase::Moved => {}
+                }
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let id = button_id(*button);
@@ -179,6 +194,9 @@ impl Input {
         self.edits.clear();
         self.ime.clear();
         self.scroll = Vec2::ZERO;
+        self.scroll_started = false;
+        self.scroll_ended = true;
+        self.interaction_cancelled = true;
         self.super_down = false;
     }
 
@@ -190,6 +208,9 @@ impl Input {
         self.edits.clear();
         self.ime.clear();
         self.scroll = Vec2::ZERO;
+        self.scroll_started = false;
+        self.scroll_ended = false;
+        self.interaction_cancelled = false;
     }
 
     /// This frame's text-editing keystrokes, in press order (repeats
@@ -208,6 +229,24 @@ impl Input {
     /// (y positive = content up, winit convention). Cleared by `end_frame`.
     pub fn scroll(&self) -> Vec2 {
         self.scroll
+    }
+
+    /// True during the simulation turn that received a touchpad scroll start.
+    pub fn scroll_gesture_started(&self) -> bool {
+        self.scroll_started
+    }
+
+    /// True during the simulation turn that received a touchpad scroll end or
+    /// cancellation. Mouse wheels that do not publish phases leave this false.
+    pub fn scroll_gesture_ended(&self) -> bool {
+        self.scroll_ended
+    }
+
+    /// True for one simulation turn after focus loss or [`Input::clear`].
+    /// Pointer consumers use this to cancel captures without mistaking the
+    /// reset for an intentional button release.
+    pub fn interaction_cancelled(&self) -> bool {
+        self.interaction_cancelled
     }
 
     /// A super/command key is currently held.
@@ -333,5 +372,37 @@ mod tests {
 
         input.end_frame();
         assert_eq!(input.scroll(), Vec2::ZERO);
+    }
+
+    #[test]
+    fn scroll_phases_and_interaction_cancellation_are_one_turn_edges() {
+        let mut input = Input::default();
+        input.on_window_event(&WindowEvent::MouseWheel {
+            device_id: winit::event::DeviceId::dummy(),
+            delta: MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition::new(0.0, 1.0)),
+            phase: TouchPhase::Started,
+        });
+        input.on_window_event(&WindowEvent::MouseWheel {
+            device_id: winit::event::DeviceId::dummy(),
+            delta: MouseScrollDelta::PixelDelta(winit::dpi::PhysicalPosition::new(0.0, 2.0)),
+            phase: TouchPhase::Ended,
+        });
+        assert!(input.scroll_gesture_started());
+        assert!(input.scroll_gesture_ended());
+        assert!(!input.interaction_cancelled());
+
+        input.end_frame();
+        assert!(!input.scroll_gesture_started());
+        assert!(!input.scroll_gesture_ended());
+
+        input.inject_mouse_button(MouseButton::Left, true);
+        input.on_window_event(&WindowEvent::Focused(false));
+        assert!(!input.mouse_button_down(MouseButton::Left));
+        assert!(input.scroll_gesture_ended());
+        assert!(input.interaction_cancelled());
+
+        input.end_frame();
+        assert!(!input.scroll_gesture_ended());
+        assert!(!input.interaction_cancelled());
     }
 }

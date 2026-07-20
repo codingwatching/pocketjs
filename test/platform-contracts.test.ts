@@ -292,6 +292,7 @@ describe("semantic resolution", () => {
       hero: [true, true, false],
       "hero-vue-vapor": [true, true, false],
       im: [true, true, false],
+      "ipod-nano": [false, false, false], // admitted by the package-shaped macos-embedded target
       library: [true, true, false],
       motions: [true, true, false],
       music: [true, true, false],

@@ -49,8 +49,8 @@ that refactor is desirable but not a blocker.)
 
 **Pocket Stage** is the model-neutral process contract that combines an
 authored 3D asset, camera policy, interactions, and one or more live Pocket app
-surfaces inside a low-power widget window. A PSP is its first package and proof that
-`EmbeddedUi` + `PartMap` carry real weight:
+surfaces inside a low-power widget window. The checked-in PSP and iPod nano
+packages prove that `EmbeddedUi` + `PartMap` carry real weight:
 
 - Borderless, transparent, always-on-top window framing a 3D PSP.
 - The PSP's screen is a live 480×272 PocketJS `ui` surface — the same
@@ -67,15 +67,24 @@ surfaces inside a low-power widget window. A PSP is its first package and proof 
   resolves against `form: "embedded"`. A fixed 480×272 PSP/Vita app fits;
   a dynamic-only desktop app such as Pocket Note is correctly rejected until
   it declares a compatible fixed variant.
+- The iPod package selects a different 176×132 surface and tall camera/window
+  framing through the same profile loader. Its click wheel is the first
+  `rotary-wheel@1` adapter: circular drag or trackpad scroll over the ring is
+  quantized to ordinary UP/DOWN BTN edges, while tap sectors deliver MENU,
+  previous, next, and play/pause. No iPod-only guest ABI or native process
+  exists.
+- Its music demo uses the existing svc queue as a companion boundary. The
+  guest owns navigation and displays metadata; the macOS host owns local WAV
+  paths and playback. Paused audio and a settled DrawList produce no periodic
+  GPU work. Launch the complete package with `bun run widget:ipod`.
 
 The source remains in the historical `pocket3d/examples/handheld` directory
-while the first package is PSP-only, but the Cargo package, binary, process,
-and window title are `pocket-stage`. Asset type is data, not a process fork:
+but the Cargo package, binary, process, and window title are `pocket-stage`.
+Asset type is data, not a process fork:
 an iPod, phone, laptop, TV, or room-with-monitor should change the package and
 typed manifest extension, not introduce another native runtime.
-The checked-in host is still transitional: viewport, camera defaults, and the
-device input adapter retain PSP assumptions until the manifest migration in
-§6.1 lands.
+The checked-in host is still transitional: these consumed fields still live in
+`profile.json` until the strict package manifest migration in §6.1 lands.
 
 In RUNTIMES.md notation:
 
@@ -180,6 +189,12 @@ The bridge is deliberately dumb — a static table, no gameplay logic:
 - **Analog nub.** Drag within the nub's radius maps to the packed axes
   (`(x << 8) | y`, 0–255, 128 center); release springs back to center.
   Extremes are raw 255/1 — never 0 — matching the input-tape convention.
+- **Rotary wheel.** A package-declared canonical XY annulus uses ray/plane
+  intersection plus `atan2`, unwraps the ±π seam, accumulates 12° detents,
+  and inserts a neutral guest tick between UP/DOWN pulses. A tap that never
+  crosses a detent resolves to the nearest named angular sector. Trackpad
+  scroll is consumed by the wheel only while the pointer is over the ring;
+  elsewhere the same gesture continues to orbit the stage.
 - **Keyboard, always.** The uihost key map (arrows, Z/Enter = CROSS, …) is
   mounted unconditionally. Mouse-on-model is the magic; keys are the daily
   driver. Both funnel into one `buttons` word per tick — Law 3 is untouched.
@@ -480,10 +495,11 @@ Landed in this repo:
 3. `pocket-widget`: the crate — `shell` (demand-render loop), `embed`,
    `parts`, `pick` — with the RUNTIMES.md table row.
 4. `examples/handheld`: the first `pocket-stage` package and transitional
-   host — profile-driven authored glTF shell, semantic live screen,
-   quality/orbit LOD switching, mouse/keyboard input, desk/focus/orbit
-   framings, embedded-target app admission/build plans, and headless scripting
-   (`--screenshot/--click/--tap/--hold/--focus/--orbit/--auto-quit`).
+   host — profile-driven authored glTF shells for PSP and iPod nano, semantic
+   live screens, quality/orbit LOD switching, mouse/keyboard input, desk/focus/orbit
+   framings, per-package viewport/camera facts, click-wheel detents, optional
+   host-side audio playlists, embedded-target app admission/build plans, and
+   headless scripting (`--screenshot/--click/--drag/--tap/--hold/--focus/--orbit/--auto-quit`).
 5. The flat form (§2b): `shell::run_flat` + `FlatWidget` + resizable
    windows; `UiRenderer::render_words_scaled` (density-N presentation);
    `UiSurface::new_with_density` + in-process svc queues; `Input` edit

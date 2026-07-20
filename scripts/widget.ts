@@ -3,6 +3,7 @@
 //
 //   bun run widget                # the hero demo inside the widget
 //   bun run widget im             # any demo (name resolves to <name>-main)
+//   bun run widget --stage ipod   # iPod nano demo + authored nano profile
 //   bun run widget -- --focus     # extra flags pass through to the binary
 //   bun run widget im --auto-quit 5
 //   bun run widget --proof        # headless acceptance: a scripted D-pad
@@ -14,7 +15,7 @@
 // "pocket-widget: N ticks, M frames rendered" — a settled app should show
 // M ≪ N.
 import { $ } from "bun";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { demoManifestFor } from "./demo-identity.ts";
 import {
@@ -27,44 +28,120 @@ import type { ResolvedBuildPlan } from "../src/manifest/plan.ts";
 
 const root = new URL("..", import.meta.url).pathname;
 
-/**
- * Transitional profile for the bundled PSP stage. The outer process is a
- * desktop widget, but the guest occupies a fixed screen mesh and therefore
- * resolves as an embedded target. Once pocket-stage.json lands, these display
- * facts come from its selected surface instead of this constant.
- */
+/** Transitional embedded target shared by the bundled PSP and iPod stages. */
 export const STAGE_TARGET_ID = "macos-embedded";
 // Same current desktop HostOps wire generation as macos-widget; form and
 // capabilities differ even though the native UI surface implementation is shared.
 export const STAGE_HOST_ABI = 3;
-export const STAGE_PLATFORM_CONTRACTS = definePlatformContractRegistry(
-  POCKET_CAPABILITIES,
-  defineTargetRegistry({
-    [STAGE_TARGET_ID]: {
-      hostAbi: STAGE_HOST_ABI,
-      platform: "macos",
-      form: "embedded",
-      display: {
-        physicalViewport: [480, 272],
-        logicalViewports: [[480, 272]],
-        presentations: ["native", "integer-fit"],
-        rasterDensity: 1,
-      },
-      capabilities: [
-        "input.analog.left",
-        "input.buttons",
-        "input.cursor",
-        "text.glyphs.baked",
-      ],
-    },
-  }),
+export type WidgetStage = "psp" | "ipod";
+
+export interface StageDisplayFacts {
+  readonly logicalSize: readonly [number, number];
+  readonly rasterDensity: number;
+}
+
+export interface WidgetStageConfig {
+  readonly defaultApp: string;
+  readonly profile?: string;
+  readonly display: StageDisplayFacts;
+}
+
+const PSP_DISPLAY: StageDisplayFacts = {
+  logicalSize: [480, 272],
+  rasterDensity: 1,
+};
+const IPOD_PROFILE = resolvePath(
+  root,
+  "pocket3d/examples/handheld/assets/ipod-nano-2/profile.json",
 );
 
-export function resolveStageBuildPlan(input: unknown): ResolvedBuildPlan {
+function positiveInteger(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) > 0;
+}
+
+/** Validate the display facts shared by build admission and the native host. */
+export function stageDisplayFacts(
+  input: unknown,
+  label = "stage profile",
+): StageDisplayFacts {
+  const profile = (input && typeof input === "object" && !Array.isArray(input) ? input : {}) as {
+    display?: { logical_size?: unknown; raster_density?: unknown };
+  };
+  const logical = profile.display?.logical_size;
+  const density = profile.display?.raster_density;
+  if (
+    !Array.isArray(logical) ||
+    logical.length !== 2 ||
+    !positiveInteger(logical[0]) ||
+    !positiveInteger(logical[1]) ||
+    !positiveInteger(density) ||
+    density > 4
+  ) {
+    throw new Error(
+      `pocket-stage: ${label} has invalid display.logical_size/raster_density`,
+    );
+  }
+  return {
+    logicalSize: [logical[0], logical[1]],
+    rasterDensity: density,
+  };
+}
+
+/** Read only the display facts the launcher owns from an authored stage profile. */
+function displayFromProfile(profilePath: string): StageDisplayFacts {
+  return stageDisplayFacts(JSON.parse(readFileSync(profilePath, "utf8")), profilePath);
+}
+
+/** Resolve wrapper-owned defaults without leaking the model choice into Rust code. */
+export function widgetStageConfig(stage: WidgetStage): WidgetStageConfig {
+  if (stage === "ipod") {
+    return {
+      defaultApp: "ipod-nano-main",
+      profile: IPOD_PROFILE,
+      display: displayFromProfile(IPOD_PROFILE),
+    };
+  }
+  return { defaultApp: "hero-main", display: PSP_DISPLAY };
+}
+
+export function stagePlatformContracts(display: StageDisplayFacts) {
+  const [width, height] = display.logicalSize;
+  const density = display.rasterDensity;
+  return definePlatformContractRegistry(
+    POCKET_CAPABILITIES,
+    defineTargetRegistry({
+      [STAGE_TARGET_ID]: {
+        hostAbi: STAGE_HOST_ABI,
+        platform: "macos",
+        form: "embedded",
+        display: {
+          physicalViewport: [width * density, height * density],
+          logicalViewports: [[width, height]],
+          presentations: ["native", "integer-fit"],
+          rasterDensity: density,
+        },
+        capabilities: [
+          "input.analog.left",
+          "input.buttons",
+          "input.cursor",
+          "text.glyphs.baked",
+        ],
+      },
+    }),
+  );
+}
+
+/** Backwards-compatible PSP contracts for existing imports and callers. */
+export const STAGE_PLATFORM_CONTRACTS = stagePlatformContracts(PSP_DISPLAY);
+
+export function resolveStageBuildPlan(
+  input: unknown,
+  display: StageDisplayFacts = PSP_DISPLAY,
+): ResolvedBuildPlan {
   const resolution = validateAndResolveBuildPlan(
     input,
     { target: STAGE_TARGET_ID },
-    STAGE_PLATFORM_CONTRACTS,
+    stagePlatformContracts(display),
   );
   if (!resolution.ok) {
     throw new Error(
@@ -77,12 +154,28 @@ export function resolveStageBuildPlan(input: unknown): ResolvedBuildPlan {
 }
 
 export interface WidgetArgs {
+  stage: WidgetStage;
   app: string;
   proof: boolean;
   pass: string[];
 }
 
+const LAUNCHER_OWNED_RUNTIME_FLAGS = ["--app", "--js", "--pak", "--profile"] as const;
+
 export function validateWidgetArgs(args: WidgetArgs): void {
+  const runtimeOverride = args.pass.find((arg) =>
+    LAUNCHER_OWNED_RUNTIME_FLAGS.some(
+      (flag) => arg === flag || arg.startsWith(`${flag}=`),
+    ),
+  );
+  if (runtimeOverride) {
+    throw new Error(
+      `${runtimeOverride} is launcher-owned; choose the verified model package with --stage`,
+    );
+  }
+  if (args.proof && args.stage !== "psp") {
+    throw new Error("--proof uses the bundled PSP stage");
+  }
   if (args.proof && args.app !== "hero-main") {
     throw new Error("--proof uses the bundled hero-main acceptance app");
   }
@@ -101,26 +194,63 @@ export function validateWidgetArgs(args: WidgetArgs): void {
 export function parseWidgetArgs(rawArgs: readonly string[]): WidgetArgs {
   // `bun run widget -- ...` may leave the option separator in argv. It is a
   // wrapper delimiter, not an argument understood by the pocket-stage binary.
-  const args = rawArgs.filter((arg) => arg !== "--");
+  const input = rawArgs.filter((arg) => arg !== "--");
+  const args: string[] = [];
+  let stage: WidgetStage = "psp";
+  let sawStage = false;
+  for (let i = 0; i < input.length; i++) {
+    const arg = input[i];
+    if (arg === "--stage") {
+      if (sawStage) throw new Error("--stage may only be specified once");
+      const value = input[++i];
+      if (value !== "psp" && value !== "ipod") {
+        throw new Error("--stage wants psp or ipod");
+      }
+      stage = value;
+      sawStage = true;
+      continue;
+    }
+    if (arg.startsWith("--stage=")) {
+      if (sawStage) throw new Error("--stage may only be specified once");
+      const value = arg.slice("--stage=".length);
+      if (value !== "psp" && value !== "ipod") {
+        throw new Error("--stage wants psp or ipod");
+      }
+      stage = value;
+      sawStage = true;
+      continue;
+    }
+    args.push(arg);
+  }
+
+  const stageConfig = widgetStageConfig(stage);
   const first = args[0];
   const hasApp = first !== undefined && !first.startsWith("--");
-  const name = hasApp ? first : "hero";
+  const name = hasApp ? first : stageConfig.defaultApp;
   const rest = hasApp ? args.slice(1) : args;
 
   // Demo names resolve to their mounted -main entry (demos/<name>/main.tsx);
   // the bare name would build the side-effect-free component module.
   const app = name.includes("/") || name.endsWith("-main") ? name : `${name}-main`;
   return {
+    stage,
     app,
     proof: rest.includes("--proof"),
     pass: rest.filter((arg) => arg !== "--proof"),
   };
 }
 
+/** Keep concurrent stage/app admissions from overwriting one shared plan. */
+export function stagePlanPath(stage: WidgetStage, app: string): string {
+  const appSlug = app.replace(/[^A-Za-z0-9._-]/g, "_") || "app";
+  return resolvePath(root, ".pocket", STAGE_TARGET_ID, `${stage}-${appSlug}.plan.json`);
+}
+
 async function main(): Promise<void> {
   const parsed = parseWidgetArgs(process.argv.slice(2));
   validateWidgetArgs(parsed);
-  const { app, proof, pass } = parsed;
+  const { stage, app, proof, pass } = parsed;
+  const stageConfig = widgetStageConfig(stage);
 
   // Stock demos own their committed pocket.json. Legacy demos without one
   // inherit the root template through demoManifestFor; either way the build
@@ -128,8 +258,8 @@ async function main(): Promise<void> {
   // compiler input comes from the serialized plan.
   const demo = app.replace(/-main$/, "");
   const manifest = demoManifestFor(root, demo);
-  const plan = resolveStageBuildPlan(manifest);
-  const planPath = `${root}.pocket/${STAGE_TARGET_ID}/plan.json`;
+  const plan = resolveStageBuildPlan(manifest, stageConfig.display);
+  const planPath = stagePlanPath(stage, app);
   mkdirSync(resolvePath(planPath, ".."), { recursive: true });
   await Bun.write(planPath, JSON.stringify(plan, null, 2) + "\n");
 
@@ -149,7 +279,11 @@ async function main(): Promise<void> {
     );
     await $`open ${shot}`.nothrow();
   } else {
-    await $`${bin} --app ${plan.app.output} ${pass}`.env(env);
+    if (stageConfig.profile) {
+      await $`${bin} --app ${plan.app.output} --profile ${stageConfig.profile} ${pass}`.env(env);
+    } else {
+      await $`${bin} --app ${plan.app.output} ${pass}`.env(env);
+    }
   }
 }
 
