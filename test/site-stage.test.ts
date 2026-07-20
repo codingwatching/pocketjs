@@ -57,6 +57,14 @@ test("homepage declares the live settings stage and visible model attribution", 
   expect(home).not.toContain("Drag to orbit");
   expect(home).not.toContain("lp-stage__hint");
 
+  const homeCss = readFileSync(ROOT + "site/assets/home.css", "utf8");
+  const viewportCss = homeCss.match(/\.lp-stage__viewport \{([\s\S]*?)\n\}/)?.[1] ?? "";
+  expect(viewportCss).toContain("background: transparent");
+  expect(viewportCss).not.toContain("border:");
+  expect(viewportCss).not.toContain("box-shadow:");
+  expect(viewportCss).not.toContain("backdrop-filter:");
+  expect(homeCss).not.toContain(".lp-stage__viewport::before");
+
   const build = readFileSync(ROOT + "site/build.ts", "utf8");
   expect(build).toContain('["settings-main.js", "settings-main.pak"]');
   expect(build).toContain('copy(source, "stage/" + file)');
