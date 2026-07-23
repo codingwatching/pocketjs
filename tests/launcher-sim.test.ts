@@ -13,7 +13,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { BTN } from "../contracts/spec/spec.ts";
-import { scanRegistry } from "../tools/launcher.ts";
+import { scanDisplayRegistry, scanRegistry } from "../tools/launcher.ts";
 import { bootLauncherWorld, type LauncherWorld } from "../hosts/sim/launcher.ts";
 import { bootWorld, treeHasText } from "../hosts/sim/sim.ts";
 
@@ -21,7 +21,19 @@ const settle = async (w: LauncherWorld, frames: number) => {
   for (let i = 0; i < frames; i++) await w.step(0);
 };
 
+const stepForSeconds = async (
+  w: LauncherWorld,
+  mask: number,
+  hz: number,
+  seconds: number,
+) => {
+  const frames = hz * seconds;
+  expect(Number.isInteger(frames)).toBe(true);
+  for (let i = 0; i < frames; i++) await w.step(mask);
+};
+
 const registry = scanRegistry(new Set());
+const vitaRegistry = scanRegistry(new Set(), "vita");
 
 describe("launcher registry admission", () => {
   test("admits every PSP-compatible demo, excludes the rest", () => {
@@ -47,10 +59,19 @@ describe("launcher registry admission", () => {
     }
   });
 
+  test("Vita admits the same current demo set through its own target profile", () => {
+    expect(vitaRegistry.apps).toEqual(registry.apps);
+    expect(vitaRegistry.apps).toHaveLength(17);
+  });
+
   test("committed registry.generated.ts is fresh (re-run tools/launcher.ts scan)", async () => {
     const { REGISTRY } = await import("../apps/launcher/registry.generated.ts");
     expect(REGISTRY.map((r) => ({ output: r.output, id: r.id, title: r.title }))).toEqual(
-      registry.apps.map((a) => ({ output: a.output, id: a.id, title: a.title })),
+      scanDisplayRegistry(new Set()).apps.map((a) => ({
+        output: a.output,
+        id: a.id,
+        title: a.title,
+      })),
     );
   });
 });
@@ -103,24 +124,52 @@ describe("switch protocol (sim host policy)", () => {
     expect(w.resume()).toBe(chrome);
   }, 120_000);
 
-  test("holding RTRIGGER flows the deck at 18 cards/s", async () => {
+  test("holding RTRIGGER flows the deck at 10 cards/s", async () => {
     const w = await bootLauncherWorld({ hz: 60 });
     await settle(w, 20);
     const motionIndex = registry.apps.findIndex((app) => app.title.includes("Motion Lab"));
     expect(motionIndex).toBeGreaterThan(0);
-    // Move far enough to reach Motion Lab at 18 cards/s. Derive its index
+    // Move far enough to reach Motion Lab at 10 cards/s. Derive its index
     // from the registry so adding an earlier demo does not stale the test.
-    const heldFrames = Math.ceil((motionIndex * 60) / 18);
+    const heldFrames = Math.ceil((motionIndex * 60) / 10);
     for (let i = 0; i < heldFrames; i++) await w.step(BTN.RTRIGGER);
     await settle(w, 20);
     expect(treeHasText(w.getTree(), "Motion Lab")).toBe(true);
     expect(w.current()).toBe("launcher-main");
   }, 120_000);
 
+  for (const source of [
+    { name: "triggers", right: BTN.RTRIGGER, left: BTN.LTRIGGER },
+    { name: "d-pad", right: BTN.RIGHT, left: BTN.LEFT },
+  ]) {
+    test(`${source.name} flow distance is invariant at 60/30/20 Hz`, async () => {
+      const hzValues = [60, 30, 20] as const;
+      const holdSeconds = 0.5;
+      const distance = 10 * holdSeconds;
+      expect(Number.isInteger(distance)).toBe(true);
+      const destination = registry.apps[distance]!;
+
+      for (const hz of hzValues) {
+        const w = await bootLauncherWorld({ hz });
+        await stepForSeconds(w, 0, hz, 0.2);
+
+        await stepForSeconds(w, source.right, hz, holdSeconds);
+        await w.step(0); // release and settle to the exact destination
+        await stepForSeconds(w, 0, hz, 0.2);
+        expect(treeHasText(w.getTree(), destination.id)).toBe(true);
+
+        await stepForSeconds(w, source.left, hz, holdSeconds);
+        await w.step(0);
+        await stepForSeconds(w, 0, hz, 0.2);
+        expect(treeHasText(w.getTree(), registry.apps[0]!.id)).toBe(true);
+      }
+    }, 240_000);
+  }
+
   test("a single-frame trigger tap moves exactly one card, never snaps back", async () => {
     const w = await bootLauncherWorld({ hz: 60 });
     await settle(w, 20);
-    // One held frame advances pos by only 18/60 of a card — the release
+    // One held frame advances pos by only 10/60 of a card — the release
     // rule must still land it one card over, not round home.
     await w.step(BTN.RTRIGGER);
     await settle(w, 20);

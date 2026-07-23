@@ -9,17 +9,18 @@
 // the frozen frame it captured stretches under a dark scrim, so the deck
 // reads as an overlay over the interrupted app.
 //
-// Hosts without the app* ops (golden/web/vita): appTable() is null — the
+// Hosts without the app* ops (plain sim/golden): appTable() is null — the
 // deck still browses (build-time registry), launch is a visible no-op, and
 // the footer says why. That degraded mode is what plain goldens exercise.
 
 import { createEffect, createSignal, onMount, Show, untrack } from "solid-js";
 import { registerTexture } from "@pocketjs/framework";
 import { Image, Text, View, type NodeMirror } from "@pocketjs/framework/components";
-import { animate, jump } from "@pocketjs/framework/animation";
+import { animate, createJumpBatch } from "@pocketjs/framework/animation";
 import { BTN } from "@pocketjs/framework/input";
 import { onButtonPress, onFrame } from "@pocketjs/framework/lifecycle";
 import { appTable, frozenShot, launchApp } from "@pocketjs/framework/launcher";
+import { ticksPerFrame } from "@pocketjs/framework/clock";
 import { REGISTRY, type RegistryApp } from "./registry.generated.ts";
 
 /** Card box: 192×96 at left-[144] top-[58] (class literals below — the deck
@@ -33,6 +34,10 @@ const FRONT_Z = 46;
 /** Cards beyond this offset fade out entirely (the rail dissolves into the
  *  dark backdrop, and the GE never sees their quads — opacity 0 culls). */
 const RAIL_VISIBLE = 4;
+/** Browse velocity in cards per 1/60 s core tick. A host frame can advance
+ *  multiple ticks, so multiplying by ticksPerFrame() keeps the deck at
+ *  10 cards/s under every supported simulation rate. */
+const FLOW_PER_TICK = 10 / 60;
 
 interface CardTarget {
   translateX: number;
@@ -112,9 +117,6 @@ export default function Launcher() {
    *  a discrete step's previous target or a released scrub's fraction). */
   const applyTweens = (s: number) =>
     applyCards(s, (el, prop, v) => animate(el, prop, v, { dur: 140, easing: "out" }));
-  /** Scrub: place every card for a fractional position RIGHT NOW. */
-  const applyFlow = (p: number) => applyCards(p, (el, prop, v) => jump(el, prop, v));
-
   createEffect(() => {
     const s = sel();
     untrack(() => {
@@ -128,6 +130,47 @@ export default function Launcher() {
   const clampSel = (v: number) => Math.min(apps.length - 1, Math.max(0, v));
 
   onMount(() => {
+    // The held path changes 4 props × every card each virtual frame. Compile
+    // those writes once so native QuickJS hosts cross into Rust once per deck
+    // update instead of once per property; fallback hosts keep setProp parity.
+    const mountedCards = cardEls.map((el, i) => {
+      if (!el) throw new Error(`launcher card ${i} was not mounted`);
+      return el;
+    });
+    const flowBatch = createJumpBatch(
+      mountedCards.flatMap(
+        (el) =>
+          [
+            [el, "translateX"],
+            [el, "translateZ"],
+            [el, "rotateY"],
+            [el, "opacity"],
+          ] as const,
+      ),
+    );
+    const applyFlow = (p: number) => {
+      for (let i = 0; i < apps.length; i++) {
+        const offset = i - p;
+        const side = offset < 0 ? -1 : 1;
+        const depth = Math.abs(offset);
+        const near = Math.min(depth, 1);
+        const beyond = Math.max(0, depth - 1);
+        const base = i * 4;
+        flowBatch.set(base, side * (near * RAIL_FIRST + beyond * RAIL_STEP));
+        flowBatch.set(base + 1, FRONT_Z + (RAIL_Z - 2 - FRONT_Z) * near - beyond * 2);
+        flowBatch.set(base + 2, -side * near * RAIL_TILT);
+        flowBatch.set(
+          base + 3,
+          depth <= 1
+            ? 1 - 0.08 * depth
+            : depth <= RAIL_VISIBLE
+              ? 0.92
+              : Math.max(0, 0.92 * (1 - (depth - RAIL_VISIBLE))),
+        );
+      }
+      flowBatch.commit();
+    };
+
     // Browsing is ONE mechanism for all four inputs — the L/R triggers and
     // the d-pad directions are identical flow sources: while held, the deck
     // position advances a FRACTION of a card every frame and the cards are
@@ -136,7 +179,6 @@ export default function Launcher() {
     // below turns a quick press into exactly one step. The title tracks
     // round(pos) live, so what reads as centered is always what CIRCLE
     // launches.
-    const FLOW = 18 / 60; // cards per frame while a browse input is held
     let flowOrigin = 0; //  deck position where the current flow began
     onFrame((buttons: number) => {
       const left = (buttons & (BTN.LTRIGGER | BTN.LEFT)) !== 0;
@@ -145,7 +187,7 @@ export default function Launcher() {
       let speed = 0;
       if (left !== right) {
         dir = right ? 1 : -1;
-        speed = FLOW;
+        speed = FLOW_PER_TICK * ticksPerFrame();
       }
       if (dir !== 0) {
         if (pos === null) {

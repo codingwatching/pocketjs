@@ -20,12 +20,15 @@ interface Spec {
 
 interface BenchLine {
   app: string;
+  sim_hz: number;
   frames: number;
   window_start: number;
   window_n: number;
   eval_us: number;
   boot_to_eval_begin_us: number;
   boot_to_frame0_us: number;
+  avg_frame_interval_us: number;
+  max_frame_interval_us: number;
   avg_js_us: number;
   avg_jobs_us: number;
   avg_tick_us: number;
@@ -33,6 +36,7 @@ interface BenchLine {
   avg_render_us: number;
   avg_work_us: number;
   max_work_us: number;
+  stack_free_bytes: number;
   bundle_bytes: number;
   pak_bytes: number;
   arena_capacity_bytes: number;
@@ -174,6 +178,8 @@ const mdPath = `${outDir}/ppsspp-bench-${stamp}.md`;
 const METRICS = [
   "eval_us",
   "boot_to_frame0_us",
+  "avg_frame_interval_us",
+  "max_frame_interval_us",
   "avg_js_us",
   "avg_jobs_us",
   "avg_tick_us",
@@ -181,6 +187,7 @@ const METRICS = [
   "avg_render_us",
   "avg_work_us",
   "max_work_us",
+  "stack_free_bytes",
   "host_wall_ms",
   "bundle_bytes",
   "pak_bytes",
