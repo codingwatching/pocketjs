@@ -15,8 +15,8 @@ import { fileURLToPath } from "node:url";
 import { extractHostBuildInputs } from "../framework/src/manifest/host-build-inputs.ts";
 import {
   bakeClassicIPhoneArtwork,
-  IPHONE_CLASSIC_ICON_FILE,
-  IPHONE_CLASSIC_RETINA_ICON_FILE,
+  IPHONE_USER_ICON_FILE,
+  IPHONE_USER_RETINA_ICON_FILE,
 } from "./iphone-classic-icon.ts";
 import {
   IPODTOUCH4_DEPLOYMENT,
@@ -35,6 +35,10 @@ import {
   resolveIPodTouch4BuildPlan,
 } from "./ipodtouch4-profile.ts";
 
+import {
+  IPOD_INSTALLER, ipodAppReceiptPaths, parseInstalledIPodApp, shellQuote, userDeploymentScript,
+} from "./ipodtouch4-installation.ts";
+
 const REPOSITORY = fileURLToPath(new URL("..", import.meta.url));
 const DEVICE_TYPE = IPODTOUCH4_DEVICE.productType;
 const DEVICE_HARDWARE = IPODTOUCH4_DEVICE.hardwareModel;
@@ -49,7 +53,6 @@ const KEY_PATH =
 const KNOWN_HOSTS_PATH =
   process.env.POCKETJS_IPODTOUCH4_KNOWN_HOSTS ?? join(ipodtouch4CacheRoot(), "ssh/known_hosts");
 const DEPLOYMENT_TARGET = IPODTOUCH4_TOOLCHAIN.compiler.minimumVersion;
-const DEPLOYMENT_LEASE_SECONDS = 10 * 60;
 /** The app-side acceptance receipt: the Clear guest reports completed gesture
  *  interactions (complete / delete / create / reorder) under this name. */
 const ACTION_NAME = "clear_gesture";
@@ -57,8 +60,7 @@ const ACTION_NAME = "clear_gesture";
 /**
  * One installable app on the iPod. Two apps coexist on the device only if
  * every device-side name differs: the bundle, its executable, the URL scheme
- * SpringBoard launches it by, and the /private/var/tmp receipt files the
- * host writes (hosts/ipodtouch4/runtime.c takes those as -D overrides).
+ * SpringBoard launches it by, and the URL scheme. Runtime receipts live inside the app's own container.
  */
 export interface IPodTouch4App {
   readonly id: string;
@@ -78,7 +80,7 @@ export interface IPodTouch4App {
   readonly title: string;
   /** SpringBoard URL scheme; `<scheme>://launch` opens the app. */
   readonly scheme: string;
-  /** `/private/var/tmp/<slug>.status` and friends on the device. */
+  /** Artifact/receipt label retained for external app descriptors. */
   readonly receiptSlug: string;
   /** The `__reportAppAction` name `status --require-action` waits for. */
   readonly actionName: string;
@@ -186,10 +188,6 @@ const VIA_TUNNEL_PORT = 22224;
 const BUNDLE_NAME = APP.bundleName;
 const BUNDLE_ID = APP.bundleId;
 const EXECUTABLE = APP.executable;
-const INSTALL_PATH = `/Applications/${BUNDLE_NAME}`;
-const STATUS_PATH = `/private/var/tmp/${APP.receiptSlug}.status`;
-const FRAME_PATH = `/private/var/tmp/${APP.receiptSlug}.frame.rgba`;
-const CAPTURE_REQUEST_PATH = `/private/var/tmp/${APP.receiptSlug}.capture`;
 
 interface CommandResult {
   readonly exitCode: number;
@@ -377,20 +375,6 @@ function renderInfoPlist(): string {
     .replaceAll(`<string>${clear.scheme}</string>`, `<string>${APP.scheme}</string>`);
 }
 
-/** Device receipt paths for the wrapper (hosts/ipodtouch4/runtime.c defaults
- *  are Clear's; any other app overrides all five). */
-function receiptPathDefines(): string[] {
-  if (APP.id === "clear") return [];
-  const slug = `/private/var/tmp/${APP.receiptSlug}`;
-  return [
-    `-DPOCKET_ACCEPTANCE_PATH=\"${slug}.status\"`,
-    `-DPOCKET_ACCEPTANCE_TEMP=\"${slug}.status.new\"`,
-    `-DPOCKET_CAPTURE_REQUEST_PATH=\"${slug}.capture\"`,
-    `-DPOCKET_CAPTURE_OUTPUT_PATH=\"${slug}.frame.rgba\"`,
-    `-DPOCKET_PREFER_GL_PATH=\"${slug}.gles1\"`,
-  ];
-}
-
 function bundleDirectory(): string {
   return join(REPOSITORY, `dist/ipodtouch4/${BUNDLE_NAME}`);
 }
@@ -404,10 +388,6 @@ function readReceipt(): BuildReceipt {
     throw new Error("pocket ipodtouch4: no built bundle; run `bun ipodtouch4 build`");
   }
   return JSON.parse(readFileSync(receiptPath(), "utf8")) as BuildReceipt;
-}
-
-function shellQuote(word: string): string {
-  return /^[A-Za-z0-9_./:=+-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`;
 }
 
 /** Run a libimobiledevice command where the device is: here, or on VIA. */
@@ -565,7 +545,7 @@ async function withTunnel<T>(
 async function doctor(): Promise<void> {
   let ok = true;
   const usbTools = ["idevice_id", "ideviceinfo", "iproxy"];
-  const required = ["bun", "rustup", "xcrun", "ldid", ...(VIA ? [] : usbTools), "ssh", "scp", "tar", "unzip", "hdiutil"];
+  const required = ["bun", "rustup", "xcrun", "ldid", ...(VIA ? [] : usbTools), "ssh", "scp", "zip", "unzip", "hdiutil"];
   for (const name of required) {
     const path = commandPath(name);
     ok = check(name, path !== undefined, path ?? "not found") && ok;
@@ -599,11 +579,16 @@ async function doctor(): Promise<void> {
     );
     const remoteInfo = mustRemote(
       port,
-      "set -eu; test \"$(uname -m)\" = iPod4,1; test -x /usr/bin/ldid; test -x /usr/bin/uicache; test -x /usr/bin/uiopen; test -w /Applications; " +
+      "set -eu; test \"$(uname -m)\" = iPod4,1; test -x /usr/bin/ldid; test -x /usr/bin/uicache; test -x /usr/bin/uiopen; test -w /var/mobile/Applications; " +
         "/usr/sbin/sshd -T | grep -q '^pubkeyauthentication yes$'; " +
         "/usr/sbin/sshd -T | grep -q '^passwordauthentication no$'; echo jailbreak-key-only-usb-ready",
     );
     console.log(`[ok] jailbreak transport: ${remoteInfo}`);
+    const appSync = remote(port, "dpkg-query -W -f='${Status}' ai.akemi.appsyncunified");
+    ok = check("self-signed User app installation (AppSync Unified)",
+      appSync.exitCode === 0 && appSync.stdout.trim() === "install ok installed",
+      "install AppSync Unified from its upstream release, then reboot once") && ok;
+    if (!ok) process.exitCode = 1;
   });
 }
 
@@ -703,14 +688,13 @@ async function build(): Promise<void> {
   mkdirSync(bundle, { recursive: true });
   writeFileSync(join(bundle, "Info.plist"), renderInfoPlist());
   cpSync(join(REPOSITORY, "hosts/ipodtouch4/PkgInfo"), join(bundle, "PkgInfo"));
-  await bakeClassicIPhoneArtwork(bundle);
+  await bakeClassicIPhoneArtwork(bundle, "User");
 
   const firstParty = [
     ...warnings,
     `-DPOCKET_LOGICAL_WIDTH=${inputs.viewport.logical[0]}`,
     `-DPOCKET_LOGICAL_HEIGHT=${inputs.viewport.logical[1]}`,
     `-DPOCKET_RASTER_DENSITY=${inputs.viewport.rasterDensity}`,
-    ...receiptPathDefines(),
     ...(APP.keepAwake ? ["-DPOCKET_KEEP_AWAKE"] : []),
     // The wrapper reports the transport's state in the acceptance record,
     // so it needs the same switch as the guest runtime.
@@ -775,8 +759,8 @@ async function build(): Promise<void> {
     { label: "native/compat.o", path: compatObject },
     ...quickJsObjects.map((path) => ({ label: `native/${path.slice(nativeBuild.length + 1)}`, path })),
     { label: "native/libpocketjs_symbian_core.a", path: rustLibrary },
-    { label: `bundle/${IPHONE_CLASSIC_ICON_FILE}`, path: join(bundle, IPHONE_CLASSIC_ICON_FILE) },
-    { label: `bundle/${IPHONE_CLASSIC_RETINA_ICON_FILE}`, path: join(bundle, IPHONE_CLASSIC_RETINA_ICON_FILE) },
+    { label: `bundle/${IPHONE_USER_ICON_FILE}`, path: join(bundle, IPHONE_USER_ICON_FILE) },
+    { label: `bundle/${IPHONE_USER_RETINA_ICON_FILE}`, path: join(bundle, IPHONE_USER_RETINA_ICON_FILE) },
     { label: "bundle/Default@2x.png", path: join(bundle, "Default@2x.png") },
     { label: "bundle/Default-568h@2x.png", path: join(bundle, "Default-568h@2x.png") },
   ]);
@@ -819,8 +803,8 @@ async function build(): Promise<void> {
     EXECUTABLE,
     "Info.plist",
     "PkgInfo",
-    IPHONE_CLASSIC_ICON_FILE,
-    IPHONE_CLASSIC_RETINA_ICON_FILE,
+    IPHONE_USER_ICON_FILE,
+    IPHONE_USER_RETINA_ICON_FILE,
     "Default@2x.png",
     "Default-568h@2x.png",
   ];
@@ -841,276 +825,114 @@ async function build(): Promise<void> {
   };
   writeFileSync(receiptPath(), JSON.stringify(receipt, null, 2) + "\n");
 
+  // The USB-side bridge uses the same pinned ARMv7 toolchain, outside the app.
+  const installerObject = join(nativeBuild, "installer.o");
+  compile(join(REPOSITORY, "hosts/ipodtouch4/installer.c"), installerObject,
+    [...warnings, "-Wno-cast-function-type-mismatch"]);
+  const installer = join(REPOSITORY, "dist/ipodtouch4/installer");
+  mustRun(linker, ["-arch", "armv7", "-syslibroot", sysroot, "-L/usr/lib",
+    "-F/System/Library/Frameworks", "-iphoneos_version_min", DEPLOYMENT_TARGET,
+    "-no_pie", "-no_uuid", "-no_function_starts", "-no_data_in_code_info",
+    "-no_source_version", "-no_compact_unwind", "-no_adhoc_codesign", "-no_encryption",
+    "-e", "start", "-o", installer, join(nativeBuild, "csu-start.o"),
+    join(nativeBuild, "csu-dyld-glue.o"), crtGlobalsObject, installerObject,
+    "-framework", "Foundation", "-lobjc", "-lSystem", "-lgcc_s.1"]);
+  chmodSync(installer, 0o755);
+  mustRun("ldid", [`-S${join(REPOSITORY, "hosts/ipodtouch4/installer-entitlements.plist")}`, installer]);
+
+  const packageRoot = join(nativeBuild, "package");
+  const payload = join(packageRoot, "Payload", BUNDLE_NAME);
+  mkdirSync(dirname(payload), { recursive: true });
+  cpSync(bundle, payload, { recursive: true });
+  rmSync(ipaPath(), { force: true });
+  mustRun("zip", ["-q", "-r", ipaPath(), "Payload"], { cwd: packageRoot });
+
   console.log(`built ${bundle}`);
   console.log(fileInfo);
   console.log(`build_id=${buildId}`);
 }
 
-interface DeploymentPaths {
-  readonly archive: string;
-  readonly unpack: string;
-  readonly stage: string;
-  readonly backup: string;
-  readonly lock: string;
+function ipaPath(): string {
+  return join(REPOSITORY, `dist/ipodtouch4/${BUNDLE_NAME.replace(/\.app$/, ".ipa")}`);
 }
 
-export function ipodtouch4DeploymentPaths(transactionId: string): DeploymentPaths {
-  if (!/^[0-9a-f]{24}$/.test(transactionId)) {
-    throw new Error("pocket ipodtouch4: deployment transaction id must be 24 lowercase hex digits");
-  }
-  return {
-    archive: `/private/var/tmp/${APP.receiptSlug}-${transactionId}.app.tar`,
-    unpack: `/Applications/.${BUNDLE_NAME}.pocketjs-unpack-${transactionId}`,
-    stage: `/Applications/.${BUNDLE_NAME}.pocketjs-stage-${transactionId}`,
-    backup: `/Applications/.${BUNDLE_NAME}.pocketjs-backup-${transactionId}`,
-    lock: `/private/var/tmp/${APP.receiptSlug}.deploy.lock`,
-  };
-}
-
-function assertDeploymentLease(nowEpochSeconds: number, expiresEpochSeconds: number): void {
-  if (
-    !Number.isSafeInteger(nowEpochSeconds) ||
-    !Number.isSafeInteger(expiresEpochSeconds) ||
-    nowEpochSeconds < 0 ||
-    expiresEpochSeconds <= nowEpochSeconds
-  ) {
-    throw new Error("pocket ipodtouch4: deployment lease must be a future integer epoch");
-  }
-}
-
-export function deploymentAcquireLockCommand(
-  transactionId: string,
-  paths: DeploymentPaths,
-  nowEpochSeconds: number,
-  expiresEpochSeconds: number,
-): string {
-  if (!/^[0-9a-f]{24}$/.test(transactionId)) {
-    throw new Error("pocket ipodtouch4: deployment transaction id must be 24 lowercase hex digits");
-  }
-  assertDeploymentLease(nowEpochSeconds, expiresEpochSeconds);
-  return (
-    "set -eu; " +
-    `lock=${paths.lock}; tx=${transactionId}; now=${nowEpochSeconds}; expires=${expiresEpochSeconds}; ` +
-    `dest=${INSTALL_PATH}; ` +
-    "if ! mkdir \"$lock\" 2>/dev/null; then " +
-    "owner=$(cat \"$lock/owner\" 2>/dev/null || true); " +
-    "lease=$(cat \"$lock/expires\" 2>/dev/null || true); " +
-    "case \"$lease\" in ''|*[!0-9]*) sleep 1; owner=$(cat \"$lock/owner\" 2>/dev/null || true); " +
-    "lease=$(cat \"$lock/expires\" 2>/dev/null || true) ;; esac; active=0; " +
-    "case \"$lease\" in ''|*[!0-9]*) ;; *) [ \"$lease\" -gt \"$now\" ] && active=1 || true ;; esac; " +
-    "if [ \"$active\" -eq 1 ]; then echo \"deployment busy (owner ${owner:-unknown}, lease $lease)\" >&2; exit 73; fi; " +
-    "reclaim=$lock/reclaim; " +
-    "if ! mkdir \"$reclaim\" 2>/dev/null; then " +
-    "reclaim_lease=$(cat \"$reclaim/expires\" 2>/dev/null || true); " +
-    "case \"$reclaim_lease\" in ''|*[!0-9]*) sleep 1; " +
-    "reclaim_lease=$(cat \"$reclaim/expires\" 2>/dev/null || true) ;; esac; reclaim_active=0; " +
-    "case \"$reclaim_lease\" in ''|*[!0-9]*) ;; *) [ \"$reclaim_lease\" -gt \"$now\" ] && reclaim_active=1 || true ;; esac; " +
-    "if [ \"$reclaim_active\" -eq 1 ]; then echo \"deployment recovery busy\" >&2; exit 73; fi; " +
-    "expired_reclaim=$lock/reclaim-expired-$tx; " +
-    "if ! mv \"$reclaim\" \"$expired_reclaim\" 2>/dev/null; then echo \"deployment recovery busy\" >&2; exit 73; fi; " +
-    "if ! mkdir \"$reclaim\" 2>/dev/null; then rm -rf \"$expired_reclaim\"; echo \"deployment recovery busy\" >&2; exit 73; fi; " +
-    "rm -rf \"$expired_reclaim\"; fi; " +
-    "printf '%s\\n' \"$tx\" > \"$reclaim/owner\"; printf '%s\\n' \"$expires\" > \"$reclaim/expires\"; " +
-    "trap 'status=$?; set +e; test -f \"$reclaim/owner\" && test \"$(cat \"$reclaim/owner\")\" = \"$tx\" && rm -rf \"$reclaim\"; exit \"$status\"' EXIT HUP INT TERM; " +
-    "lease=$(cat \"$lock/expires\" 2>/dev/null || true); active=0; " +
-    "case \"$lease\" in ''|*[!0-9]*) ;; *) [ \"$lease\" -gt \"$now\" ] && active=1 || true ;; esac; " +
-    "if [ \"$active\" -eq 1 ]; then echo \"deployment busy (lease $lease)\" >&2; exit 73; fi; " +
-    "valid_owner=0; case \"$owner\" in " +
-    "????????????????????????) case \"$owner\" in *[!0-9a-f]*) ;; *) valid_owner=1 ;; esac ;; esac; " +
-    "if [ \"$valid_owner\" -eq 1 ]; then " +
-    `backup=/Applications/.${BUNDLE_NAME}.pocketjs-backup-\${owner}; ` +
-    `stage=/Applications/.${BUNDLE_NAME}.pocketjs-stage-\${owner}; ` +
-    `unpack=/Applications/.${BUNDLE_NAME}.pocketjs-unpack-\${owner}; ` +
-    `archive=/private/var/tmp/${APP.receiptSlug}-\${owner}.app.tar; ` +
-    "phase=$(cat \"$lock/phase\" 2>/dev/null || true); origin=$(cat \"$lock/origin\" 2>/dev/null || true); " +
-    "if [ \"$phase\" = committed ]; then rm -rf \"$backup\"; " +
-    "elif [ -e \"$backup\" ]; then rm -rf \"$dest\"; mv \"$backup\" \"$dest\"; " +
-    `chown -R root:wheel "$dest"; chmod 755 "$dest/${EXECUTABLE}"; ` +
-    "elif [ \"$origin\" = empty ]; then rm -rf \"$dest\"; fi; " +
-    "rm -rf \"$stage\" \"$unpack\" \"$archive\"; fi; " +
-    "rm -f \"$lock/phase\" \"$lock/origin\"; " +
-    "printf '%s\\n' \"$tx\" > \"$lock/owner\"; printf '%s\\n' \"$expires\" > \"$lock/expires\"; " +
-    "rm -rf \"$reclaim\"; trap - EXIT HUP INT TERM; " +
-    "else printf '%s\\n' \"$tx\" > \"$lock/owner\"; printf '%s\\n' \"$expires\" > \"$lock/expires\"; fi"
-  );
-}
-
-export function deploymentRenewLockCommand(
-  transactionId: string,
-  paths: DeploymentPaths,
-  expiresEpochSeconds: number,
-): string {
-  if (!/^[0-9a-f]{24}$/.test(transactionId) || !Number.isSafeInteger(expiresEpochSeconds)) {
-    throw new Error("pocket ipodtouch4: invalid deployment lease renewal");
-  }
-  return (
-    "set -eu; " +
-    `lock=${paths.lock}; tx=${transactionId}; expires=${expiresEpochSeconds}; ` +
-    "test -f \"$lock/owner\"; test \"$(cat \"$lock/owner\")\" = \"$tx\"; " +
-    "printf '%s\\n' \"$expires\" > \"$lock/expires\""
-  );
-}
-
-export function deploymentInstallCommand(transactionId: string, paths: DeploymentPaths): string {
-  return (
-    "set -eu; " +
-    `dest=${INSTALL_PATH}; stage=${paths.stage}; backup=${paths.backup}; lock=${paths.lock}; ` +
-    "had_previous=0; installed_new=0; " +
-    "rollback() { status=$?; trap - EXIT HUP INT TERM; set +e; " +
-    "if [ \"$installed_new\" -eq 1 ]; then rm -rf \"$dest\"; fi; " +
-    "if [ \"$had_previous\" -eq 1 ] && [ -e \"$backup\" ]; then " +
-    "mv \"$backup\" \"$dest\"; " +
-    `chown -R root:wheel "$dest"; chmod 755 "$dest/${EXECUTABLE}"; ` +
-    "/bin/su mobile -c /usr/bin/uicache; fi; exit \"$status\"; }; " +
-    "trap rollback EXIT HUP INT TERM; " +
-    "printf '%s\\n' prepared > \"$lock/phase\"; " +
-    "if [ -e \"$dest\" ]; then printf '%s\\n' previous > \"$lock/origin\"; " +
-    "mv \"$dest\" \"$backup\"; had_previous=1; " +
-    "else printf '%s\\n' empty > \"$lock/origin\"; fi; " +
-    "mv \"$stage\" \"$dest\"; installed_new=1; printf '%s\\n' installed > \"$lock/phase\"; " +
-    "chown -R root:wheel \"$dest\"; " +
-    `chmod 755 "$dest/${EXECUTABLE}"; test -x "$dest/${EXECUTABLE}"; ` +
-    `/usr/bin/ldid -e "$dest/${EXECUTABLE}" >/dev/null; ` +
-    "/bin/su mobile -c /usr/bin/uicache; printf '%s\\n' committed > \"$lock/phase\"; " +
-    "trap - EXIT HUP INT TERM; " +
-    "rm -rf \"$backup\"; " +
-    `echo installed-${transactionId}`
-  );
+function copyToDevice(port: number, source: string, destination: string): void {
+  mustRun("scp", [...viaArgs(), "-O", "-i", KEY_PATH, "-P", String(port), "-o", "BatchMode=yes",
+    "-o", `HostKeyAlias=[127.0.0.1]:${LOCAL_PORT}`, "-o", "StrictHostKeyChecking=yes",
+    "-o", `UserKnownHostsFile=${KNOWN_HOSTS_PATH}`, "-o", "HostKeyAlgorithms=+ssh-rsa",
+    "-o", "PubkeyAcceptedAlgorithms=+ssh-rsa", source, `root@127.0.0.1:${destination}`]);
 }
 
 async function deploy(): Promise<void> {
   await build();
   const receipt = readReceipt();
   const transactionId = randomBytes(12).toString("hex");
-  const paths = ipodtouch4DeploymentPaths(transactionId);
-  const archive = join(REPOSITORY, `.pocket-build/ipodtouch4/${BUNDLE_NAME}-${transactionId}.tar`);
-  mkdirSync(dirname(archive), { recursive: true });
-  mustRun(
-    "tar",
-    ["-cf", archive, "-C", dirname(bundleDirectory()), BUNDLE_NAME],
-    { env: { ...process.env, COPYFILE_DISABLE: "1" } },
-  );
-
+  const remoteRoot = `/private/var/tmp/pocketjs-user-${transactionId}`;
+  const archive = `${remoteRoot}/app.ipa`;
+  const script = join(REPOSITORY, `.pocket-build/ipodtouch4/deploy-${transactionId}.sh`);
+  writeFileSync(script, userDeploymentScript({
+    bundleId: BUNDLE_ID, bundleName: BUNDLE_NAME, executable: EXECUTABLE, archive, archiveHash: sha256(ipaPath()),
+    files: { ...receipt.files, "build-receipt.json": sha256(receiptPath()) },
+  }));
   try {
-    await withTunnel(async (port) => {
-      mustRun("scp", [
-        ...viaArgs(),
-        "-O",
-        "-i",
-        KEY_PATH,
-        "-P",
-        String(port),
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        `HostKeyAlias=[127.0.0.1]:${LOCAL_PORT}`,
-        "-o",
-        "StrictHostKeyChecking=yes",
-        "-o",
-        `UserKnownHostsFile=${KNOWN_HOSTS_PATH}`,
-        "-o",
-        "HostKeyAlgorithms=+ssh-rsa",
-        "-o",
-        "PubkeyAcceptedAlgorithms=+ssh-rsa",
-        archive,
-        `root@127.0.0.1:${paths.archive}`,
-      ]);
-
-      let lockHeld = false;
-      let operationError: unknown;
+    await withTunnel((port) => {
+      mustRemote(port, `set -eu; mkdir -p /var/root/Library/PocketJS; chmod 700 /var/root/Library/PocketJS; mkdir -m 755 ${remoteRoot}`);
       try {
-        const acquireTime = Math.floor(Date.now() / 1000);
-        mustRemote(port, deploymentAcquireLockCommand(
-          transactionId,
-          paths,
-          acquireTime,
-          acquireTime + DEPLOYMENT_LEASE_SECONDS,
-        ));
-        lockHeld = true;
-        mustRemote(
-          port,
-          "set -eu; " +
-            `stage=${paths.stage}; unpack=${paths.unpack}; archive=${paths.archive}; ` +
-            "rm -rf \"$stage\" \"$unpack\"; mkdir -p \"$unpack\"; " +
-            "tar -xf \"$archive\" -C \"$unpack\"; " +
-            `test -d "$unpack/${BUNDLE_NAME}"; ` +
-            `mv "$unpack/${BUNDLE_NAME}" "$stage"; rmdir "$unpack"; ` +
-            `test -x "$stage/${EXECUTABLE}"; ` +
-            `/usr/bin/ldid -e "$stage/${EXECUTABLE}" >/dev/null`,
-        );
-        mustRemote(port, deploymentRenewLockCommand(
-          transactionId,
-          paths,
-          Math.floor(Date.now() / 1000) + DEPLOYMENT_LEASE_SECONDS,
-        ));
-        const expectedFiles = { ...receipt.files, "build-receipt.json": sha256(receiptPath()) };
-        const fileNames = Object.keys(expectedFiles);
-        if (fileNames.some((name) => !/^[A-Za-z0-9@._-]+$/.test(name))) {
-          throw new Error("pocket ipodtouch4: receipt contains an unsafe bundle file name");
-        }
-        const hashes = mustRemote(port,
-          `cd ${paths.stage} && for file in ${fileNames.join(" ")}; do /usr/bin/openssl dgst -sha256 \"$file\"; done`);
-        const remoteFiles = new Map(
-          hashes.split("\n").map((line) => {
-            const match = line.match(/^SHA256\((.+)\)= ([0-9a-f]{64})$/);
-            if (!match) throw new Error(`pocket ipodtouch4: malformed device hash line: ${line}`);
-            return [match[1], match[2]];
-          }),
-        );
-        for (const [name, expected] of Object.entries(expectedFiles)) {
-          if (remoteFiles.get(name) !== expected) {
-            throw new Error(`pocket ipodtouch4: device readback mismatch for ${name}`);
-          }
-        }
-        mustRemote(port, deploymentRenewLockCommand(
-          transactionId,
-          paths,
-          Math.floor(Date.now() / 1000) + DEPLOYMENT_LEASE_SECONDS,
-        ));
-        mustRemote(port, deploymentInstallCommand(transactionId, paths));
-      } catch (error) {
-        operationError = error;
-        throw error;
+        copyToDevice(port, join(REPOSITORY, "dist/ipodtouch4/installer"), `${remoteRoot}/installer`);
+        copyToDevice(port, ipaPath(), archive);
+        copyToDevice(port, script, `${remoteRoot}/deploy.sh`);
+        const helperHash = sha256(join(REPOSITORY, "dist/ipodtouch4/installer"));
+        mustRemote(port, `set -eu; test "$(/usr/bin/openssl dgst -sha256 ${remoteRoot}/installer)" = ` +
+          shellQuote(`SHA256(${remoteRoot}/installer)= ${helperHash}`) +
+          `; chmod 700 ${remoteRoot}/installer; mv ${remoteRoot}/installer ${IPOD_INSTALLER}; ` +
+          `${IPOD_INSTALLER} lock ${shellQuote(BUNDLE_ID)} ${remoteRoot}/deploy.sh`);
+        verifyInstalledReceipt(port, receipt);
       } finally {
-        const cleanup = remote(
-          port,
-          "set +e; " +
-            `rm -rf ${paths.stage} ${paths.unpack} ${paths.archive}; ` +
-            (lockHeld
-              ? `lock=${paths.lock}; tx=${transactionId}; ` +
-                "if [ -f \"$lock/owner\" ] && [ \"$(cat \"$lock/owner\")\" = \"$tx\" ]; then rm -rf \"$lock\"; fi"
-              : "true"),
-        );
-        if (cleanup.exitCode !== 0 && operationError === undefined) {
-          throw new Error(
-            `pocket ipodtouch4: deployment cleanup failed (${cleanup.exitCode}):\n${cleanup.stderr.trim()}`,
-          );
-        }
+        // Migration backups are durable and belong to the next locked recovery.
+        remote(port, `rm -rf ${remoteRoot}`);
       }
     });
-  } finally {
-    rmSync(archive, { force: true });
-  }
-  console.log(`deployed ${receipt.buildId} to ${INSTALL_PATH} with byte-exact readback`);
+  } finally { rmSync(script, { force: true }); }
+  console.log(`deployed User app ${receipt.buildId} with byte-exact readback`);
 }
 
-function verifyInstalledReceipt(port: number, receipt: BuildReceipt): void {
-  const installed = mustRemote(port, `cat ${INSTALL_PATH}/build-receipt.json`);
+function installedApp(port: number) {
+  const raw = mustRemote(port, `${IPOD_INSTALLER} lookup ${shellQuote(BUNDLE_ID)}`);
+  return parseInstalledIPodApp(raw, BUNDLE_ID, BUNDLE_NAME);
+}
+
+async function uninstall(): Promise<void> {
+  await withTunnel((port) => {
+    const app = installedApp(port);
+    // Refuse removal of a legacy System app; migration must establish a User container.
+    mustRemote(port, `${IPOD_INSTALLER} uninstall ${shellQuote(BUNDLE_ID)}`);
+    const remaining = mustRemote(port, `${IPOD_INSTALLER} lookup ${shellQuote(BUNDLE_ID)}`);
+    if (JSON.parse(remaining) !== null || remote(port, `test ! -e ${shellQuote(app.Container)}`).exitCode !== 0) {
+      throw new Error("pocket ipodtouch4: uninstall did not remove the application and its container");
+    }
+  });
+  console.log(`uninstalled ${BUNDLE_ID} and its data container`);
+}
+
+function verifyInstalledReceipt(port: number, receipt: BuildReceipt) {
+  const app = installedApp(port);
+  const installed = mustRemote(port, `cat ${shellQuote(app.Path + "/build-receipt.json")}`);
   const installedReceipt = JSON.parse(installed) as BuildReceipt;
   if (!buildReceiptsMatch(installedReceipt, receipt)) {
     throw new Error(
       `pocket ipodtouch4: installed receipt does not match local build ${receipt.buildId}`,
     );
   }
+  return ipodAppReceiptPaths(app);
 }
 
 async function launch(): Promise<void> {
   const receipt = readReceipt();
   await withTunnel(async (port) => {
-    verifyInstalledReceipt(port, receipt);
+    const paths = verifyInstalledReceipt(port, receipt);
     mustRemote(
       port,
-      `killall ${EXECUTABLE} 2>/dev/null || true; rm -f ${STATUS_PATH} ${FRAME_PATH}; ` +
+      `killall ${EXECUTABLE} 2>/dev/null || true; rm -f ${paths.status} ${paths.frame}; ` +
         `/bin/su mobile -c '/usr/bin/uiopen ${APP.scheme}://launch'; echo launch-requested`,
     );
     await Bun.sleep(2500);
@@ -1118,8 +940,8 @@ async function launch(): Promise<void> {
   await status(false);
 }
 
-async function readDeviceStatus(port: number): Promise<DeviceStatus> {
-  const raw = mustRemote(port, `cat ${STATUS_PATH}`);
+async function readDeviceStatus(port: number, paths: ReturnType<typeof ipodAppReceiptPaths>): Promise<DeviceStatus> {
+  const raw = mustRemote(port, `cat ${paths.status}`);
   const values = new Map<string, string>();
   for (const line of raw.split("\n")) {
     const separator = line.indexOf("=");
@@ -1154,10 +976,10 @@ async function readDeviceStatus(port: number): Promise<DeviceStatus> {
 async function status(requireAction: boolean): Promise<void> {
   const receipt = readReceipt();
   await withTunnel(async (port) => {
-    verifyInstalledReceipt(port, receipt);
-    const first = await readDeviceStatus(port);
+    const paths = verifyInstalledReceipt(port, receipt);
+    const first = await readDeviceStatus(port, paths);
     await Bun.sleep(1200);
-    const current = await readDeviceStatus(port);
+    const current = await readDeviceStatus(port, paths);
     if (current.schema !== 2) {
       throw new Error("pocket ipodtouch4: malformed device status identity");
     }
@@ -1209,8 +1031,9 @@ async function capture(): Promise<void> {
   let height = 0;
   const drawable = expectedDrawable(readReceipt());
   await withTunnel(async (port) => {
+    const paths = verifyInstalledReceipt(port, readReceipt());
     try {
-      const status = await readDeviceStatus(port);
+      const status = await readDeviceStatus(port, paths);
       renderer = status.renderer;
       width = status.drawable_width;
       height = status.drawable_height;
@@ -1224,21 +1047,21 @@ async function capture(): Promise<void> {
       }
       mustRemote(
         port,
-        `rm -f ${FRAME_PATH} ${CAPTURE_REQUEST_PATH}; ` +
-          `/bin/su mobile -c 'touch ${CAPTURE_REQUEST_PATH}'`,
+        `rm -f ${paths.frame} ${paths.capture}; ` +
+          `/bin/su mobile -c 'touch ${paths.capture}'`,
       );
       for (let attempt = 0; attempt < 30; attempt += 1) {
         await Bun.sleep(200);
-        if (remote(port, `test -s ${FRAME_PATH}`).exitCode === 0) break;
+        if (remote(port, `test -s ${paths.frame}`).exitCode === 0) break;
       }
-      mustRemote(port, `test -s ${FRAME_PATH}`);
-      const frame = runBinary("ssh", sshArgs(port, `cat ${FRAME_PATH}`));
+      mustRemote(port, `test -s ${paths.frame}`);
+      const frame = runBinary("ssh", sshArgs(port, `cat ${paths.frame}`));
       if (frame.exitCode !== 0) {
         throw new Error(`pocket ipodtouch4: device frame download failed (${frame.exitCode}):\n${frame.stderr.trim()}`);
       }
       writeFileSync(rawDestination, frame.stdout);
     } finally {
-      remote(port, `rm -f ${CAPTURE_REQUEST_PATH} ${FRAME_PATH}`);
+      remote(port, `rm -f ${paths.capture} ${paths.frame}`);
     }
   });
   const raw = readFileSync(rawDestination);
@@ -1283,6 +1106,7 @@ function usage(): void {
   bun ipodtouch4 prepare-sysroot
   bun ipodtouch4 build
   bun ipodtouch4 deploy
+  bun ipodtouch4 uninstall
   bun ipodtouch4 launch
   bun ipodtouch4 status [--require-action]
   bun ipodtouch4 capture
@@ -1306,6 +1130,9 @@ export async function main(args: readonly string[] = Bun.argv.slice(2)): Promise
       break;
     case "deploy":
       await deploy();
+      break;
+    case "uninstall":
+      await uninstall();
       break;
     case "launch":
       await launch();
