@@ -230,6 +230,57 @@ Two build-time facts are load-bearing:
   thread 32 KiB, and QuickJS's interpreter plus the guest's render pass recurse
   far past that.
 
+## The svc companion channel
+
+`src/svcwire.c` implements spec ops 30..32 (`svcOpen`/`svcPoll`/`svcSend`)
+over the **SVC WIRE (PKNT) protocol** (`contracts/spec/spec.ts`,
+`engine/core/src/wire.rs`) — the transport the Vita host speaks in
+`hosts/vita/src/net.rs`, reduced to the devserver.c shape: non-blocking
+sockets pumped once per frame by the main thread, no threads. The device
+listens for the companion's once-a-second UDP beacon on port 8621 (or reads a
+`sdmc:/pocketjs/host.txt` override, one line `a.b.c.d[:port]`, for
+broadcast-hostile networks — a failed override alternates back to beacon
+discovery), connects to the datagram's source address at its advertised TCP
+port, and exchanges `ctrl` JSON-line frames. `ping` is answered with `pong`;
+`file`/`stream` frame types are skipped by length and left unimplemented.
+
+**The dev transport, companion transport and offload worker share one SOC
+instance** through `src/soc.c`. An atomic state selects one initializer; a
+competing caller returns without waiting. Failed initialization retries after
+a three-second cooldown. Offload initializes and retries on its worker. The
+process releases SOC after every transport stops and the worker is joined.
+The companion channel works with or without a `dev.key`. Capture builds compile the whole
+transport to inert stubs (`svcOpen` reports false forever), which keeps
+golden runs deterministic — the Vita3K contract. A guest switch clears the
+guest-visible queues but keeps the TCP connection; a different app id in
+`svcOpen` restarts discovery.
+
+[Pocket Term](https://github.com/pocket-stack/pocket-term) is the reference
+consumer, in its own repository: a terminal multiplexer whose Mac companion
+owns the PTYs and one authoritative libghostty core per session and streams
+cell-grid snapshots + ordered row diffs to the device replica.
+
+**The transport outlives the guest.** A hot-pushed `.pocket` restarts
+QuickJS, not this host, so the TCP connection and the companion's view of it
+both survive. A guest therefore re-introduces itself on its first frame
+(`svcOpen` rising edge → a fresh `hello`), and a companion must treat that
+hello as "this replica has loaded nothing" rather than as a new socket — the
+Pocket Term companion re-sends its runtime font atlas there, without which
+the new guest draws blanks where the old one drew CJK.
+
+## ZL and ZR
+
+The New 3DS has four shoulder buttons and the PSP had two, so `BTN.ZL` /
+`BTN.ZR` (`contracts/spec/spec.ts`) take two bits the PSP never assigned.
+Hosts without these buttons leave the bits unset.
+
+They do not arrive on the ordinary HID pad. ZL, ZR and the C-stick live in
+**ir:rst**'s shared memory (libctru `irrst.h`), so `src/input.c` brings that
+service up in `input_init()` after checking the model. `input_buttons()`
+scans the shared memory and ORs `irrstKeysHeld()` into the held mask. An Old
+3DS skips initialization and leaves the bits unset. Apps must retain an
+interaction path that works without these extra buttons.
+
 ## The CIA, and the memory region it asks for
 
 `--cia` writes `dist/3ds/<output>.cia` next to the `.3dsx`, from the same ELF
