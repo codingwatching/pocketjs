@@ -86,6 +86,10 @@ import {
   View,
 } from "../framework/src/components.ts";
 import { getAuxiliarySurfaceRoots } from "../framework/src/display.ts";
+import { ClassicButton, ClassicSheet } from "../framework/src/classic.ts";
+import { __runGestures, resetGestures, pushTouchBlock } from "../framework/src/gesture.ts";
+import { __packTouch, __setTouches, __resetTouches } from "../framework/src/touch.ts";
+import { __advanceClock, resetClock } from "../framework/src/clock.ts";
 import {
   DeepZoom,
   type DeepZoomGesture,
@@ -93,6 +97,7 @@ import {
   type TileDoc,
 } from "../framework/src/deepzoom.ts";
 import { resetPack } from "../framework/src/pak.ts";
+import { ResourceImage, pending, ready, failed, type ResourceState, type TextureResource } from "../framework/src/resource.ts";
 import { encodeImageEntry, pack } from "../framework/compiler/pak.ts";
 import {
   BTN,
@@ -193,6 +198,88 @@ function childIds(node: NodeMirror): number[] {
 
 let host: MockHost;
 let root: NodeMirror;
+
+test("classic buttons provide press, slide-out, disabled and cancelled feedback", () => {
+  resetGestures(); __resetTouches(); resetClock();
+  registerStyles({ "text-xs font-bold": 1 });
+  let clicked = 0, hit = 0;
+  host.ops.hitTestBounds = () => hit;
+  const [disabled, setDisabled] = createSignal(false);
+  const dispose = render(() => ClassicButton({ label: "Save", style: { width: 80, height: 24 },
+    get disabled() { return disabled(); }, onPress() { clicked++; },
+  }) as unknown as NodeMirror, root);
+  setInputRoot(root);
+  const button = root.children[0]; hit = button.id;
+  const pump = (down: boolean) => { __advanceClock(); __setTouches(down ? [__packTouch(0, 10, 10)] : []); __runGestures(); };
+  const changes = () => host.of("setProp").filter(call => call[1] === button.id && call[2] === PROP.gradFrom);
+  host.clear(); pump(true); expect(changes()).toHaveLength(1); expect(clicked).toBe(0);
+  pump(false); expect(changes()).toHaveLength(2); expect(clicked).toBe(1);
+  pump(true); hit = 0;
+  __advanceClock(); __setTouches([__packTouch(0, 100, 10)]); __runGestures();
+  pump(false); expect(clicked).toBe(1); // release outside cancels
+  hit = button.id; pump(true); setDisabled(true); pump(false); expect(clicked).toBe(1);
+  setDisabled(false); pump(true); const unblock = pushTouchBlock(); pump(false); unblock(); expect(clicked).toBe(1);
+  pump(true); pump(false); expect(clicked).toBe(2);
+  dispose(); resetGestures(); __resetTouches();
+});
+
+test("classic sheets animate natively and retain modality through close and reopen", () => {
+  resetGestures(); resetClock(); registerStyles({ "text-xs font-bold": 1, "text-xs": 2, "text-sm font-bold": 3 });
+  const [open, setOpen] = createSignal(false);
+  const modal: boolean[] = [];
+  const dispose = render(() => ClassicSheet({ get open() { return open(); }, title: "Discard?", actions: [],
+    onCancel() {}, onModalChange(value) { modal.push(value); },
+  }) as unknown as NodeMirror, root);
+  const frame = root.children[0], body = frame.children[1];
+  host.clear(); setOpen(true);
+  expect(modal).toEqual([true]);
+  expect(host.of("animate").some(c => c[1] === body.id && c[2] === PROP.translateY && c[3] === 0)).toBe(true);
+  setOpen(false); for (let i = 0; i < 4; i++) __advanceClock();
+  expect(modal).toEqual([true]);
+  setOpen(true); for (let i = 0; i < 15; i++) __advanceClock();
+  expect(modal).toEqual([true]); // stale closing deadline cannot hide a reopened sheet
+  setOpen(false); for (let i = 0; i < 12; i++) __advanceClock();
+  expect(modal).toEqual([true, false]);
+  setOpen(true); dispose();
+  expect(modal.at(-1)).toBe(false);
+  resetGestures(); resetClock();
+});
+
+test("resource images retain their layout through fallback, retry and borrowed texture replacement", () => {
+  const [state, setState] = createSignal<ResourceState<TextureResource>>(pending());
+  let skeletons = 0, frees = 0;
+  host.ops.freeTexture = () => { frees++; };
+  const dispose = render(() => ResourceImage({
+    state, style: { width: 256, height: 16, overflow: 1 },
+    fallback: () => { skeletons++; return Text({ children: "Skeleton" }); },
+    errorFallback: () => Text({ children: "Retry" }),
+  }) as unknown as NodeMirror, root);
+  const frame = root.children[0];
+  expect(skeletons).toBe(1);
+  expect(host.of("setImage")).toHaveLength(0);
+  host.clear();
+  setState(pending());
+  expect(skeletons).toBe(1);
+  // Handle zero is valid. The component never uploads or frees borrowed images.
+  setState(ready({ handle: 0, width: 256, height: 16 })); runSweep();
+  const image = frame.children[0];
+  expect(host.of("setImage")).toEqual([["setImage", image.id, 0]]);
+  host.clear();
+  setState(ready({ handle: 7, width: 256, height: 16 }));
+  expect(frame.children[0]).toBe(image);
+  expect(host.of("setImage")).toEqual([["setImage", image.id, 7]]);
+  host.clear();
+  setState(ready({ handle: 7, width: 256, height: 16 }));
+  expect(host.of("setImage")).toHaveLength(0);
+  setState(failed("offline")); runSweep();
+  expect(host.of("setText").some(call => call[2] === "Retry")).toBe(true);
+  setState(pending()); runSweep();
+  expect(skeletons).toBe(2);
+  expect(root.children[0]).toBe(frame);
+  expect(host.of("setProp").filter(call => call[1] === frame.id)).toHaveLength(0);
+  expect(host.of("uploadTexture")).toHaveLength(0);
+  dispose(); runSweep(); expect(frees).toBe(0);
+});
 
 beforeEach(() => {
   host = makeMockHost();

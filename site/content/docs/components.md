@@ -465,6 +465,56 @@ Pick one of several branches — the JSX form of a `switch` statement:
 The first `Match` whose `when` is truthy renders; if none match, `fallback`
 renders.
 
+## Classic controls
+
+The Solid module `@pocketjs/framework/classic` shares a shaded bezel and color
+palette across buttons, keyboard faces, panels and selection indicators.
+
+```tsx
+import { ClassicButton, ClassicPanel, ClassicSheet } from "@pocketjs/framework/classic";
+
+<ClassicButton label="Save" tone="primary" surface="auxiliary"
+  style={{ posType: 1, insetL: 240, insetT: 4, width: 72, height: 24 }}
+  disabled={saving()} onPress={save} />
+```
+
+**A touch activates a button on release inside its bounds.** Sliding outside,
+gesture cancellation, a touch block or becoming disabled cancels the press.
+The shared depressed palette provides feedback before release. `selected`
+retains the blue state independently of a transient press; `tone` accepts
+`neutral`, `primary`, `danger` and `key`. `edge="left"` or `edge="right"`
+squares the joining edge of adjacent toolbar actions. Place them with one
+shared border pixel. Labels use the small bold font; layout remains the caller's.
+
+`ClassicFace` supplies the same appearance for controls with their own input
+model, such as a space key that also recognizes a long press. Bind its
+`pressed`, `selected` and `disabled` properties to that model. `classicPalette`
+returns matching gradient, border and label colors for other UI elements.
+
+`ClassicPanel` paints its header and body inside a complete rounded rim.
+**Rounded background painting does not imply rounded child clipping** on the
+small native hosts. Insets preserve its corners without requiring an image
+mask. Its `active` property uses the blue header palette, and `headerHeight`
+defaults to 27 logical pixels.
+
+`ClassicSheet` accepts `open`, `title`, `message`, up to four `actions`,
+`cancelLabel` and `onCancel`. Each action supplies a label, tone and callback.
+**The host animates the panel translation and backdrop opacity.** The component
+keeps its fixed action subtree mounted and blocks other touch gestures until
+the closing transition ends. `onModalChange` includes that closing interval so
+applications can also gate hardware buttons. Buttons keep a 4px gap and the final button sits 4px above the panel bottom.
+Reopening cancels the old closing
+deadline; unmounting cancels animations, the deadline and the touch block.
+
+```tsx
+<ClassicSheet open={confirmDiscard()} surface="auxiliary"
+  title="Discard unsaved changes?"
+  actions={[{ label: "Discard Changes", tone: "danger", onPress: discard }]}
+  cancelLabel="Keep Editing" onCancel={() => setConfirmDiscard(false)}
+  onModalChange={setInputBlocked} />
+```
+
+
 ## App-shell primitives
 
 `@pocketjs/framework/components` also exports a layer of higher-level primitives
