@@ -21,6 +21,7 @@ export function connectOffloadProvider(options: {
       worker.onmessage = (event: MessageEvent<OffloadReply>) => {
         if (worker !== owner) return;
         const reply = event.data;
+        if ((reply as OffloadReply & {ready?:boolean}).ready === true) return;
         if (!pending.delete(reply.id)) return session.disconnect();
         clearTimeout(deadlines.get(reply.id)); deadlines.delete(reply.id);
         try {
